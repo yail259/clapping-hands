@@ -84,7 +84,11 @@ same-origin nested-frame paths, and declared new-page transitions. An
 accelerator may target the workflow origin or one of at most five exact origins
 declared during compilation; this does not broaden top-level navigation. Both
 JSON request bodies and form/query parameters containing JSON-encoded GraphQL
-variables can be parameterized.
+variables can be parameterized. Repeated network traces can also infer opaque
+cursor pagination or positive numeric page/offset progression. Replay preserves
+an omitted first page parameter, validates every response against the combined
+demonstrated shape, applies the demonstrated terminal signal, rejects repeated
+cursors, and enforces page-count and aggregate-response-size limits.
 
 An accelerator is eligible only when its response contains non-input evidence
 visible in the demonstrated output. It is promoted after two distinct-input

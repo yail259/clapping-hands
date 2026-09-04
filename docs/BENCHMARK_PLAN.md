@@ -476,6 +476,8 @@ only winners.
 4. Add response codecs for JSON, anti-XSSI JSON, HTML fragments, form posts, and
    multipart requests.
 5. Add generic offset, page-number, cursor, and state-transition strategies.
+   Cursor and positive numeric page/offset inference are implemented and
+   covered by a real Discourse regression; state-transition strategies remain.
 6. Build the machine-readable corpus, runner, independent oracle/effect-proof
    interface, reset hooks, and Markdown table generator.
 7. Complete the controlled fixture matrix, including ambiguous commits and

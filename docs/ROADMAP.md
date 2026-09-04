@@ -4,7 +4,8 @@ Implementation snapshot: Milestone 0 is complete. The controlled-fixture parts
 of Milestones 1–3 are implemented (versioned product-owned plans, zero-model DOM
 and form replay, same-origin frames and new-page transitions, zero-argument
 tools, explicitly allowlisted API origins, form-encoded GraphQL variables,
-response-linked JSON promotion, drift degradation, and browser fallback). The
+response-linked JSON promotion, cursor and numeric page/offset pagination,
+drift degradation, and browser fallback). The
 representative-corpus and live evidence gates are still open;
 see [`BENCHMARK_CORPUS.md`](BENCHMARK_CORPUS.md).
 
@@ -41,7 +42,8 @@ subsequent deterministic run.
 ## Milestone 3 — network promotion
 
 - Capture request/response candidates during successful browser runs.
-- Detect inputs, pagination, and response fields.
+- Detect inputs, opaque cursors, numeric page/offset progression, terminal
+  signals, and response fields. State-transition pagination remains open.
 - Create a parameterized authenticated network plan.
 - Validate it against the browser-derived result.
 - Retain the DOM and semantic plans as fallbacks.

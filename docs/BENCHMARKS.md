@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 91 passing tests and the built MCP
+cross-site speed claim. The current suite has 93 passing tests and the built MCP
 server advertises ten management/Marketplace tools before any generated
 workflow tools are loaded.
 
@@ -81,6 +81,9 @@ New regression coverage includes:
 - same-origin iframe action/output discovery, declared new-page transitions,
   open Shadow DOM, and zero-argument DOM and JSON workflows;
 - nested input inference and replay for form-encoded GraphQL variables;
+- bounded multi-page JSON replay inferred from repeated traces: opaque cursors,
+  omitted-first numeric page/offset parameters, demonstrated terminal signals,
+  repeated-cursor rejection, and aggregate response-size limits;
 - rejection of input-bound telemetry/config requests unless response values are
   also evidenced in the rendered task output;
 - compilation of learned Stagehand actions into redacted selector/argument
@@ -477,6 +480,26 @@ fixture cleanup. The sanitized report is
 This is a guided regression on a pinned development deployment, not an
 untouched holdout or latency distribution. A configured, task-complete
 first-party Discourse API remains preferred.
+
+### Self-hosted Discourse generic pagination regression
+
+Compiler checkpoint
+[`8478ea1`](https://github.com/yail259/clapping-hands/commit/8478ea1)
+added generic numeric page/offset inference after the cursor strategy was frozen
+separately at `97ea445`. The pinned local Discourse application supplied two
+independent three-page `/latest.json` traces. Without any Discourse-specific
+compiler rule, the plan inferred an omitted first `page` parameter, continuation
+values `1` and `2`, a `+1` increment, and `topic_list.more_topics_url` as the
+terminal signal.
+
+The runner then deleted all 65 demonstrated synthetic topics and created 65
+replacement topics with entirely new IDs. Compiled replay made three fresh JSON
+requests, zero navigations, and zero model calls; it returned every replacement
+topic exactly once with no duplicate IDs and reported completion only after the
+terminal response. The measured replay was 342.67 ms, but `n=1` and no paired UI
+baseline make this a capability result, not a speed row. Cleanup independently
+verified zero pagination fixture topics remained. The sanitized report is
+[`bench/runs/2026-09-05/discourse-local-pagination-capability.json`](../bench/runs/2026-09-05/discourse-local-pagination-capability.json).
 
 ## Nextcloud instant-trial holdout — rerun deferred, 2026-09-04
 

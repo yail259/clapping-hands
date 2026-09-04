@@ -31,7 +31,10 @@ zero-argument and parameterized DOM interactions, same-origin frames and new
 tabs, select/scroll/double-click/drag actions, and same-origin HTML forms. It can learn authenticated JSON and
 form-encoded GraphQL request accelerators on the workflow origin or an exact
 additional origin declared by the operator when that response is evidenced in
-the rendered result. Experimental write workflows use a separate prepare/commit
+the rendered result. Multi-page JSON reads can infer opaque cursors or numeric
+page/offset increments from repeated traces, including an omitted first `page`
+parameter, and stop only on a demonstrated terminal signal within strict page
+and aggregate-size limits. Experimental write workflows use a separate prepare/commit
 lifecycle. Preparation validates and journals an expiring intent without
 navigating or touching the browser; after confirmation, the receipt enters its
 one-shot `committing` state before any navigation or UI action. This protects
@@ -242,6 +245,18 @@ renewed long-poll subscriptions. This is capability evidence, not a speed row;
 use Discourse's first-party API whenever it is configured and task-complete. The
 sanitized report is
 [`discourse-local-capability.json`](bench/runs/2026-09-04/discourse-local-capability.json).
+
+The generic JSON compiler also passed a real Discourse numbered-pagination
+regression at checkpoint
+[`8478ea1`](https://github.com/yail259/clapping-hands/commit/8478ea1): two
+three-page demonstrations inferred the initially omitted `page` parameter, its
+`+1` progression, and the application's `more_topics_url` terminal signal.
+After compilation, all 65 demonstrated synthetic topic IDs were replaced; a
+zero-navigation, zero-model replay fetched three pages in 342.67 ms and returned
+all 65 unseen replacement topics exactly once, with no duplicate IDs. Cleanup
+removed every pagination fixture topic. This is capability evidence on one
+pinned self-hosted application, not a general speed claim. The sanitized report
+is [`discourse-local-pagination-capability.json`](bench/runs/2026-09-05/discourse-local-pagination-capability.json).
 
 A pinned, loopback-only Nextcloud 33.0.8 regression then passed 4/4: it opened
 an unseen folder, uploaded and downloaded an allowlisted synthetic file, and

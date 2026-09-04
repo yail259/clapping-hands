@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "kind": "self-hosted-application-capability-regression",
+  "generatedAt": "2026-09-04T16:41:34.649Z",
+  "compilerCommit": "8478ea1c1acf63de5fbbc31c98438c6f2a821f60",
+  "application": "Self-hosted Discourse development fixture",
+  "origin": "http://127.0.0.1:18121",
+  "sources": {
+    "discourse": "4cefc8c471e4fb40aa1ce5710198bed2f1706474"
+  },
+  "containerImages": {
+    "application": "discourse/discourse_dev:20260812-0036",
+    "digest": "sha256:ed44e808f7430432712745da7245d6e256c0c417d4c874772ca5b1b3d311242"
+  },
+  "intervention": "scripted capture of six real application responses across two independent demonstrations",
+  "policyBasis": "Loopback-only official Discourse source and developer image with disposable synthetic topics",
+  "claimScope": "Generic numbered-pagination capability on one pinned self-hosted application; not a speed or untouched-holdout claim",
+  "workflow": {
+    "id": "discourse-latest-numbered-pagination",
+    "engine": "json-request-v1",
+    "compileMs": 343.61,
+    "pagination": {
+      "strategy": "increment",
+      "requestSource": "query",
+      "requestPath": [
+        "page",
+        0
+      ],
+      "firstContinuationValue": 1,
+      "increment": 1,
+      "termination": {
+        "type": "next-value",
+        "responsePath": [
+          "topic_list",
+          "more_topics_url"
+        ]
+      },
+      "maximumPages": 40
+    },
+    "unseenStateReplacedAllDemonstrationTopicIds": true,
+    "expectedSyntheticTopics": 65,
+    "expectedTopicsExactlyOnce": true,
+    "duplicateIds": 0,
+    "requests": 3,
+    "navigations": 0,
+    "complete": true,
+    "compiledDurationMs": 342.67,
+    "modelCalls": 0
+  }
+}
