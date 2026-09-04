@@ -76,6 +76,11 @@ Live tests answer whether the compiler survives production mess: hydration,
 analytics noise, experiments, auth expiry, dynamic ranking, and latency. They
 remain low-rate, read-only, and user-authorized.
 
+Human-scale traffic is a required load-control measure, but it is not itself
+authorization and does not cancel an explicit restriction on automated access.
+Benchmark purpose and low volume are recorded as risk controls, not as a reason
+to relabel a prohibited run as permitted.
+
 Before a site enters this corpus, record:
 
 - the exact user workflow and why the available official API is unsuitable;

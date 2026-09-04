@@ -26,6 +26,35 @@ Good initial workflows are:
 The first release is not a bulk scraper, an anti-bot bypass, a general RPA
 suite, or a system for autonomous purchases, messages, and destructive actions.
 
+## Responsible use
+
+Clapping Hands is experimental, local developer software for low-volume,
+user-directed automation of workflows the operator is authorized to perform.
+It does not grant permission to access a service, use an undocumented endpoint,
+copy third-party content, or automate an account. A workflow remaining within
+the traffic volume of one ordinary user reduces load, but does not by itself
+make automated access authorized.
+
+Operators are responsible for reviewing and complying with applicable service
+terms, machine-readable instructions, account permissions, privacy obligations,
+rate limits, and laws. Do not use Clapping Hands to:
+
+- bulk scrape, continuously crawl, build shadow datasets, or redistribute
+  third-party content;
+- evade CAPTCHAs, bot defenses, checkpoints, rate limits, or access controls;
+- export credentials, share authenticated sessions, or access another person's
+  account or non-public data without explicit authorization;
+- collect sensitive or personal information unrelated to the user's immediate
+  task;
+- send unsolicited messages, manipulate engagement, transact, or perform other
+  consequential actions without an explicit safety design and confirmation.
+
+Clapping Hands should stop visibly when a service refuses automation. The
+authors and contributors cannot determine whether a particular workflow is
+permitted by a third-party service. The software is provided under the MIT
+License without warranty; see [`LICENSE`](LICENSE) for the governing license
+and limitation-of-liability text.
+
 ## Core thesis
 
 1. Stagehand gets the workflow working.
