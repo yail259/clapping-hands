@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-04T17:33:44.098Z",
+  "compilerCommit": "3e3d2393df2015565fd5d5e350c17b510fb43d2f",
+  "corpus": {
+    "path": "bench/corpus-v2.json",
+    "freezeSha": "3e3d2393df2015565fd5d5e350c17b510fb43d2f"
+  },
+  "application": {
+    "id": "nopcommerce-local-v2",
+    "name": "Self-hosted nopCommerce 4.90.6",
+    "environment": "Loopback official container; darwin/arm64; Chrome 151.0.7922.138",
+    "policyReviewDate": "2026-09-05",
+    "trafficBudget": "Local installation; restore sample order status and remove generated notes"
+  },
+  "compileMs": 6.05,
+  "authSurvivedBrowserRestart": true,
+  "intervention": "guided demonstrations",
+  "credentialHandling": "Rotated a synthetic administrator password in memory and restored the prior password row; no credential or session value was persisted",
+  "demonstrationOracles": [
+    {
+      "orderId": 3,
+      "exactStatus": true,
+      "noteAdded": true,
+      "restored": true
+    },
+    {
+      "orderId": 4,
+      "exactStatus": true,
+      "noteAdded": true,
+      "restored": true
+    }
+  ],
+  "developmentHistory": [
+    {
+      "stage": "first demonstration",
+      "result": "failed-closed",
+      "reason": "The status-selection instruction was intercepted as a file-selection request because the page also contained an unrelated file input.",
+      "fix": "Require explicit file intent before using the guided file-selection bridge."
+    },
+    {
+      "stage": "first post-fix compiled replay",
+      "result": "failed-closed-after-effect",
+      "reason": "Short numeric status codes were inferred as output evidence from coincidental occurrences in the demonstration pages.",
+      "fix": "Do not infer pure numeric or primitive values as semantic output postconditions."
+    }
+  ],
+  "tasks": [
+    {
+      "id": "advance-synthetic-order-status-once",
+      "effect": "commit",
+      "status": "failed",
+      "unseen": true,
+      "authoringMode": "demonstrated",
+      "engine": "guided-file-selection-intent-guard",
+      "exactResult": false,
+      "falseSuccess": false,
+      "duplicateCommits": 0,
+      "cleanupVerified": true,
+      "requests": 0,
+      "navigations": 1,
+      "modelCalls": 0,
+      "failureClassification": "compiler-defect",
+      "oracleEvidence": {
+        "finding": "The frozen compiler intercepted 'Select order status 20' as a file-selection request because the order page contained an unrelated license-file input.",
+        "failedBeforeFirstDemonstrationEffect": true,
+        "frozenAttemptApplicationStateChanged": false
+      },
+      "resetEvidence": {
+        "frozenAttemptRequiredNoOrderReset": true,
+        "syntheticAdministratorPasswordRestored": true
+      }
+    }
+  ],
+  "regression": {
+    "compilerCommit": "80a903b50b810e50c75f545724a4129a0c74595d",
+    "status": "passed",
+    "claimEligible": false,
+    "reasonExcluded": "The frozen task exposed the compiler defect that motivated this intent-classification fix.",
+    "harnessCorrection": "The status selector is the inferred effect boundary at index 1; prepare remains browser-idle and commit replays the complete action sequence.",
+    "engine": "stagehand-action-v1",
+    "exactResult": true,
+    "preparedWithoutEffect": true,
+    "repeatedCommitRejected": true,
+    "duplicateCommits": 0,
+    "cleanupVerified": true,
+    "requests": 55,
+    "navigations": 1,
+    "modelCalls": 0,
+    "oracleEvidence": {
+      "orderId": 2,
+      "priorStatus": 10,
+      "requestedStatus": 30,
+      "databaseStatus": 30,
+      "freshAdminExact": true,
+      "notesAdded": 1,
+      "afterRejectedRepeatUnchanged": true
+    },
+    "resetEvidence": {
+      "restoredStatus": true,
+      "restoredOriginalNoteIds": true
+    }
+  },
+  "summary": {
+    "passed": 0,
+    "total": 1,
+    "successRate": 0,
+    "falseSuccesses": 0,
+    "duplicateCommits": 0
+  }
+}

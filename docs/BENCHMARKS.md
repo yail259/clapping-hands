@@ -85,6 +85,10 @@ evidence. The actual status transition completed, then replay failed closed
 because the result used the label `Complete` rather than the code. Pure numeric
 and primitive values now remain valid action bindings but cannot become inferred
 semantic postconditions merely through substring coincidence.
+After both fixes, the same workflow completed with zero model calls, preserved
+auth across a browser restart, rejected receipt reuse, and restored the exact
+database status and note IDs. It is explicitly marked `claimEligible: false` in
+[`bench/runs/2026-09-05/nopcommerce-v2-order-status.json`](../bench/runs/2026-09-05/nopcommerce-v2-order-status.json).
 
 The reproducible controlled protocol at compiler commit
 [`387ede5`](https://github.com/yail259/clapping-hands/commit/387ede5) ran 20
