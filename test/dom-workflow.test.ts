@@ -312,6 +312,30 @@ async function fixture(): Promise<{ server: Server; origin: string }> {
         <output id="result">Inventory ready</output></main>`);
       return;
     }
+    if (url.pathname === "/deferred-combobox") {
+      response.end(`<!doctype html><main><input id="query"><output id="result">Ready</output>
+        <script>
+          let committed = '';
+          document.querySelector('#query').addEventListener('input', event => {
+            setTimeout(() => { committed = event.target.value; }, 200);
+          });
+          document.querySelector('#query').addEventListener('keydown', event => {
+            if (event.key === 'Enter') document.querySelector('#result').textContent = 'Results for ' + committed;
+          });
+        </script></main>`);
+      return;
+    }
+    if (url.pathname === "/transient-output") {
+      response.end(`<!doctype html><main><input id="query"><button id="run">Run</button><output id="result">Ready</output>
+        <script>
+          document.querySelector('#run').addEventListener('click', () => {
+            const query = document.querySelector('#query').value;
+            document.querySelector('#result').textContent = 'Loading ' + query;
+            setTimeout(() => { document.querySelector('#result').textContent = 'Results for ' + query; }, 175);
+          });
+        </script></main>`);
+      return;
+    }
     response.end(`<!doctype html><main>
       <label>Search <input id="query"></label><button id="run">Run</button>
       <output id="result">Ready</output>
@@ -397,6 +421,75 @@ test("compiles semantic DOM actions into redacted zero-model Playwright replay",
     let stable = recordDomShadow(plan, { query: "lamp" }, true);
     stable = recordDomShadow(stable, { query: "desk" }, true);
     assert.equal(stable.status, "stable");
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("lets controlled UI state settle between compiled input and submit actions", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    const demonstration = (query: string): DomWorkflowDemonstration => ({
+      input: { query },
+      actions: [
+        { selector: "#query", description: `Fill ${query}`, method: "fill", arguments: [query] },
+        { selector: "#query", description: "Submit query", method: "press", arguments: ["Enter"] },
+      ],
+      output: {
+        selector: "#result",
+        tagName: "output",
+        text: `Results for ${query}`,
+        textHash: createHash("sha256").update(`Results for ${query}`).digest("hex"),
+        url: `${origin}/deferred-combobox`,
+      },
+      modelCalls: 1,
+    });
+    const plan = compileDomWorkflow("deferred_search", `${origin}/deferred-combobox`, [
+      demonstration("alpha"),
+      demonstration("beta"),
+    ]);
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const result = await replayDomWorkflow(page, plan, { query: "gamma" });
+    assert.equal(result.text, "Results for gamma");
+    assert.equal(result.modelCalls, 0);
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("waits through input-evidenced transient output before accepting the final result", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    const demonstration = (query: string): DomWorkflowDemonstration => ({
+      input: { query },
+      actions: [
+        { selector: "#query", description: `Fill ${query}`, method: "fill", arguments: [query] },
+        { selector: "#run", description: "Run search", method: "click", arguments: [] },
+      ],
+      output: {
+        selector: "#result",
+        tagName: "output",
+        text: `Results for ${query}`,
+        textHash: createHash("sha256").update(`Results for ${query}`).digest("hex"),
+        url: `${origin}/transient-output`,
+      },
+      modelCalls: 1,
+    });
+    const plan = compileDomWorkflow("stable_search", `${origin}/transient-output`, [
+      demonstration("alpha"),
+      demonstration("beta"),
+    ]);
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const result = await replayDomWorkflow(page, plan, { query: "gamma" });
+    assert.equal(result.text, "Results for gamma");
     await page.close();
   } finally {
     await browser?.close();

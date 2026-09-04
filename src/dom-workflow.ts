@@ -159,6 +159,7 @@ const MAX_ACTIONS = 30;
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
 const DEFAULT_OUTPUT_CHANGE_TIMEOUT_MS = 10_000;
+const DEFAULT_OUTPUT_STABILITY_MS = 250;
 const DEFAULT_ACTION_READINESS_TIMEOUT_MS = 30_000;
 const PLAN_STATUSES = new Set(["candidate", "provisional", "stable", "degraded"]);
 
@@ -958,8 +959,27 @@ export async function captureDomOutput(page: Page, selector: string, framePath: 
   };
 }
 
-async function settle(page: Page): Promise<void> {
+async function settle(page: Page, graceMs = 50): Promise<void> {
   await page.waitForLoadState("domcontentloaded", { timeout: 2_000 }).catch(() => {});
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await page.evaluate(() => new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }));
+      // Controlled widgets can commit input state on a short debounce after
+      // rendering (Odoo's search box is one example). A small event-loop grace
+      // period avoids submitting against stale component state without using
+      // network-idle, which is unsuitable for long-polling applications.
+      await delay(graceMs);
+      return;
+    } catch (error) {
+      const contextReplaced = /execution context was destroyed|most likely because of a navigation/i
+        .test(error instanceof Error ? error.message : String(error));
+      if (!contextReplaced || attempt === 1) throw error;
+      await page.waitForLoadState("domcontentloaded", { timeout: 2_000 }).catch(() => {});
+      await delay(50);
+    }
+  }
 }
 
 export async function navigateForCompiledDomWorkflow(page: Page, url: string): Promise<void> {
@@ -1024,9 +1044,21 @@ export async function waitForDomOutputChange(
   framePath: string[] = [],
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
+  let candidate: string | null = null;
+  let stableSince = 0;
   while (Date.now() < deadline) {
     const current = await readDomOutputTextIfPresent(page, selector, framePath);
-    if (current && current !== before) return;
+    if (current && current !== before) {
+      if (current !== candidate) {
+        candidate = current;
+        stableSince = Date.now();
+      } else if (Date.now() - stableSince >= DEFAULT_OUTPUT_STABILITY_MS) {
+        return;
+      }
+    } else {
+      candidate = null;
+      stableSince = 0;
+    }
     await delay(50);
   }
   throw new Error(`DOM output ${selector} did not change after the final action.`);
@@ -1587,6 +1619,10 @@ export async function replayDomWorkflow(
     activePage = await executeCompiledDomAction(activePage, action, {
       onDownload: (artifact) => downloads.push(artifact),
     });
+    if (index < plan.actions.length - 1) {
+      const method = normalizeMethod(action);
+      await settle(activePage, method === "fill" || method === "type" ? 250 : 50);
+    }
     if (index === plan.actions.length - 1 && !template.download && !alreadySatisfied) {
       await waitForDomOutputChange(
         activePage,
