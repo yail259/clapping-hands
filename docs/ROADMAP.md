@@ -5,7 +5,7 @@ of Milestones 1–3 are implemented (versioned product-owned plans, zero-model D
 and form replay, same-origin frames and new-page transitions, zero-argument
 tools, explicitly allowlisted API origins, form-encoded GraphQL variables,
 response-linked JSON promotion, cursor, numeric page/offset, response-next-URL,
-and total-pages-header pagination,
+total-pages-header, and RFC-Link-header pagination,
 drift degradation, and browser fallback). The
 representative-corpus and live evidence gates are still open;
 see [`BENCHMARK_CORPUS.md`](BENCHMARK_CORPUS.md).
@@ -44,8 +44,8 @@ subsequent deterministic run.
 
 - Capture request/response candidates during successful browser runs.
 - Detect inputs, opaque cursors, numeric page/offset progression, terminal
-  signals, response-driven next URLs, allowlisted total-page headers, and
-  response fields. RFC `Link` header traversal remains open.
+  signals, response-driven next URLs, allowlisted total-page and RFC `Link`
+  headers, and response fields.
 - Create a parameterized authenticated network plan.
 - Validate it against the browser-derived result.
 - Retain the DOM and semantic plans as fallbacks.

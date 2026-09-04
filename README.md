@@ -37,7 +37,8 @@ including an omitted first `page` parameter or initial cursor. Replay stops only
 on a demonstrated terminal signal within strict page and aggregate-size limits;
 next URLs must retain the exact endpoint, user inputs, stable query values, and
 demonstrated mutable-query shape. Numeric pagination can also terminate from a
-small allowlist of total-page response headers. Experimental write workflows use a separate prepare/commit
+small allowlist of total-page response headers, while response-driven traversal
+can read an RFC `Link` header under the same URL guards. Experimental write workflows use a separate prepare/commit
 lifecycle. Preparation validates and journals an expiring intent without
 navigating or touching the browser; after confirmation, the receipt enters its
 one-shot `committing` state before any navigation or UI action. This protects

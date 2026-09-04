@@ -479,7 +479,7 @@ only winners.
    Cursor, positive numeric page/offset, and response-next-URL inference are
    implemented; numbered pagination is covered by a real Discourse regression.
    Total-page response headers are implemented and covered by a WordPress REST
-   protocol control; RFC `Link` traversal remains.
+   protocol control; RFC `Link` traversal uses the same guarded next-URL path.
 6. Build the machine-readable corpus, runner, independent oracle/effect-proof
    interface, reset hooks, and Markdown table generator.
 7. Complete the controlled fixture matrix, including ambiguous commits and

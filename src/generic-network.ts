@@ -51,7 +51,8 @@ export type GenericJsonPlan = {
       maximumPages: number;
     } | {
       strategy: "next-url";
-      responseNextUrlPath: Path;
+      responseNextUrlPath?: Path;
+      responseLinkHeader?: "link";
       mutableQueryPaths: Path[];
       maximumPages: number;
     };
@@ -360,9 +361,17 @@ export function assertGenericJsonPlanSafety(plan: GenericJsonPlan): void {
       throw new Error("Compiled network pagination strategy is invalid.");
     }
     if (pagination.strategy === "next-url") {
-      assertTemplatePath(pagination.responseNextUrlPath, "Compiled pagination next-URL path");
-      if (!NEXT_VALUE_FIELD_NAME.test(lastNamedSegment(pagination.responseNextUrlPath))) {
-        throw new Error("Compiled pagination next-URL path is not pagination-shaped.");
+      const sourceCount = Number(pagination.responseNextUrlPath !== undefined) +
+        Number(pagination.responseLinkHeader !== undefined);
+      if (sourceCount !== 1) throw new Error("Compiled pagination must declare exactly one next-URL source.");
+      if (pagination.responseNextUrlPath !== undefined) {
+        assertTemplatePath(pagination.responseNextUrlPath, "Compiled pagination next-URL path");
+        if (!NEXT_VALUE_FIELD_NAME.test(lastNamedSegment(pagination.responseNextUrlPath))) {
+          throw new Error("Compiled pagination next-URL path is not pagination-shaped.");
+        }
+      }
+      if (pagination.responseLinkHeader !== undefined && pagination.responseLinkHeader !== "link") {
+        throw new Error("Compiled pagination Link header is invalid.");
       }
       if (!Array.isArray(pagination.mutableQueryPaths) || pagination.mutableQueryPaths.length < 1 ||
         pagination.mutableQueryPaths.length > 50) {
@@ -811,18 +820,7 @@ function canonicalUrl(value: string, base?: string): string | null {
   }
 }
 
-function inferNextUrlPagination(
-  plan: GenericJsonPlan,
-  traces: GenericNetworkTrace[],
-  demonstrations: GenericNetworkDemonstration[],
-): NextUrlPaginationInference | null {
-  if (plan.request.method !== "GET" || plan.request.bodyCodec !== "none" ||
-    Object.values(plan.request.bindings).flat().some((binding) => binding.source !== "query")) return null;
-  const sequences = traces.map((trace, index) => paginationSequence(trace, demonstrations[index]!.exchange));
-  if (sequences.some((sequence) => sequence.length < 2) ||
-    sequences.some((sequence, index) => !sequencePreservesInputs(plan, sequence, traces[index]!.input))) {
-    return null;
-  }
+function inferMutableQueryPaths(plan: GenericJsonPlan, sequences: ParsedPaginationExchange[][]): Path[] | null {
   const mutablePathsBySequence = sequences.map((sequence) => {
     const paths = new Map<string, Path>();
     for (const page of sequence) {
@@ -841,7 +839,23 @@ function inferNextUrlPagination(
     .filter((binding) => binding.source === "query")
     .map((binding) => JSON.stringify(binding.path)));
   if (mutableKeys.some((key) => boundQueryPaths.has(key))) return null;
-  const mutableQueryPaths = mutablePathsBySequence[0]!.map((entry) => entry.path);
+  return mutablePathsBySequence[0]!.map((entry) => entry.path);
+}
+
+function inferNextUrlPagination(
+  plan: GenericJsonPlan,
+  traces: GenericNetworkTrace[],
+  demonstrations: GenericNetworkDemonstration[],
+): NextUrlPaginationInference | null {
+  if (plan.request.method !== "GET" || plan.request.bodyCodec !== "none" ||
+    Object.values(plan.request.bindings).flat().some((binding) => binding.source !== "query")) return null;
+  const sequences = traces.map((trace, index) => paginationSequence(trace, demonstrations[index]!.exchange));
+  if (sequences.some((sequence) => sequence.length < 2) ||
+    sequences.some((sequence, index) => !sequencePreservesInputs(plan, sequence, traces[index]!.input))) {
+    return null;
+  }
+  const mutableQueryPaths = inferMutableQueryPaths(plan, sequences);
+  if (!mutableQueryPaths) return null;
   const nextUrlPath = leafEntries(sequences[0]![0]!.response)
     .filter((entry) => typeof entry.value === "string" && entry.value.length > 0 &&
       NEXT_VALUE_FIELD_NAME.test(lastNamedSegment(entry.path)))
@@ -863,6 +877,58 @@ function inferNextUrlPagination(
     pagination: {
       strategy: "next-url",
       responseNextUrlPath: nextUrlPath,
+      mutableQueryPaths,
+      maximumPages: 40,
+    },
+    responseShape: inferJsonShape(responses),
+    demonstratedPages: responses.length,
+  };
+}
+
+function nextUrlFromLinkHeader(header: string | undefined): string | null {
+  if (!header) return null;
+  const matches: string[] = [];
+  for (const entry of header.split(/,(?=\s*<)/)) {
+    const target = entry.match(/^\s*<([^<>]+)>/);
+    if (!target) continue;
+    const relation = entry.match(/;\s*rel\s*=\s*(?:"([^"]+)"|([^;,\s]+))/i);
+    const relations = (relation?.[1] ?? relation?.[2] ?? "").toLowerCase().split(/\s+/);
+    if (relations.includes("next")) matches.push(target[1]!);
+  }
+  if (matches.length > 1) throw new Error("Pagination Link header declared multiple next URLs.");
+  return matches[0] ?? null;
+}
+
+function inferLinkHeaderPagination(
+  plan: GenericJsonPlan,
+  traces: GenericNetworkTrace[],
+  demonstrations: GenericNetworkDemonstration[],
+): NextUrlPaginationInference | null {
+  if (plan.request.method !== "GET" || plan.request.bodyCodec !== "none" ||
+    Object.values(plan.request.bindings).flat().some((binding) => binding.source !== "query")) return null;
+  const sequences = traces.map((trace, index) => paginationSequence(trace, demonstrations[index]!.exchange));
+  if (sequences.some((sequence) => sequence.length < 2) ||
+    sequences.some((sequence, index) => !sequencePreservesInputs(plan, sequence, traces[index]!.input))) {
+    return null;
+  }
+  const mutableQueryPaths = inferMutableQueryPaths(plan, sequences);
+  if (!mutableQueryPaths) return null;
+  const matches = sequences.every((sequence) => {
+    const transitionsMatch = sequence.slice(0, -1).every((page, index) => {
+      const value = nextUrlFromLinkHeader(page.responseHeaders.link);
+      if (!value) return false;
+      const expected = canonicalUrl(value, page.request.url.href);
+      const actual = canonicalUrl(sequence[index + 1]!.request.url.href);
+      return expected !== null && expected === actual;
+    });
+    return transitionsMatch && nextUrlFromLinkHeader(sequence.at(-1)!.responseHeaders.link) === null;
+  });
+  if (!matches) return null;
+  const responses = sequences.flatMap((sequence) => sequence.map((page) => page.response));
+  return {
+    pagination: {
+      strategy: "next-url",
+      responseLinkHeader: "link",
       mutableQueryPaths,
       maximumPages: 40,
     },
@@ -939,7 +1005,10 @@ export function compileGenericJsonFromTraces(
         const nextUrlPagination = cursorPagination || incrementPagination
           ? null
           : inferNextUrlPagination(plan, traces, demonstrations);
-        const pagination = cursorPagination ?? incrementPagination ?? nextUrlPagination;
+        const linkHeaderPagination = cursorPagination || incrementPagination || nextUrlPagination
+          ? null
+          : inferLinkHeaderPagination(plan, traces, demonstrations);
+        const pagination = cursorPagination ?? incrementPagination ?? nextUrlPagination ?? linkHeaderPagination;
         if (pagination) {
           plan.request.pagination = pagination.pagination;
           plan.response.shape = pagination.responseShape;
@@ -1219,7 +1288,9 @@ export async function replayGenericJsonPlan(
     if (!pagination) break;
 
     if (pagination.strategy === "next-url") {
-      const nextUrl = valueAt(parsed, pagination.responseNextUrlPath);
+      const nextUrl = pagination.responseNextUrlPath !== undefined
+        ? valueAt(parsed, pagination.responseNextUrlPath)
+        : nextUrlFromLinkHeader(response.headers().link);
       if (terminalNextValue(nextUrl)) {
         return {
           data: pages,

@@ -147,6 +147,31 @@ async function apiFixture(): Promise<{ server: Server; origin: string }> {
       }));
       return;
     }
+    if (url.pathname === "/api/header-link") {
+      const query = url.searchParams.get("q") ?? "";
+      const state = url.searchParams.get("state") ?? "";
+      const next = query === "link-cross"
+        ? "https://example.com/api/header-link?q=link-cross&limit=5&state=opaque-a"
+        : state === ""
+          ? `/api/header-link?q=${query}&limit=5&state=opaque-a`
+          : state === "opaque-a"
+            ? `/api/header-link?state=opaque-z&limit=5&q=${query}`
+            : null;
+      if (query === "multiple-link") {
+        response.setHeader("link", [
+          `</api/header-link?q=${query}&limit=5&state=opaque-a>; rel="next"`,
+          `</api/header-link?q=${query}&limit=5&state=opaque-z>; rel="next"`,
+        ].join(", "));
+      } else if (next) {
+        response.setHeader("link", `<${next}>; rel="next", </api/header-link?q=${query}&limit=5>; rel="first"`);
+      } else {
+        response.setHeader("link", `</api/header-link?q=${query}&limit=5&state=opaque-a>; rel="prev"`);
+      }
+      response.end(JSON.stringify({
+        items: [{ id: `${query}-${state || "initial"}`, title: `${query} ${state || "initial"}` }],
+      }));
+      return;
+    }
     if (url.pathname === "/api/graphql-paged" && request.method === "POST") {
       const chunks: Buffer[] = [];
       for await (const chunk of request) chunks.push(Buffer.from(chunk));
@@ -365,6 +390,38 @@ function headerPageTrace(origin: string, query: string) {
       { items: [{ id: `${query}-${page}`, title: `${query} page ${page}` }] },
       { responseHeaders: { "X-Total-Pages": "3", "set-cookie": "must-not-be-captured" } },
     ).exchange),
+  };
+}
+
+function linkHeaderTrace(origin: string, query: string) {
+  const link = (next: string | null, previous: string | null = null) => ({
+    link: [
+      ...(next ? [`<${next}>; rel="next"`] : []),
+      ...(previous ? [`<${previous}>; rel="prev"`] : []),
+    ].join(", "),
+  });
+  return {
+    input: { query },
+    exchanges: [
+      exchange(
+        `${origin}/api/header-link?q=${query}&limit=5`,
+        { query },
+        { items: [{ id: `${query}-initial`, title: `${query} initial` }] },
+        { responseHeaders: link(`/api/header-link?q=${query}&limit=5&state=opaque-a`) },
+      ).exchange,
+      exchange(
+        `${origin}/api/header-link?q=${query}&limit=5&state=opaque-a`,
+        { query },
+        { items: [{ id: `${query}-opaque-a`, title: `${query} opaque-a` }] },
+        { responseHeaders: link(`/api/header-link?state=opaque-z&limit=5&q=${query}`) },
+      ).exchange,
+      exchange(
+        `${origin}/api/header-link?state=opaque-z&limit=5&q=${query}`,
+        { query },
+        { items: [{ id: `${query}-opaque-z`, title: `${query} opaque-z` }] },
+        { responseHeaders: link(null, `/api/header-link?q=${query}&limit=5&state=opaque-a`) },
+      ).exchange,
+    ],
   };
 }
 
@@ -677,6 +734,41 @@ test("infers total-page response headers and rejects header drift", async () => 
     await assert.rejects(
       () => replayGenericJsonPlan(context!, plan, { query: "header-over-limit" }),
       /invalid total-pages header/,
+    );
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("infers RFC Link-header pagination with the same endpoint guards", async () => {
+  const { server, origin } = await apiFixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-link-header-"));
+  let context: BrowserContext | null = null;
+  try {
+    const plan = compileGenericJsonFromTraces("link_header_search", [
+      linkHeaderTrace(origin, "sofa"),
+      linkHeaderTrace(origin, "chair"),
+    ]).plan;
+    assert.deepEqual(plan.request.pagination, {
+      strategy: "next-url",
+      responseLinkHeader: "link",
+      mutableQueryPaths: [["state", 0]],
+      maximumPages: 40,
+    });
+
+    context = await chromium.launchPersistentContext(directory, { executablePath: CHROME, headless: true });
+    const replay = await replayGenericJsonPlan(context, plan, { query: "lamp" });
+    assert.equal(replay.requests, 3);
+    assert.equal((replay.data as Array<{ items: Array<{ id: string }> }>)[2]!.items[0]!.id, "lamp-opaque-z");
+    await assert.rejects(
+      () => replayGenericJsonPlan(context!, plan, { query: "link-cross" }),
+      /outside its validated endpoint/,
+    );
+    await assert.rejects(
+      () => replayGenericJsonPlan(context!, plan, { query: "multiple-link" }),
+      /multiple next URLs/,
     );
   } finally {
     await context?.close();

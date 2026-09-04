@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 97 passing tests and the built MCP
+cross-site speed claim. The current suite has 98 passing tests and the built MCP
 server advertises ten management/Marketplace tools before any generated
 workflow tools are loaded.
 
@@ -84,7 +84,7 @@ New regression coverage includes:
 - bounded multi-page JSON replay inferred from repeated traces: opaque cursors,
   omitted-first query or nested-GraphQL cursors, numeric page/offset parameters,
   response-provided next URLs, boolean/next-value/short-page terminal signals,
-  allowlisted total-pages response headers, repeated-cursor/URL rejection,
+  allowlisted total-pages and RFC `Link` response headers, repeated-cursor/URL rejection,
   exact endpoint/query-shape validation, and aggregate response-size limits;
 - rejection of input-bound telemetry/config requests unless response values are
   also evidenced in the rendered task output;
