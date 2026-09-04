@@ -63,12 +63,14 @@ async function fixture(): Promise<{
     }
     if (url.pathname === "/persistent-search") {
       const query = url.searchParams.get("query") ?? "";
-      response.end(page(`<h2>Catalogue</h2><form id="repeat-search" action="/persistent-search" method="get">
+      response.end(page(`<h2>Catalogue</h2><form id="repeat-search" action="" method="get">
         <input name="query"><button type="submit">Search</button>
+        <label><input type="checkbox" name="row[]" value="row-${query || "initial"}"> Select result row</label>
         <section id="results">${query ? `Results for ${query}` : "Search the catalogue"}</section>
       </form><script>document.querySelector('#repeat-search').addEventListener('submit', event => {
         event.preventDefault(); const value = new FormData(event.currentTarget).get('query');
         history.pushState({}, '', '/persistent-search?query=' + encodeURIComponent(value));
+        document.querySelector('[name="row[]"]').value = 'row-' + value;
         document.querySelector('#results').textContent = 'Results for ' + value;
       });</script>`));
       return;
@@ -186,6 +188,16 @@ test("effectful submit forms are excluded from the read-only form compiler", () 
     <label>Query <input name="q"></label><button type="submit">Apply filters</button>
   </form></main>`;
   assert.equal(inspectFormCandidates(readOnlyPost, "https://example.test/catalog").length, 1);
+
+  const ambiguousPost = `<!doctype html><main><form method="post" action="/admin/preferences">
+    <label>Rows <input name="rows"></label><button type="submit">Apply</button>
+  </form></main>`;
+  assert.deepEqual(inspectFormCandidates(ambiguousPost, "https://example.test/admin"), []);
+
+  const mutatingGet = `<!doctype html><main><form method="get" action="/admin/items">
+    <label>Name <input name="name"></label><button type="submit">Update</button>
+  </form></main>`;
+  assert.deepEqual(inspectFormCandidates(mutatingGet, "https://example.test/admin"), []);
 });
 
 test("discovers a generic form among unrelated forms and honors document base URLs", () => {
@@ -323,6 +335,8 @@ test("compiles a persistent same-document GET search form into direct requests",
     assert.match(first.result.mainText, /Results for sofa/);
     assert.equal(first.result.heading, "Catalogue");
     const plan = compileFormWorkflow("persistent_search", `${origin}/persistent-search`, [first, second]);
+    assert.equal(plan.steps[0]?.controls.some((control) => control.name === "row[]"), false);
+    assert.doesNotMatch(JSON.stringify(plan), /row-(?:initial|sofa|chair)/);
     const replay = await replayFormWorkflow(context, plan, { "repeat-search": { query: "lamp" } });
     assert.match(replay.mainText, /Results for lamp/);
     assert.equal(replay.requests, 2);

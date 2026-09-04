@@ -23,6 +23,7 @@
     "benchmark:saucedemo": "tsx scripts/benchmark-saucedemo.ts",
     "benchmark:the-internet": "tsx scripts/benchmark-the-internet.ts",
     "benchmark:wordpress-playground": "tsx scripts/benchmark-wordpress-playground.ts",
+    "benchmark:wordpress:performance": "tsx scripts/benchmark-wordpress-performance.ts",
     "check": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx src/server.ts",
     "dogfood:marketplace": "tsx scripts/dogfood-marketplace.ts",

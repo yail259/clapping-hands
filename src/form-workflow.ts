@@ -75,7 +75,8 @@ export type FormWorkflowDemonstration = {
   inputHash: string;
 };
 
-const EFFECTFUL_FORM_LANGUAGE = /^(?:publish|send|purchase|buy|checkout|place (?:an )?order|delete|post|save|create|approve|transfer|pay|book|reserve|subscribe|unsubscribe|follow|like|upload|add to (?:cart|basket|wishlist)|register|sign up|invite|submit (?:application|order|request|claim|registration|response|review|comment|message))(?:\b|$)/i;
+const EFFECTFUL_FORM_LANGUAGE = /^(?:publish|send|purchase|buy|checkout|place (?:an )?order|delete|post|save|create|update|edit|change|move|trash|archive|approve|transfer|pay|book|reserve|subscribe|unsubscribe|follow|like|upload|add to (?:cart|basket|wishlist)|register|sign up|invite|submit (?:application|order|request|claim|registration|response|review|comment|message))(?:\b|$)/i;
+const READ_ONLY_POST_SUBMIT_LANGUAGE = /^(?:go|continue|next|back|previous|search|find|filter|lookup|check|calculate|estimate|preview|view|show|get|apply\s+(?:filters?|search))(?:\b|$)/i;
 const EFFECTFUL_POST_ACTION_PATH = /(?:^|\/)(?:checkout|orders?|purchases?|payments?|applications?|registrations?|subscriptions?|bookings?|reservations?|messages?|comments?|invites?|uploads?)(?:\/|$)|(?:^|\/)(?:create|update|edit|delete|remove|publish|send|submit|approve|pay|subscribe|unsubscribe)(?:\/|$)/i;
 const PLAN_STATUSES = new Set(["candidate", "provisional", "stable", "degraded"]);
 
@@ -125,13 +126,18 @@ export function assertFormWorkflowPlanSafety(plan: FormWorkflowPlan): void {
     questionKeys.add(step.questionKey);
     assertStoredFormPath(step.pagePath, plan.origin, `Compiled form page path ${index + 1}`);
     assertStoredFormPath(step.actionPath, plan.origin, `Compiled form action path ${index + 1}`);
-    if (step.method === "POST" && EFFECTFUL_POST_ACTION_PATH.test(new URL(step.actionPath, plan.origin).pathname)) {
-      throw new Error("A read-only compiled form cannot submit to a mutation-shaped path.");
-    }
     if (!isRecord(step.submitter) || !Number.isSafeInteger(step.submitter.index) || step.submitter.index < 0 || step.submitter.index > 100 ||
       (step.submitter.name !== null && (typeof step.submitter.name !== "string" || step.submitter.name.length > 256)) ||
       (step.submitter.value !== null && (typeof step.submitter.value !== "string" || step.submitter.value.length > 2_000))) {
       throw new Error("Compiled form submitter is invalid.");
+    }
+    if (step.method === "POST" && EFFECTFUL_POST_ACTION_PATH.test(new URL(step.actionPath, plan.origin).pathname)) {
+      throw new Error("A read-only compiled form cannot submit to a mutation-shaped path.");
+    }
+    const submitterLanguage = step.submitter.value ?? "";
+    if (EFFECTFUL_FORM_LANGUAGE.test(submitterLanguage) ||
+      (step.method === "POST" && !READ_ONLY_POST_SUBMIT_LANGUAGE.test(submitterLanguage))) {
+      throw new Error("A read-only compiled form has a mutation-shaped or ambiguous submit control.");
     }
     if (!Array.isArray(step.controls) || step.controls.length > 500) throw new Error("Compiled form controls are invalid.");
     const controlNames = new Set<string>();
@@ -221,6 +227,35 @@ function slug(value: string): string {
     .slice(0, 64);
 }
 
+function formShapeSignature(
+  method: "GET" | "POST",
+  actionPath: string,
+  controls: FormControl[],
+  submitter: ObservedFormStep["submitter"],
+): string {
+  return hashText(JSON.stringify({
+    method,
+    actionPath,
+    controls: controls.map(({ name, kind, multiple, optionValues }) => ({ name, kind, multiple, optionValues })),
+    submitter,
+  }));
+}
+
+function projectStepToAnsweredControls(step: ObservedFormStep, answerNames: Iterable<string>): ObservedFormStep {
+  const includedNames = new Set(answerNames);
+  const controls = step.controls.filter((control) => control.kind === "hidden" || includedNames.has(control.name));
+  for (const name of includedNames) {
+    if (!controls.some((control) => control.name === name && control.kind !== "hidden")) {
+      throw new Error(`Answer ${name} is not an editable control in ${step.questionKey}.`);
+    }
+  }
+  return {
+    ...step,
+    controls,
+    formSignature: formShapeSignature(step.method, step.actionPath, controls, step.submitter),
+  };
+}
+
 export function inspectFormCandidates(html: string, currentUrl: string): ObservedFormStep[] {
   const current = new URL(currentUrl);
   const $ = load(html);
@@ -242,16 +277,17 @@ export function inspectFormCandidates(html: string, currentUrl: string): Observe
       return !candidate.is(":disabled") && !["hidden", "submit", "button", "reset", "image"].includes(type ?? "");
     });
     if (submitters.length === 0 || editable.length === 0) return;
-    const submitterLanguage = submitters.map((_index, submitter) => {
+    const submitterLanguages = submitters.map((_index, submitter) => {
       const candidate = $(submitter);
-      return candidate.attr("value") ?? candidate.attr("aria-label") ?? candidate.text();
-    }).get().join(" ");
-    if (EFFECTFUL_FORM_LANGUAGE.test(submitterLanguage)) return;
+      return normalizedText(candidate.attr("value") ?? candidate.attr("aria-label") ?? candidate.text());
+    }).get();
+    if (submitterLanguages.some((language) => EFFECTFUL_FORM_LANGUAGE.test(language))) return;
     if (form.find('input[type="file"]').length > 0) {
       throw new Error("File uploads require a separately gated compiler.");
     }
     const method = (form.attr("method") ?? "GET").toUpperCase();
     if (method !== "GET" && method !== "POST") throw new Error(`Unsupported form method ${method}.`);
+    if (method === "POST" && submitterLanguages.some((language) => !READ_ONLY_POST_SUBMIT_LANGUAGE.test(language))) return;
     const rawEncoding = (form.attr("enctype") ?? "application/x-www-form-urlencoded").toLowerCase().split(";")[0]!.trim();
     if (rawEncoding !== "application/x-www-form-urlencoded") {
       throw new Error(`Unsupported form encoding ${rawEncoding}.`);
@@ -295,13 +331,7 @@ export function inspectFormCandidates(html: string, currentUrl: string): Observe
       name: firstSubmitter.attr("name") ?? null,
       value: firstSubmitter.attr("value") ?? (firstSubmitter.is("button") ? normalizedText(firstSubmitter.text()) : null),
     };
-    const shape = {
-      method,
-      actionPath: normalizedPath(action),
-      controls: controls.map(({ name, kind, multiple, optionValues }) => ({ name, kind, multiple, optionValues })),
-      submitter,
-    };
-    const formSignature = hashText(JSON.stringify(shape));
+    const formSignature = formShapeSignature(method, normalizedPath(action), controls, submitter);
     const explicitKey = form.attr("data-question-key") ?? form.attr("id") ?? form.attr("name") ?? form.attr("aria-label");
     const actionKey = slug(action.pathname.split("/").filter(Boolean).at(-1) ?? "form");
     const questionKey = slug(explicitKey ?? "") || `${actionKey || "form"}-${formSignature.slice(0, 10)}`;
@@ -391,9 +421,13 @@ async function fillBrowserForm(page: Page, step: ObservedFormStep, answers: Form
 
 function assertObservedStep(expected: ObservedFormStep, actual: ObservedFormStep): void {
   const expectedControls = expected.controls.map(({ name, kind, multiple, optionValues }) => ({ name, kind, multiple, optionValues }));
-  const actualControls = actual.controls.map(({ name, kind, multiple, optionValues }) => ({ name, kind, multiple, optionValues }));
+  const expectedNames = new Set(expected.controls.map((control) => control.name));
+  const actualComparable = actual.controls.filter((control) => expectedNames.has(control.name));
+  const actualControls = actualComparable.map(({ name, kind, multiple, optionValues }) => ({ name, kind, multiple, optionValues }));
+  const actualSignature = formShapeSignature(actual.method, actual.actionPath, actualComparable, actual.submitter);
   if (
     expected.questionKey !== actual.questionKey ||
+    expected.formSignature !== actualSignature ||
     expected.method !== actual.method ||
     expected.actionPath !== actual.actionPath ||
     expected.encoding !== actual.encoding ||
@@ -450,8 +484,8 @@ export async function demonstrateFormWorkflow(
 
   while (steps.length < maximumSteps) {
     const html = await page.content();
-    const step = inspectFormPage(html, page.url(), { answerKeys });
-    if (!step) {
+    const observedStep = inspectFormPage(html, page.url(), { answerKeys });
+    if (!observedStep) {
       const extracted = extractMainResult(html, page.url());
       return {
         steps,
@@ -465,7 +499,16 @@ export async function demonstrateFormWorkflow(
         },
       };
     }
-    if (steps.some((candidate) => candidate.questionKey === step.questionKey && candidate.formSignature === step.formSignature)) {
+    const answer = answers[observedStep.questionKey];
+    if (!answer) throw new Error(`No guided answer was provided for question ${observedStep.questionKey}.`);
+    assertAnswerMatches(observedStep, answer);
+    const step = projectStepToAnsweredControls(observedStep, Object.keys(answer));
+    // A result page often retains the same search/filter form. An empty form
+    // action can resolve against the new query-bearing URL, and result-row
+    // controls can also change its full signature. The answer schema cannot
+    // address the same question key twice, so repetition is the terminal
+    // result boundary rather than another workflow step.
+    if (steps.some((candidate) => candidate.questionKey === step.questionKey)) {
       const extracted = extractMainResult(html, page.url());
       return {
         steps,
@@ -479,9 +522,7 @@ export async function demonstrateFormWorkflow(
         },
       };
     }
-    const answer = answers[step.questionKey];
-    if (!answer) throw new Error(`No guided answer was provided for question ${step.questionKey}.`);
-    await fillBrowserForm(page, step, answer);
+    await fillBrowserForm(page, observedStep, answer);
     const transition = await submitBrowserForm(page, step);
     step.transition = transition;
     steps.push(step);
