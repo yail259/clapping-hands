@@ -173,6 +173,16 @@ passed the same guided post-search workflow with an exact unseen result and zero
 compiled model calls. Because the holdout caused the fix, that pass is retained
 as regression evidence and excluded from the untouched-holdout success rate.
 
+The self-hosted osTicket holdout also failed closed during development and then
+passed 3/3 on compiler checkpoint
+[`e0e2f0e`](https://github.com/yail259/clapping-hands/commit/e0e2f0e):
+authenticated search compiled to two validated HTML requests, while public
+ticket creation and an authenticated internal note each committed exactly once
+with zero compiled model calls. The failures produced general fixes for native
+form submission, rich-editor synchronization, role-separated profiles, and
+input-bound same-origin start URLs. This is regression evidence, not an
+untouched holdout or speed result.
+
 Restart Codex after adding the server so these tools are discovered:
 
 - `clapping_hands_compile_dom`

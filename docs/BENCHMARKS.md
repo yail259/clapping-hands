@@ -193,7 +193,7 @@ opening WordPress Playground. The first guided post-search replay failed closed:
 the compiled selector was checked before Playground's asynchronous WASM-backed
 iframe had mounted. The runtime now waits for a selector to become uniquely
 available through its declared same-origin frame path; a controlled regression
-and all 70 tests pass.
+and the full regression suite pass.
 
 The corrected workflow then passed on checkpoint
 [`9009037`](https://github.com/yail259/clapping-hands/commit/9009037):
@@ -212,3 +212,36 @@ is excluded from the untouched-holdout success denominator. It is not a speed
 result. WordPress Playground also has first-party JavaScript and Blueprint APIs,
 so the row tests UI architecture rather than claiming UI compilation is the
 preferred integration for WordPress.
+
+## Self-hosted osTicket development holdout — 2026-09-04
+
+The isolated osTicket row used a loopback-only application and database with
+synthetic requesters, tickets, and notes. The official osTicket ticket API is a
+useful partial-API case: it supports ticket creation but does not expose the
+staff-side note/update workflow chosen here. Local fixture credentials were
+read from the environment and were not persisted in plans or results.
+
+After several failed-closed development attempts, compiler checkpoint
+[`e0e2f0e`](https://github.com/yail259/clapping-hands/commit/e0e2f0e)
+passed all three workflows:
+
+| Workflow | Mechanism | Effect path | Compiled model calls | Exact result | Verdict |
+| --- | --- | --- | ---: | --- | --- |
+| Search tickets | authenticated persistent GET form | two direct HTML requests | 0 | exact unseen fixture only | pass after fixes |
+| Create ticket | public dynamic form + rich editor | prepare/commit | 0 | prepare had no effect; one ticket created | pass after fixes |
+| Add internal note | authenticated rich editor at input-bound ticket URL | prepare/commit | 0 | prepare had no effect; one note created | pass after fixes |
+
+The holdout found general defects rather than receiving site-specific selector
+patches: covered submit buttons now use native `requestSubmit()`, demonstrations
+wait through asynchronous page initialization, a no-op type action is recovered
+atomically and checked, blur waits for the closest rich-editor source, public
+and staff identities use separate persistent profiles, and same-origin start
+paths can bind safely URL-encoded tool inputs. The runner also stopped assuming
+that old fixture rows remain on the first dashboard page.
+
+The sanitized report is
+[`bench/runs/2026-09-04/osticket-local-holdout.json`](../bench/runs/2026-09-04/osticket-local-holdout.json).
+It retains the failed-stage history and the one Docker Desktop interruption.
+Because the holdout directly drove compiler changes, the 3/3 corrected run is
+regression evidence and is excluded from the untouched-holdout denominator. It
+is one compiled run per task and is not a latency distribution.

@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "kind": "frozen-local-holdout-smoke",
+  "generatedAt": "2026-09-04T10:01:06.910Z",
+  "holdoutCompilerCommit": "31245cc2ab72cb3b4ec1830e20d96801badf9159",
+  "runnerBaseCommit": "e0e2f0e3d35103c008e2c3da1898a0c49603a815",
+  "application": "Self-hosted osTicket",
+  "origin": "http://127.0.0.1:18089",
+  "containerImages": {
+    "application": "sha256:2900dc6d032b13548e9f15194c298f464d5a0ee70441c0c592fcb7f87e009400",
+    "database": "sha256:611a2fcc5fa7c6ceb8644c6f74b25ede004ff6c3a6b38c8f8c23d3bbf6c26430"
+  },
+  "intervention": "guided",
+  "policyBasis": "Disposable loopback-only deployment with synthetic users, tickets, and notes",
+  "credentialHandling": "Read local fixture credentials from environment; did not persist them in plans or report them",
+  "claimScope": "Frozen-core capability holdout; n=1 compiled run per task, not a speed benchmark",
+  "claimEligibility": "Regression after holdout-discovered compiler fixes; excluded from the untouched-holdout success denominator",
+  "developmentHistory": [
+    {
+      "stage": "authenticated-search",
+      "result": "failed-closed",
+      "reason": "A learned DOM search neither emitted the expected PJAX request nor proved fresh results.",
+      "fix": "Compile the persistent same-document GET search form and validate its direct HTML response; use native requestSubmit for browser fallback."
+    },
+    {
+      "stage": "ticket-rich-editor",
+      "result": "failed-closed",
+      "reason": "The visible contenteditable accepted an action while its hidden form source remained empty, and a late requester lookup could reclaim focus.",
+      "fix": "Encode explicit blur, wait for source synchronization, wait for full demonstration readiness, and atomically recover only a type action that made no state change."
+    },
+    {
+      "stage": "role-authentication",
+      "result": "failed-closed",
+      "reason": "The harness reused a staff-authenticated browser identity on the public requester portal, which osTicket silently rejected.",
+      "fix": "Use separate persistent requester and staff profiles and revalidate the staff login shell before privileged workflows."
+    },
+    {
+      "stage": "internal-note-target",
+      "result": "failed-closed",
+      "reason": "Hard-coded old tickets were eventually paginated off a cached dashboard during repeated development runs.",
+      "fix": "Discover the tickets created by the current run and compile their input-bound same-origin ticket URLs instead of depending on list order or cached UI state."
+    }
+  ],
+  "infrastructureIncidents": [
+    "Docker Desktop stopped once during development; the exact existing containers were restarted without resetting their data."
+  ],
+  "rows": [
+    {
+      "task": "search-ticket",
+      "effect": "read",
+      "path": "authenticated-html-form-direct",
+      "exactResult": true,
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 59.86400000000003,
+      "requests": 2,
+      "navigations": 0
+    },
+    {
+      "task": "create-test-ticket",
+      "effect": "write",
+      "path": "prepare-commit",
+      "exactResult": true,
+      "preparedWithoutEffect": true,
+      "receiptStatus": "committed",
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 1017.9517910000004
+    },
+    {
+      "task": "add-internal-test-note",
+      "effect": "write",
+      "path": "authenticated-prepare-commit",
+      "exactResult": true,
+      "preparedWithoutEffect": true,
+      "receiptStatus": "committed",
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 982.130083
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "total": 3,
+    "falseSuccesses": 0,
+    "duplicateCommits": 0
+  }
+}
