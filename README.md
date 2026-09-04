@@ -211,6 +211,22 @@ exact `/c/support/50` path, and used zero model calls. No shared content was
 created. This is a corpus-v2 candidate capability result (`n=1`), not a speed
 or 80–90% coverage claim.
 
+The corresponding pinned, loopback-only Discourse regression passed 3/3 on
+compiler checkpoint
+[`9e3e7ae`](https://github.com/yail259/clapping-hands/commit/9e3e7ae): search
+an unseen topic, create one synthetic topic, and edit an unseen seeded topic.
+Both writes prepared with zero browser activity and no topic, draft, or content
+mutation; each commit produced the exact database state once, rejected a repeat,
+survived a clean browser restart, and was fully cleaned up. The rich composer
+exposed two general safety defects: fills can autosave before the visible publish
+button, and Ember can render an optimistic success before its finite POST/PATCH
+has finished. Prepare is now browser-idle, the complete replay is one-shot, and
+commit acknowledgement waits for action-caused mutation traffic while excluding
+renewed long-poll subscriptions. This is capability evidence, not a speed row;
+use Discourse's first-party API whenever it is configured and task-complete. The
+sanitized report is
+[`discourse-local-capability.json`](bench/runs/2026-09-04/discourse-local-capability.json).
+
 A pinned, loopback-only Nextcloud 33.0.8 regression then passed 2/2: it opened
 an unseen folder after a clean browser restart and uploaded one allowlisted
 synthetic file through prepare/commit. Prepare created no file, commit created

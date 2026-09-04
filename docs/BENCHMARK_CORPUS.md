@@ -104,6 +104,22 @@ sites that all exercise the same login-and-click loop:
 | Browser-mechanism control | repository fixture plus The Internet/SauceDemo | dialogs, windows, Shadow DOM, dynamic controls, downloads, SPA login/cart | deterministic fault injection and regression coverage; reported separately from production-app coverage |
 | API-first negative control | GitHub test repository, with nopCommerce/Nextcloud task checks | issue/listing operation already covered by official API | proves Clapping Hands declines unnecessary UI compilation and routes secrets through supported auth |
 
+Current execution ledger for those eight application rows:
+
+| Row | Evidence completed | Highest-value missing workflow |
+| --- | --- | --- |
+| osTicket | local search, public create, and private note: 3/3 regression; qualifying search distribution | a second staff-side state transition distinct from rich-text notes |
+| WordPress | Playground iframe search regression; qualifying local post-search distribution | an isolated plugin-specific UI-only write |
+| Moodle | local unseen course navigation and one exact grade write: 2/2 | a student-side synthetic activity submission |
+| Discourse | official-demo category read plus local search/create/edit: 3/3 local regression | a permission/role transition or allowlisted upload |
+| Nextcloud | local folder navigation and allowlisted upload: 2/2 | download artifact plus a distinct share/permission state |
+| nopCommerce | local product search and reversible cart write: 2/2; qualifying search distribution | an isolated admin edit, with API routing checked first |
+| GOV.UK decision tools | three guided production smokes retained | rate-limited revalidation on a fresh window and a distinct public-service operator |
+| Operator-owned Google Form | none yet | conditional multi-page submit with owner-side response oracle |
+
+This ledger is roadmap evidence, not an 80–90% denominator. Completed rows that
+caused compiler changes remain regression results rather than untouched wins.
+
 The v2 headline denominator should therefore be application-workflow pairs from
 the first eight rows. The two controls are mandatory gates but do not inflate
 the site-coverage percentage. Facebook Marketplace remains an important private
@@ -124,6 +140,16 @@ runtime with zero compiled model calls. Because that holdout directly caused a
 compiler change, its rerun is excluded from the untouched-holdout success
 denominator. WordPress Playground's own JavaScript and Blueprint APIs also make
 it an architecture-coverage row, not a “no API” product win.
+
+The self-hosted Discourse row later passed search, create, and edit 3/3, but it
+also found two compiler/runtime defects: reactive composer fills can autosave
+before the visible submit control, and optimistic UI output can precede the
+finite server mutation. The general fixes make prepare browser-idle, execute the
+whole confirmed replay once, and await action-caused mutation acknowledgement
+without waiting forever on a renewed `/poll` subscription. Because this row
+drove those corrections, it is regression evidence rather than untouched
+coverage. Discourse's first-party API remains preferred whenever configured and
+task-complete.
 
 ## Claim gates
 

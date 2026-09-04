@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 83 passing tests and the built MCP
+cross-site speed claim. The current suite has 88 passing tests and the built MCP
 server advertises ten management/Marketplace tools before any generated
 workflow tools are loaded.
 
@@ -96,6 +96,9 @@ New regression coverage includes:
 - atomic workflow versioning and stale-evidence rejection; and
 - prepared writes, one-time effect receipts, at-most-once commit, and an
   `uncertain` terminal state after any post-boundary ambiguity;
+- browser-idle prepare plus finite action-caused mutation acknowledgement, so
+  optimistic SPA output cannot report success while its write is still in
+  flight; recurrent POST long polls are separated from finite mutations;
 - allowlisted, size-bounded file selection with prepare-time content
   fingerprints, plus one-shot execution of the complete effect suffix; and
 - same-origin downloads quarantined into unique directories with filename,
@@ -301,7 +304,7 @@ reusable inputs. Read semantics now require an explicit conservative submitter
 allowlist, and form signatures/projected steps exclude unanswered result-row
 controls. Repeated result-page URLs with a query string are also recognized as
 terminal results when an empty form action resolves back to that URL. The full
-83-test suite covers these cases.
+88-test suite covers these cases.
 
 This supports only the pinned WordPress version and post-search workflow above;
 it is not a claim that all WordPress tasks—or websites generally—are 7× faster.
@@ -335,6 +338,42 @@ The sanitized report is
 This is the first untouched corpus-v2 candidate pass, but one task on one
 application is far below the release gate for an 80–90% representative-corpus
 claim.
+
+### Self-hosted Discourse rich-composer regression
+
+The same application family was exercised against official Discourse source at
+commit `4cefc8c` and the pinned `discourse/discourse_dev:20260812-0036` image on
+loopback. Compiler checkpoint
+[`9e3e7ae`](https://github.com/yail259/clapping-hands/commit/9e3e7ae)
+passed all three frozen unseen tasks after a clean browser restart:
+
+| Workflow | Mechanism | Effect path | Compiled model calls | Independent result | Verdict |
+| --- | --- | --- | ---: | --- | --- |
+| Search unseen topic | Ember SPA search | read DOM | 0 | exact query, title, and route | pass |
+| Create unseen topic | rich composer with hidden autosave | browser-idle prepare, then one-shot commit | 0 | no draft/topic at prepare; exactly one topic at commit | pass after runtime fixes |
+| Edit unseen seeded topic | input-bound route + rich composer | browser-idle prepare, then one-shot commit | 0 | original body at prepare; exact new body once | pass after runtime fixes |
+
+The run found two general defects. First, filling the composer emitted
+`POST /drafts.json` before the visible Create Topic action, so replaying a
+supposedly harmless prefix during prepare was unsafe. Prepare now performs no
+navigation or browser action; the receipt enters `committing` before the whole
+workflow begins. Second, the edit UI rendered the new body before PostgreSQL
+could observe it. Commit acknowledgement now waits for successful finite
+mutation requests caused by the compiled interaction. A renewed POST endpoint
+ending in `/poll` is treated as background only after a successful finite
+mutation from the final-action window, preventing Discourse's message bus from
+blocking forever without allowing a lone slow write to pass.
+
+The runner also exposed bounded SPA start-navigation races (`ERR_ABORTED`,
+`ERR_EMPTY_RESPONSE`, and an execution-context replacement). Only the declared
+initial navigation may retry; no compiled action or write is replayed. The
+PostgreSQL oracle found no mutation during either prepare, one exact mutation
+after each commit, no duplicate after rejected receipt reuse, and complete
+fixture cleanup. The sanitized report is
+[`bench/runs/2026-09-04/discourse-local-capability.json`](../bench/runs/2026-09-04/discourse-local-capability.json).
+This is a guided regression on a pinned development deployment, not an
+untouched holdout or latency distribution. A configured, task-complete
+first-party Discourse API remains preferred.
 
 ## Nextcloud instant-trial holdout — rerun deferred, 2026-09-04
 

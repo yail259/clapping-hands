@@ -289,14 +289,18 @@ try {
   const readPlan = compileDomWorkflow("discourse_search_topics", SEARCH_URL, readDemonstrations);
 
   const createDemonstrations: DomWorkflowDemonstration[] = [];
-  const createDemonstrationOracles: Array<{ title: string; count: number; raw: string | undefined }> = [];
-  for (const input of createInputs.slice(0, 2)) {
+  const createDemonstrationOracles: Array<{ ordinal: number; count: number; bodyMatched: boolean }> = [];
+  for (const [index, input] of createInputs.slice(0, 2).entries()) {
     removeTopic(input.title);
     clearDrafts();
     await waitForOriginStable();
     createDemonstrations.push(await demonstrateCreateTopic(page, input));
     const observed = topic(input.title);
-    createDemonstrationOracles.push({ title: input.title, count: observed.count, raw: observed.topics[0]?.raw });
+    createDemonstrationOracles.push({
+      ordinal: index + 1,
+      count: observed.count,
+      bodyMatched: observed.topics[0]?.raw === input.body,
+    });
     if (observed.count !== 1 || observed.topics[0]?.raw !== input.body) {
       throw new Error("A guided Discourse topic demonstration failed its database oracle.");
     }
@@ -318,7 +322,7 @@ try {
     return { ...fixtureTopic, slug: active.slug };
   });
   const editDemonstrations: DomWorkflowDemonstration[] = [];
-  const editDemonstrationOracles: Array<{ title: string; raw: string | undefined }> = [];
+  const editDemonstrationOracles: Array<{ ordinal: number; bodyMatched: boolean }> = [];
   for (const [index, fixtureTopic] of seededSnapshots.slice(0, 2).entries()) {
     resetTopic(fixtureTopic.title, fixtureTopic.raw);
     clearDrafts();
@@ -326,7 +330,7 @@ try {
     const input: EditTopicInput = { topicId: fixtureTopic.id, topicSlug: fixtureTopic.slug, body: editBodies[index]! };
     editDemonstrations.push(await demonstrateEditTopic(page, input));
     const observed = topic(fixtureTopic.title);
-    editDemonstrationOracles.push({ title: fixtureTopic.title, raw: observed.topics[0]?.raw });
+    editDemonstrationOracles.push({ ordinal: index + 1, bodyMatched: observed.topics[0]?.raw === input.body });
     if (observed.topics[0]?.raw !== input.body) {
       throw new Error("A guided Discourse edit demonstration failed its database oracle.");
     }
@@ -483,7 +487,7 @@ try {
     containerImages: { application: IMAGE, digest: IMAGE_DIGEST },
     intervention: "guided",
     policyBasis: "Loopback-only official Discourse source and developer image with one synthetic user and synthetic topics",
-    credentialHandling: "Read a rotated synthetic credential from the process environment; persisted no credential, cookie, or draft body in plans or reports",
+    credentialHandling: "Read a rotated synthetic credential from the process environment; persisted no credential, cookie, topic body, or draft body in plans or reports",
     claimScope: "Capability regression on one pinned self-hosted application; not a speed or untouched-holdout result",
     apiDisposition: "Prefer Discourse's first-party API when an operator has configured API credentials; this regression covers the authenticated UI fallback and rich-composer behavior",
     developmentHistory: [{

@@ -78,6 +78,10 @@ The controlled DOM compiler now supports a conservative subset of this ADR:
   receipt containing plan/input hashes, not raw inputs;
 - commit atomically moves the receipt to `committing` before any browser work,
   then executes the complete workflow through postcondition proof;
+- after the final action, commit waits for finite mutation requests to allowed
+  origins to finish before acknowledging optimistic SPA output; a renewed
+  `/poll` subscription is ignored only after a successful finite mutation from
+  that final-action window;
 - uploads accept only regular files of at most 25 MiB beneath an explicit local
   root, persist no path or contents, and require the prepared content hash to
   match at commit;
