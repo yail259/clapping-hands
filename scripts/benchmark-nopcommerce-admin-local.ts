@@ -23,7 +23,7 @@ const CHROME = process.env.CLAPPING_HANDS_CHROME_PATH ??
 const databaseContainer = process.env.CLAPPING_HANDS_NOPCOMMERCE_DB_CONTAINER ?? "clapping-hands-nop-db";
 const applicationContainer = process.env.CLAPPING_HANDS_NOPCOMMERCE_APP_CONTAINER ?? "clapping-hands-nop-web";
 const ADMIN_EMAIL = "benchmark-admin@example.invalid";
-const OUTPUT_SELECTOR = "#content";
+const OUTPUT_SELECTOR = ".content-wrapper";
 const APP_IMAGE_DIGEST = "sha256:d5234d39ca3649b41b106729e55122298206cecf88f509553d8a7633447e9591";
 const DB_IMAGE_DIGEST = "sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675";
 const NOPCOMMERCE_SOURCE_COMMIT = "e3d129ca4395556094fc64073659b9360142ba4f";
@@ -390,7 +390,7 @@ try {
       decision: "The installed frontend API exposes a token route but no backend/admin API provider is installed; editing catalogue products was not task-complete through the configured API surface",
     },
     setupCorrections: [
-      "The product-save success banner is rendered outside #content, so the harness observes the redirect and stable content region while PostgreSQL and the public storefront remain the success oracles.",
+      "nopCommerce admin pages use .content-wrapper rather than the storefront-style #content convention; the harness now observes the actual stable admin region while PostgreSQL and the public storefront remain the success oracles.",
     ],
     authSurvivedBrowserRestart,
     compileMs: Number(compileMs.toFixed(2)),
