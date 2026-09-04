@@ -242,10 +242,7 @@ async function demonstrateAdminEdit(page: Page, input: AdminEditInput): Promise<
       const selector = '[name="save"]';
       await page.locator(selector).click();
       await page.waitForURL((url) => url.pathname === "/Admin/Product/List", { timeout: 30_000 });
-      await page.locator(OUTPUT_SELECTOR).filter({ hasText: "The product has been updated successfully" }).waitFor({
-        state: "visible",
-        timeout: 15_000,
-      });
+      await page.locator(OUTPUT_SELECTOR).waitFor({ state: "visible", timeout: 15_000 });
       return guidedAction({ selector, description: "Save the synthetic product edit", method: "click" });
     },
   }, page, editStartUrl(input), input, [
@@ -392,6 +389,9 @@ try {
       gateExact: apiGateExact,
       decision: "The installed frontend API exposes a token route but no backend/admin API provider is installed; editing catalogue products was not task-complete through the configured API surface",
     },
+    setupCorrections: [
+      "The product-save success banner is rendered outside #content, so the harness observes the redirect and stable content region while PostgreSQL and the public storefront remain the success oracles.",
+    ],
     authSurvivedBrowserRestart,
     compileMs: Number(compileMs.toFixed(2)),
     effectBoundaryActionIndex: plan.effect.commitActionIndex,
