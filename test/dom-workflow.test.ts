@@ -382,6 +382,49 @@ test("effectful language cannot be understated as a read workflow", () => {
     "https://example.test",
     [postcodeDemo("SW1A 1AA"), postcodeDemo("M1 1AE")],
   ));
+
+  for (const [name, instruction, description] of [
+    ["submit_application", "Submit the application", "Submit application"],
+    ["invite_user", "Invite a user", "Invite user"],
+    ["update_profile", "Update my profile", "Save"],
+    ["cancel_booking", "Cancel the booking", "Confirm cancellation"],
+    ["make_offer", "Make an offer", "Send offer"],
+  ] as const) {
+    const mutationDemo = (value: string): DomWorkflowDemonstration => ({
+      input: { value },
+      actions: [
+        { selector: "#value", description: "Fill value", method: "fill", arguments: [value] },
+        { selector: "#submit", description, method: "click", arguments: [] },
+      ],
+      output: { ...output, text: `Done ${value}`, textHash: `hash-${value}` },
+      modelCalls: 1,
+      instructions: [`${instruction} ${value}`],
+    });
+    assert.throws(
+      () => compileDomWorkflow(name, "https://example.test", [mutationDemo("one"), mutationDemo("two")]),
+      /appears effectful/,
+    );
+  }
+
+  for (const [name, instruction, description] of [
+    ["apply_filters", "Apply filters", "Apply"],
+    ["remove_filter", "Remove the color filter", "Remove filter"],
+    ["change_sort", "Change sort order", "Sort"],
+  ] as const) {
+    const readDemo = (value: string): DomWorkflowDemonstration => ({
+      input: { value },
+      actions: [
+        { selector: "#value", description: "Fill value", method: "fill", arguments: [value] },
+        { selector: "#submit", description, method: "click", arguments: [] },
+      ],
+      output: { ...output, text: `Results ${value}`, textHash: `hash-${value}` },
+      modelCalls: 1,
+      instructions: [`${instruction} ${value}`],
+    });
+    assert.doesNotThrow(
+      () => compileDomWorkflow(name, "https://example.test", [readDemo("one"), readDemo("two")]),
+    );
+  }
 });
 
 test("fails closed when a final action leaves stale output in place", async () => {

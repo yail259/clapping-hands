@@ -75,7 +75,8 @@ export type FormWorkflowDemonstration = {
   inputHash: string;
 };
 
-const EFFECTFUL_FORM_LANGUAGE = /^(?:publish|send|purchase|buy|checkout|place (?:an )?order|delete|post|save|create|approve|transfer|pay|book|reserve|subscribe|unsubscribe|follow|like|upload|add to cart|register|sign up)(?:\b|$)/i;
+const EFFECTFUL_FORM_LANGUAGE = /^(?:publish|send|purchase|buy|checkout|place (?:an )?order|delete|post|save|create|approve|transfer|pay|book|reserve|subscribe|unsubscribe|follow|like|upload|add to (?:cart|basket|wishlist)|register|sign up|invite|submit (?:application|order|request|claim|registration|response|review|comment|message))(?:\b|$)/i;
+const EFFECTFUL_POST_ACTION_PATH = /(?:^|\/)(?:checkout|orders?|purchases?|payments?|applications?|registrations?|subscriptions?|bookings?|reservations?|messages?|comments?|invites?|uploads?)(?:\/|$)|(?:^|\/)(?:create|update|edit|delete|remove|publish|send|submit|approve|pay|subscribe|unsubscribe)(?:\/|$)/i;
 
 function assertSameOrigin(url: URL, origin: string, label: string): void {
   if (url.origin !== origin) throw new Error(`${label} left the allowed origin: ${url.origin}`);
@@ -182,6 +183,7 @@ export function inspectFormCandidates(html: string, currentUrl: string): Observe
     }
     const action = new URL(form.attr("action") || current.href, resolutionBase);
     assertSameOrigin(action, current.origin, "Form action");
+    if (method === "POST" && EFFECTFUL_POST_ACTION_PATH.test(action.pathname)) return;
 
     const grouped = new Map<string, FormControl>();
     form.find("input[name], select[name], textarea[name]").each((_index, controlElement) => {

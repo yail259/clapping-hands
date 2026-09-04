@@ -156,6 +156,16 @@ test("effectful submit forms are excluded from the read-only form compiler", () 
     <button type="submit">Send message</button>
   </form></main>`;
   assert.deepEqual(inspectFormCandidates(html, "https://example.test/contact"), []);
+
+  const genericSubmit = `<!doctype html><main><form method="post" action="/applications">
+    <label>Name <input name="name"></label><button type="submit">Submit</button>
+  </form></main>`;
+  assert.deepEqual(inspectFormCandidates(genericSubmit, "https://example.test/apply"), []);
+
+  const readOnlyPost = `<!doctype html><main><form method="post" action="/catalog/search">
+    <label>Query <input name="q"></label><button type="submit">Apply filters</button>
+  </form></main>`;
+  assert.equal(inspectFormCandidates(readOnlyPost, "https://example.test/catalog").length, 1);
 });
 
 test("discovers a generic form among unrelated forms and honors document base URLs", () => {
