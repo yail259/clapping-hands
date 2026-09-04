@@ -25,9 +25,16 @@ Run with newly generated local-only credentials:
 export CLAPPING_HANDS_MOODLE_TEACHER_PASSWORD="$(openssl rand -hex 24)"
 export CLAPPING_HANDS_MOODLE_STUDENT_PASSWORD="$(openssl rand -hex 24)"
 npm run benchmark:moodle:local -- --local
+npm run benchmark:moodle:performance -- --local
 unset CLAPPING_HANDS_MOODLE_TEACHER_PASSWORD
 unset CLAPPING_HANDS_MOODLE_STUDENT_PASSWORD
 ```
+
+The performance runner reuses the same three synthetic courses and student
+profile. It compiles the authenticated course-search form, proves the session
+survives a clean profile restart, then measures 20 interleaved browser/direct
+request pairs after three warmups. Every timing sample must still return the
+one exact requested course and exclude the other two fixture titles.
 
 The runner refuses non-loopback origins. It clears every synthetic grade and
 assignment response before and after the run and does not place credentials,

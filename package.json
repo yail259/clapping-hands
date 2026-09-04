@@ -21,6 +21,7 @@
     "benchmark:marketplace": "tsx scripts/benchmark-marketplace.ts",
     "benchmark:moodle": "tsx scripts/benchmark-moodle.ts",
     "benchmark:moodle:local": "tsx scripts/benchmark-moodle-local.ts",
+    "benchmark:moodle:performance": "tsx scripts/benchmark-moodle-performance.ts",
     "benchmark:nextcloud": "tsx scripts/benchmark-nextcloud.ts",
     "benchmark:nextcloud:local": "tsx scripts/benchmark-nextcloud-local.ts",
     "benchmark:nopcommerce:local": "tsx scripts/benchmark-nopcommerce-local.ts",
