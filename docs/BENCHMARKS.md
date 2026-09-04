@@ -605,7 +605,7 @@ The earlier 2/2 report remains as historical evidence. Fixture sources and
 setup notes are in
 [`bench/fixtures/moodle`](../bench/fixtures/moodle/README.md).
 
-## Self-hosted nopCommerce capability and performance — 2026-09-04
+## Self-hosted nopCommerce capability and performance — 2026-09-04/05
 
 nopCommerce 4.90.6 was installed from the vendor's official container on
 loopback with PostgreSQL 17, the vendor sample catalogue, and one synthetic
@@ -624,6 +624,7 @@ overlap without adding a nopCommerce-specific branch.
 | --- | --- | --- | ---: | --- | --- |
 | Search unseen product term | server-rendered GET form | direct fresh HTML requests | 0 | exact query URL and expected product | pass |
 | Add unseen product to cart | AJAX product action | prepare/commit | 0 | prepare empty; one database row at commit; repeat rejected | pass after compiler fix |
+| Update unseen product description | protected admin form | prepare/commit | 0 | prepare unchanged; PostgreSQL and storefront exact; repeat rejected | pass |
 
 The search distribution used three warmups and 20 interleaved browser/compiled
 pairs. Every measured result passed the exact oracle:
@@ -639,13 +640,37 @@ The cart database was empty after prepare, contained exactly product 17 with
 quantity one after commit, was unchanged after the rejected duplicate, and was
 empty after cleanup.
 
+The admin expansion used products 18 and 20 as varied demonstrations and
+product 17 as the unseen replay on compiler checkpoint
+[`e009794`](https://github.com/yail259/clapping-hands/commit/e009794). The plan
+compiled in 3.17 ms and the one observed compiled commit took 1,953.22 ms; that
+single observation is capability evidence, not a speed comparison. The
+persistent authenticated profile survived a clean browser restart. Prepare did
+not change the database, commit wrote the exact requested description, the
+public product page exposed the same value, receipt reuse was rejected, and the
+runner restored all three descriptions, original update timestamps, and the
+prior synthetic credential.
+
+Two preliminary attempts failed before compilation because the harness used a
+storefront-style `#content` selector on admin pages; nopCommerce actually uses
+`.content-wrapper`. A third attempt completed the unseen write but the outer
+gate rejected the run because a guessed `api-backend` spelling also returned
+400 through the frontend plugin's versioned token route. Plugin inventory is
+now the provider-presence oracle. Every failed attempt ran the same final
+cleanup and left no synthetic product value behind. These were benchmark-driver
+corrections, not compiler fixes.
+
 nopCommerce documents broad frontend buying APIs, but its official plugin is a
-separately licensed product that requires configuration. In this fresh fixture
-the Swagger route was absent and an empty token POST returned 400, so the API
-was not usable for the tested operator. A configured, task-complete API must be
-preferred. This result supports only these workflows on this pinned instance;
-it is not a general website claim. The sanitized report is
+separately licensed product that requires configuration. In this fixture the
+frontend plugin and token route were present, the Swagger route was absent, and
+no backend/admin plugin provider was installed. The selected protected product
+edit was therefore not task-complete through the configured API surface. A
+configured, task-complete API must be preferred. These results support only
+these workflows on this pinned instance; they are not a general website claim.
+The sanitized reports are
 [`bench/runs/2026-09-04/nopcommerce-local.json`](../bench/runs/2026-09-04/nopcommerce-local.json),
+and
+[`bench/runs/2026-09-05/nopcommerce-admin-local-capability.json`](../bench/runs/2026-09-05/nopcommerce-admin-local-capability.json),
 with setup notes in
 [`bench/fixtures/nopcommerce`](../bench/fixtures/nopcommerce/README.md).
 

@@ -279,16 +279,21 @@ following fill as the conservative effect boundary. This is capability
 regression evidence, not an untouched holdout or speed result. Expanded
 checkpoint [`271a2bd`](https://github.com/yail259/clapping-hands/commit/271a2bd).
 
-A pinned, loopback-only nopCommerce 4.90.6 run passed 2/2. Product search
-compiled from a server-rendered form, and an add-to-cart workflow used
-prepare/commit plus a PostgreSQL oracle: prepare left the cart empty, commit
-created exactly one row for the unseen product, the repeated receipt was
-rejected, and cleanup removed it. The run found and fixed a general input
-binding bug where a short numeric ID inside a longer slug could corrupt the URL
-template; longer demonstrated values are now bound first, while irreducible
-ambiguity still fails closed. nopCommerce's official Web API is separately
-licensed; Clapping Hands should use it whenever it is configured and
-task-complete.
+A pinned, loopback-only nopCommerce 4.90.6 regression now passes 3/3 across
+storefront and protected admin workflows. Product search compiled from a
+server-rendered form; add-to-cart committed one exact database row; and a new
+admin plan learned two varied product-description edits, survived a browser
+restart, then updated an unseen third product exactly once. The admin prepare
+phase changed nothing, PostgreSQL and the public product page agreed after
+commit, receipt reuse was rejected, and every product value, timestamp, and
+credential was restored. Compiled replay used zero model calls. The earlier
+cart run fixed a general short-ID/slug binding bug; the admin expansion required
+only benchmark-layout and API-gate corrections, not a compiler change. The
+installed frontend API was visible, but no backend/admin API provider was
+installed, so this specific edit was not task-complete through the configured
+API surface. The admin capability report is
+[`nopcommerce-admin-local-capability.json`](bench/runs/2026-09-05/nopcommerce-admin-local-capability.json);
+use a first-party API whenever it is configured and task-complete.
 
 The API-first negative control also passed: for public repository metadata on
 GitHub, the benchmark selected the documented REST endpoint and invoked the UI

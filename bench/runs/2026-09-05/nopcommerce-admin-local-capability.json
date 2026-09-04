@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-04T15:56:15.517Z",
+  "gitSha": "e0097942c60e1a66c398af2ed81030e512732c12",
+  "runClass": "self-hosted-application-capability",
+  "application": "Self-hosted nopCommerce 4.90.6 admin",
+  "origin": "http://127.0.0.1:18120",
+  "sourceCommit": "e3d129ca4395556094fc64073659b9360142ba4f",
+  "containerImages": {
+    "application": "sha256:d5234d39ca3649b41b106729e55122298206cecf88f509553d8a7633447e9591",
+    "database": "sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675"
+  },
+  "environment": {
+    "browserVersion": "151.0.7922.138",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "intervention": "guided",
+  "policyBasis": "Loopback-only official container, vendor sample catalogue, and one synthetic administrator",
+  "credentialHandling": "Generated and rotated a synthetic administrator password in memory, restored the prior hash and salt, and persisted no credential, token, plan, or page body",
+  "apiDisposition": {
+    "pluginInventory": {
+      "frontendInstalled": true,
+      "backendInstalled": false
+    },
+    "localSurface": [
+      {
+        "method": "GET",
+        "path": "/api/index.html",
+        "status": 404
+      },
+      {
+        "method": "POST",
+        "path": "/api-frontend/Authenticate/GetToken",
+        "status": 400
+      }
+    ],
+    "gateExact": true,
+    "decision": "The installed frontend API exposes a token route but no backend/admin API provider is installed; editing catalogue products was not task-complete through the configured API surface"
+  },
+  "setupCorrections": [
+    "nopCommerce admin pages use .content-wrapper rather than the storefront-style #content convention; the harness now observes the actual stable admin region while PostgreSQL and the public storefront remain the success oracles.",
+    "A guessed api-backend token path is not an absence oracle because the frontend plugin's versioned token route can answer that spelling; installed plugin inventory is the backend-provider gate."
+  ],
+  "authSurvivedBrowserRestart": true,
+  "compileMs": 3.17,
+  "effectBoundaryActionIndex": 0,
+  "fixtureCleanupVerified": true,
+  "demonstrationOracles": [
+    {
+      "productId": 18,
+      "databaseExact": true,
+      "storefrontExact": true,
+      "restored": true
+    },
+    {
+      "productId": 20,
+      "databaseExact": true,
+      "storefrontExact": true,
+      "restored": true
+    }
+  ],
+  "rows": [
+    {
+      "task": "update-unseen-product-short-description",
+      "effect": "write",
+      "engine": "stagehand-action-v1",
+      "exactResult": true,
+      "preparedWithoutEffect": true,
+      "repeatedCommitRejected": true,
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 1953.22,
+      "oracle": {
+        "productId": 17,
+        "databaseExact": true,
+        "storefrontExact": true,
+        "afterRejectedRepeatUnchanged": true
+      }
+    }
+  ],
+  "claimScope": "One unseen protected admin write on one pinned self-hosted application, compiled from two varied demonstrations",
+  "summary": {
+    "passed": 1,
+    "total": 1,
+    "falseSuccesses": 0,
+    "duplicateCommits": 0
+  }
+}

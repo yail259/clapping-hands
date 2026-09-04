@@ -113,7 +113,7 @@ Current execution ledger for those eight application rows:
 | Moodle | local unseen course navigation, exact teacher grade write, and exact student assignment submission across separate persistent roles: 3/3 | an allowlisted assignment upload or a branching quiz attempt, selected before demonstrations |
 | Discourse | official-demo category read plus local search/create/edit: 3/3 local regression | a permission/role transition or allowlisted upload |
 | Nextcloud | local folder, upload, download artifact, and public share: 4/4 | a user-targeted share or permission transition distinct from public links |
-| nopCommerce | local product search and reversible cart write: 2/2; qualifying search distribution | an isolated admin edit, with API routing checked first |
+| nopCommerce | local product search, reversible cart write, and isolated admin product edit: 3/3; qualifying search distribution; frontend API present but backend/admin provider absent for the edit | a product variant or inventory transition distinct from plain text and cart state |
 | GOV.UK decision tools | three guided production smokes retained | rate-limited revalidation on a fresh window; the ATO simulator is frozen as the distinct-operator candidate, but its first attempt failed in bootstrap before compilation |
 | Operator-owned Google Form | none yet | conditional multi-page submit with owner-side response oracle |
 
@@ -202,6 +202,17 @@ present exactly once with server status `submitted` after commit, unchanged
 after rejected receipt reuse, and absent again after cleanup. This remains
 regression evidence because the run corrected fixture and harness assumptions,
 although it required no compiler change.
+
+The nopCommerce row subsequently expanded from 2/2 to 3/3 with the previously
+declared isolated admin edit. Two varied product-description changes compiled
+into an input-bound write plan; after a clean persistent-profile restart, the
+unseen third product was unchanged at prepare, changed exactly once at commit,
+visible through both PostgreSQL and the public storefront, unchanged after
+rejected receipt reuse, and fully restored with its prior update timestamp. The
+fixture's frontend API plugin was installed and its token route existed, but no
+backend/admin provider was installed, so the chosen edit remained a legitimate
+UI fallback. Preliminary attempts corrected only harness assumptions about the
+admin content container and API-presence probe; no compiler change was needed.
 
 ## Claim gates
 
