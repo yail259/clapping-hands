@@ -207,6 +207,17 @@ exact `/c/support/50` path, and used zero model calls. No shared content was
 created. This is a corpus-v2 candidate capability result (`n=1`), not a speed
 or 80–90% coverage claim.
 
+A pinned, loopback-only Nextcloud 33.0.8 regression then passed 2/2: it opened
+an unseen folder after a clean browser restart and uploaded one allowlisted
+synthetic file through prepare/commit. Prepare created no file, commit created
+exactly one, a repeated commit was rejected, and all three demonstration/test
+files were removed and independently verified absent. The run exposed and
+fixed a general multiple-file-input ambiguity: the compiler may now choose a
+uniquely named `upload` versus `attachment` input, while anonymous or tied
+candidates still fail closed. Nextcloud's documented WebDAV remains the right
+integration for API-covered file tasks; this row is browser/effect-safety
+evidence, not an argument to ignore it.
+
 The API-first negative control also passed: for public repository metadata on
 GitHub, the benchmark selected the documented REST endpoint and invoked the UI
 compiler zero times. Clapping Hands is the fallback for a missing or

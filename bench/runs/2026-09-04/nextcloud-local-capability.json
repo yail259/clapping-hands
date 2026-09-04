@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "kind": "self-hosted-application-capability-regression",
+  "generatedAt": "2026-09-04T11:19:04.818Z",
+  "compilerCommit": "87f827fc26bf501cf8e2d394e45f4457013816f6",
+  "application": "Self-hosted Nextcloud 33.0.8",
+  "origin": "http://127.0.0.1:18091",
+  "containerImages": {
+    "application": "sha256:9ed3924f92f651aab622b23557b3f3dbcf04f7678567f50a41dbace2463c0a52"
+  },
+  "intervention": "guided",
+  "policyBasis": "Loopback-only official container with one synthetic user and synthetic files",
+  "credentialHandling": "Read a rotated synthetic credential from the process environment; persisted no credential in plans or reports",
+  "claimScope": "Capability regression on one pinned self-hosted application; not a speed or untouched-holdout result",
+  "apiDisposition": "WebDAV is the preferred integration for API-covered file operations; it was used only as the independent oracle and cleanup path here",
+  "developmentHistory": [
+    {
+      "stage": "file-input-selection",
+      "result": "failed-closed",
+      "reason": "The file page exposed both a primary uploader and an editor attachment input.",
+      "fix": "Select only a uniquely scored semantic upload/attachment input and continue to reject anonymous or tied candidates."
+    }
+  ],
+  "runnerCorrections": [
+    "Accept Nextcloud 33's numeric file-view route plus its explicit dir query instead of assuming the older path shape.",
+    "Match split filename/extension row text rather than assuming a filename-specific accessible label."
+  ],
+  "environment": {
+    "browserVersion": "151.0.7922.138",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "onboardingDialogsDismissed": 0,
+  "authSurvivedBrowserRestart": true,
+  "uploadSelector": [
+    "input[type=\"file\"][data-cy-upload-picker-input]"
+  ],
+  "fixtureCleanupVerified": true,
+  "rows": [
+    {
+      "task": "open-unseen-folder",
+      "effect": "read",
+      "path": "compiled-dom",
+      "exactResult": true,
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 2380.2454579999994,
+      "navigations": 2
+    },
+    {
+      "task": "upload-allowlisted-file",
+      "effect": "write",
+      "path": "prepare-commit",
+      "exactResult": true,
+      "preparedWithoutEffect": true,
+      "receiptStatus": "committed",
+      "repeatedCommitRejected": true,
+      "oracle": {
+        "afterCommitExists": true,
+        "size": 47,
+        "unchangedAfterRejectedRepeat": true
+      },
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 2094.560292000002
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "total": 2,
+    "falseSuccesses": 0,
+    "duplicateCommits": 0
+  }
+}

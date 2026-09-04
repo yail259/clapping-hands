@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 81 passing tests and the built MCP server
+cross-site speed claim. The current suite has 82 passing tests and the built MCP server
 advertises ten management/Marketplace tools before any generated workflow tools
 are loaded.
 
@@ -301,7 +301,7 @@ reusable inputs. Read semantics now require an explicit conservative submitter
 allowlist, and form signatures/projected steps exclude unanswered result-row
 controls. Repeated result-page URLs with a query string are also recognized as
 terminal results when an empty form action resolves back to that URL. The full
-81-test suite covers these cases.
+82-test suite covers these cases.
 
 This supports only the pinned WordPress version and post-search workflow above;
 it is not a claim that all WordPress tasks—or websites generally—are 7× faster.
@@ -359,6 +359,39 @@ remaining journeys cannot fit a clean two-demonstration-plus-replay run. This
 row therefore contributes **no pass**, no speed number, and no coverage credit.
 The sanitized failure report is
 [`bench/runs/2026-09-04/nextcloud-trial-holdout.json`](../bench/runs/2026-09-04/nextcloud-trial-holdout.json).
+
+### Self-hosted Nextcloud capability regression
+
+The same workflow family was exercised independently against the official
+Nextcloud 33.0.8 Apache container on loopback, with a synthetic account and
+files. This was a new local run at compiler checkpoint
+[`87f827f`](https://github.com/yail259/clapping-hands/commit/87f827f), not a
+retroactive pass for the capped public holdout.
+
+| Workflow | Mechanism | Effect path | Compiled model calls | Exact result | Verdict |
+| --- | --- | --- | ---: | --- | --- |
+| Open unseen `Templates` folder | authenticated Vue route with numeric view ID and `dir` query | read DOM after clean restart | 0 | route and rendered folder matched | pass after runner correction |
+| Upload allowlisted synthetic file | two competing file inputs, asynchronous upload | prepare/commit | 0 | prepare absent; commit one file; repeat rejected | pass after compiler fix |
+
+The initial upload demonstration failed closed because the page contains both
+the Files uploader and a text-editor attachment input. The general learner now
+scores semantic element metadata against the explicit `upload` or `attach`
+instruction and proceeds only when one candidate wins unambiguously. Anonymous
+and tied file inputs still fail closed; one regression test covers both cases.
+
+Two harness assumptions also failed without receiving compiler credit:
+Nextcloud 33 uses a numeric file-view path plus a `dir` query, and file-row
+accessible labels are generic while the visible stem and extension occupy
+separate spans. The rerun used version-tolerant exact oracles for both.
+
+The upload plan persisted neither demonstrated filename nor credential. A
+WebDAV HEAD oracle proved no file existed after prepare, one 47-byte file
+existed after commit, and its entity and size were unchanged after a rejected
+second commit. WebDAV DELETE then removed all three synthetic files and the
+oracle verified cleanup. Because WebDAV already covers file operations, this
+row is evidence for browser fallback and effect safety—not a no-API product win
+or a speed result. The sanitized report is
+[`bench/runs/2026-09-04/nextcloud-local-capability.json`](../bench/runs/2026-09-04/nextcloud-local-capability.json).
 
 ## API-first negative control — 2026-09-04
 
