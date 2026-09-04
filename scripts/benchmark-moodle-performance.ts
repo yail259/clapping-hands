@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { chromium, type BrowserContext, type Page } from "playwright-core";
+import type { Page } from "playwright-core";
 import {
   compileFormWorkflow,
   demonstrateFormWorkflow,
@@ -12,6 +12,7 @@ import {
   type FormWorkflowAnswers,
   type FormWorkflowResult,
 } from "../src/form-workflow.js";
+import { PersistentWorkflowBrowser } from "../src/persistent-browser.js";
 
 const ORIGIN = process.env.CLAPPING_HANDS_MOODLE_ORIGIN ?? "http://127.0.0.1:18092";
 const CHROME = process.env.CLAPPING_HANDS_CHROME_PATH ??
@@ -125,15 +126,16 @@ if (new Set(fixture.courses.map((course) => course.fullname)).size !== Object.ke
 }
 
 const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-moodle-performance-"));
-let context: BrowserContext | null = null;
+let browser: PersistentWorkflowBrowser | null = null;
 try {
   const profileDirectory = resolve(directory, "profile");
-  context = await chromium.launchPersistentContext(profileDirectory, {
+  browser = new PersistentWorkflowBrowser({
+    allowedOrigins: [ORIGIN],
+    profileDirectory,
     executablePath: CHROME,
     headless: true,
-    viewport: { width: 1_440, height: 1_000 },
   });
-  let page = context.pages()[0] ?? await context.newPage();
+  let page = await browser.page();
   await login(page);
 
   const startUrl = `${ORIGIN}/course/search.php`;
@@ -156,19 +158,21 @@ try {
   const compileMs = performance.now() - compileStartedAt;
   const questionKey = plan.steps[0]!.questionKey;
 
-  await context.close();
-  context = await chromium.launchPersistentContext(profileDirectory, {
+  await browser.close();
+  browser = new PersistentWorkflowBrowser({
+    allowedOrigins: [ORIGIN],
+    profileDirectory,
     executablePath: CHROME,
     headless: true,
-    viewport: { width: 1_440, height: 1_000 },
   });
-  page = context.pages()[0] ?? await context.newPage();
+  page = await browser.page();
   await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
   const authSurvivedBrowserRestart = new URL(page.url()).pathname === "/course/search.php" &&
     !await page.locator("#username").isVisible().catch(() => false);
   if (!authSurvivedBrowserRestart) {
     throw new Error("The synthetic Moodle student session did not survive a clean browser restart.");
   }
+  const context = await browser.context();
   const browserVersion = context.browser()?.version() ?? "unknown";
 
   for (let index = 0; index < WARMUPS; index += 1) {
@@ -226,6 +230,13 @@ try {
     environment: { browserVersion, platform: process.platform, architecture: process.arch },
     credentialHandling: "Read synthetic loopback-only fixture credentials from the process environment; persisted no credential, session key, plan, or response body",
     authSurvivedBrowserRestart,
+    driverCorrections: [{
+      stage: "authenticated-profile-restart",
+      result: "failed-closed-then-corrected",
+      reason: "Moodle uses a session cookie, which raw Chromium did not restore after a clean process restart.",
+      correction: "Use Clapping Hands' persistent browser runtime, which snapshots and restores first-party session cookies without exposing them.",
+      compilerChanged: false,
+    }],
     protocol: {
       warmups: WARMUPS,
       pairedSamples: SAMPLE_SIZE,
@@ -274,6 +285,6 @@ try {
     authSurvivedBrowserRestart,
   }, null, 2));
 } finally {
-  await context?.close().catch(() => {});
+  await browser?.close().catch(() => {});
   await rm(directory, { recursive: true, force: true });
 }
