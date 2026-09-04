@@ -183,7 +183,7 @@ form submission, rich-editor synchronization, role-separated profiles, and
 input-bound same-origin start URLs. This is regression evidence, not an
 untouched holdout or speed result.
 
-Two pinned, self-hosted application workflows now have qualifying warm
+Three pinned, self-hosted application workflows now have qualifying warm
 distributions. Each result uses 20 interleaved browser/compiled pairs after
 three warmups and requires an exact result on every run:
 
@@ -191,14 +191,15 @@ three warmups and requires an exact result on every run:
 | --- | ---: | ---: | ---: | --- | ---: |
 | **WordPress 7.1 post search** | 860.74 / 971.67 ms | 122.08 / 144.44 ms | **7.05×** | 20/20 + 20/20 | 2 → 0 |
 | osTicket ticket search | 626.06 / 643.56 ms | 42.74 / 61.09 ms | **14.65×** | 20/20 + 20/20 | 2 → 0 |
+| nopCommerce 4.90.6 product search | 1,437.72 / 1,901.28 ms | 68.49 / 96.80 ms | **20.99×** | 20/20 + 20/20 | 2 → 0 |
 
 Both paths made two fresh requests per run; compilation removed browser
-navigation and rendering, not network freshness. These are two real
+navigation and rendering, not network freshness. These are three real
 applications and one read workflow per application—not a general website speed
 claim. Raw sanitized samples are in
-[`wordpress-local-performance.json`](bench/runs/2026-09-04/wordpress-local-performance.json)
-and
-[`osticket-local-performance.json`](bench/runs/2026-09-04/osticket-local-performance.json).
+[`wordpress-local-performance.json`](bench/runs/2026-09-04/wordpress-local-performance.json),
+[`osticket-local-performance.json`](bench/runs/2026-09-04/osticket-local-performance.json),
+and [`nopcommerce-local.json`](bench/runs/2026-09-04/nopcommerce-local.json).
 
 An untouched read-only smoke on Discourse's official demo then passed 1/1:
 after demonstrations on the `general` and `tech` categories, the compiled tool
@@ -227,6 +228,17 @@ rejected, and cleanup restored all three synthetic grades to empty. Moodle's
 persistent Edit mode exposed a state-machine pitfall: the plan uses an
 idempotent `check` operation rather than a literal toggle click. This is
 capability regression evidence, not an untouched holdout or speed result.
+
+A pinned, loopback-only nopCommerce 4.90.6 run passed 2/2. Product search
+compiled from a server-rendered form, and an add-to-cart workflow used
+prepare/commit plus a PostgreSQL oracle: prepare left the cart empty, commit
+created exactly one row for the unseen product, the repeated receipt was
+rejected, and cleanup removed it. The run found and fixed a general input
+binding bug where a short numeric ID inside a longer slug could corrupt the URL
+template; longer demonstrated values are now bound first, while irreducible
+ambiguity still fails closed. nopCommerce's official Web API is separately
+licensed; Clapping Hands should use it whenever it is configured and
+task-complete.
 
 The API-first negative control also passed: for public repository metadata on
 GitHub, the benchmark selected the documented REST endpoint and invoked the UI

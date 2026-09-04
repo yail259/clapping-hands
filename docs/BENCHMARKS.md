@@ -50,9 +50,9 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 82 passing tests and the built MCP server
-advertises ten management/Marketplace tools before any generated workflow tools
-are loaded.
+cross-site speed claim. The current suite has 83 passing tests and the built MCP
+server advertises ten management/Marketplace tools before any generated
+workflow tools are loaded.
 
 The reproducible controlled protocol at compiler commit
 [`387ede5`](https://github.com/yail259/clapping-hands/commit/387ede5) ran 20
@@ -301,7 +301,7 @@ reusable inputs. Read semantics now require an explicit conservative submitter
 allowlist, and form signatures/projected steps exclude unanswered result-row
 controls. Repeated result-page URLs with a query string are also recognized as
 terminal results when an empty form action resolves back to that URL. The full
-82-test suite covers these cases.
+83-test suite covers these cases.
 
 This supports only the pinned WordPress version and post-search workflow above;
 it is not a claim that all WordPress tasks—or websites generally—are 7× faster.
@@ -423,6 +423,50 @@ or untouched-holdout credit. The sanitized report is
 [`bench/runs/2026-09-04/moodle-local-capability.json`](../bench/runs/2026-09-04/moodle-local-capability.json),
 and the fixture sources and setup notes are in
 [`bench/fixtures/moodle`](../bench/fixtures/moodle/README.md).
+
+## Self-hosted nopCommerce capability and performance — 2026-09-04
+
+nopCommerce 4.90.6 was installed from the vendor's official container on
+loopback with PostgreSQL 17, the vendor sample catalogue, and one synthetic
+administrator. The public demo was not used: although nopCommerce invites
+evaluation and resets it hourly, the storefront returned an explicit
+Cloudflare challenge and the benchmark did not attempt to bypass it.
+
+The first cart compilation failed closed before replay because the slug
+`nokia-lumia-1020` contains the shorter product ID `20`. The general DOM/URL
+template binder had substituted short inputs first. It now binds longer
+demonstrated values before shorter overlapping values; equal or otherwise
+irreducible bindings still fail closed. A focused regression covers the exact
+overlap without adding a nopCommerce-specific branch.
+
+| Workflow | Mechanism | Effect path | Compiled model calls | Exact result | Verdict |
+| --- | --- | --- | ---: | --- | --- |
+| Search unseen product term | server-rendered GET form | direct fresh HTML requests | 0 | exact query URL and expected product | pass |
+| Add unseen product to cart | AJAX product action | prepare/commit | 0 | prepare empty; one database row at commit; repeat rejected | pass after compiler fix |
+
+The search distribution used three warmups and 20 interleaved browser/compiled
+pairs. Every measured result passed the exact oracle:
+
+| Engine | n | p50 | p95 | Correctness | Requests; navigations |
+| --- | ---: | ---: | ---: | --- | --- |
+| Browser form | 20 | 1,437.72 ms | 1,901.28 ms | 20/20 | 2; 2 |
+| `html-form-v2` | 20 | 68.49 ms | 96.80 ms | 20/20 | 2; 0 |
+
+The median ratio was **20.99×**. Both paths made two fresh requests; the
+compiled path removed navigation/rendering rather than caching catalogue data.
+The cart database was empty after prepare, contained exactly product 17 with
+quantity one after commit, was unchanged after the rejected duplicate, and was
+empty after cleanup.
+
+nopCommerce documents broad frontend buying APIs, but its official plugin is a
+separately licensed product that requires configuration. In this fresh fixture
+the Swagger route was absent and an empty token POST returned 400, so the API
+was not usable for the tested operator. A configured, task-complete API must be
+preferred. This result supports only these workflows on this pinned instance;
+it is not a general website claim. The sanitized report is
+[`bench/runs/2026-09-04/nopcommerce-local.json`](../bench/runs/2026-09-04/nopcommerce-local.json),
+with setup notes in
+[`bench/fixtures/nopcommerce`](../bench/fixtures/nopcommerce/README.md).
 
 ## API-first negative control — 2026-09-04
 

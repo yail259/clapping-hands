@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-04T12:20:35.697Z",
+  "gitSha": "a1fc818da6fe6594b9d882e7fab08447e6bce7b9",
+  "runClass": "self-hosted-application-capability-and-performance",
+  "application": "Self-hosted nopCommerce 4.90.6",
+  "origin": "http://127.0.0.1:18120",
+  "containerImages": {
+    "application": "sha256:d5234d39ca3649b41b106729e55122298206cecf88f509553d8a7633447e9591",
+    "database": "sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675"
+  },
+  "environment": {
+    "browserVersion": "151.0.7922.138",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "intervention": "guided",
+  "policyBasis": "Loopback-only official container with the vendor's sample catalogue and one synthetic administrator",
+  "credentialHandling": "Read a rotated synthetic credential from the process environment; persisted no credential, anti-forgery token, plan, or page body in the report",
+  "apiDisposition": {
+    "documentedCoverage": "The vendor's separately licensed Web API frontend documents buying capabilities; prefer it whenever licensed, configured, and task-complete",
+    "localSurface": [
+      {
+        "method": "GET",
+        "path": "/api/index.html",
+        "status": 404
+      },
+      {
+        "method": "POST",
+        "path": "/api-frontend/Authenticate/GetToken",
+        "status": 400
+      }
+    ],
+    "decision": "This fresh installation had no Swagger surface or configured token issuer, so the documented separately licensed API was not usable for these tasks"
+  },
+  "setupCorrections": [
+    "Use an already allocated default Docker bridge because Docker Desktop had exhausted its predefined subnet pools.",
+    "Enable PostgreSQL citext before the application process starts so Npgsql loads the extension type mapping.",
+    "Treat the application's intentional post-install process exit as a restart boundary rather than an installation failure.",
+    "Scope product-search exactness to the submitted query URL and expected result instead of rejecting personalized recently-viewed product furniture.",
+    "Probe the documented token route with POST; a GET 404 alone cannot distinguish an absent route from a method mismatch."
+  ],
+  "authSurvivedBrowserRestart": true,
+  "fixtureCleanupVerified": true,
+  "cartDemonstrationOracles": [
+    {
+      "productId": 18,
+      "rows": [
+        {
+          "productId": 18,
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "productId": 20,
+      "rows": [
+        {
+          "productId": 20,
+          "quantity": 1
+        }
+      ]
+    }
+  ],
+  "rows": [
+    {
+      "task": "search-unseen-product-term",
+      "effect": "read",
+      "engine": "html-form-v2",
+      "exactResult": true,
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 85.92095899999913
+    },
+    {
+      "task": "add-unseen-product-to-cart",
+      "effect": "write",
+      "engine": "stagehand-action-v1",
+      "exactResult": true,
+      "preparedWithoutEffect": true,
+      "repeatedCommitRejected": true,
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 1343.8322079999998,
+      "oracle": {
+        "productId": 17,
+        "afterCommit": [
+          {
+            "productId": 17,
+            "quantity": 1
+          }
+        ],
+        "afterRejectedRepeat": [
+          {
+            "productId": 17,
+            "quantity": 1
+          }
+        ]
+      }
+    }
+  ],
+  "performance": {
+    "task": "product-search",
+    "protocol": {
+      "warmups": 3,
+      "pairedSamples": 20,
+      "order": "interleaved; browser first on even samples and compiled first on odd samples",
+      "queryCycle": [
+        "HTC",
+        "Apple",
+        "Nikon"
+      ]
+    },
+    "compileMs": 2618.83,
+    "browser": {
+      "p50Ms": 1437.72,
+      "p95Ms": 1901.28,
+      "samplesMs": [
+        1304.49,
+        1437.72,
+        1762.32,
+        1253.03,
+        1901.28,
+        1583.5,
+        1487.46,
+        1653.81,
+        1357.9,
+        1423.11,
+        1294.78,
+        1659.56,
+        1399.21,
+        1311.06,
+        1432.04,
+        1484.6,
+        1493.56,
+        1660.69,
+        2298.13,
+        1281.81
+      ],
+      "correctness": "20/20",
+      "requestsPerRun": 2,
+      "navigationsPerRun": 2,
+      "modelCallsPerRun": 0
+    },
+    "compiled": {
+      "p50Ms": 68.49,
+      "p95Ms": 96.8,
+      "samplesMs": [
+        120.37,
+        73.84,
+        78.88,
+        52.13,
+        82.95,
+        66.46,
+        78.11,
+        62.71,
+        75.12,
+        51.52,
+        96.8,
+        60,
+        85.38,
+        64.65,
+        87.91,
+        51.06,
+        68.49,
+        58.08,
+        83.85,
+        66.52
+      ],
+      "correctness": "20/20",
+      "requestsPerRun": 2,
+      "navigationsPerRun": 0,
+      "modelCallsPerRun": 0
+    },
+    "medianSpeedup": 20.99
+  },
+  "claimScope": "Two workflows on one pinned self-hosted application; the speed distribution covers product search only",
+  "summary": {
+    "passed": 2,
+    "total": 2,
+    "falseSuccesses": 0,
+    "duplicateCommits": 0
+  }
+}

@@ -20,6 +20,7 @@
     "benchmark:moodle:local": "tsx scripts/benchmark-moodle-local.ts",
     "benchmark:nextcloud": "tsx scripts/benchmark-nextcloud.ts",
     "benchmark:nextcloud:local": "tsx scripts/benchmark-nextcloud-local.ts",
+    "benchmark:nopcommerce:local": "tsx scripts/benchmark-nopcommerce-local.ts",
     "benchmark:osticket": "tsx scripts/benchmark-osticket.ts",
     "benchmark:osticket:performance": "tsx scripts/benchmark-osticket-performance.ts",
     "benchmark:saucedemo": "tsx scripts/benchmark-saucedemo.ts",

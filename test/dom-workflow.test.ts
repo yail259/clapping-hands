@@ -11,6 +11,7 @@ import {
   compileDomWorkflow,
   demonstrateDomWorkflow,
   executeCompiledDomAction,
+  materializeDomStartUrl,
   recordDomShadow,
   repairDomWorkflow,
   replayDomWorkflow,
@@ -454,6 +455,31 @@ test("compiles an input-bound same-origin start URL", async () => {
     await browser?.close();
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
+});
+
+test("binds a longer URL input before an overlapping shorter input", () => {
+  const demonstration = (productId: number, productSlug: string): DomWorkflowDemonstration => ({
+    input: { productId, productSlug },
+    startUrl: `https://example.test/${productSlug}`,
+    actions: [{ selector: `#product-${productId}`, description: "Open product details", method: "click", arguments: [] }],
+    output: {
+      selector: "main",
+      tagName: "main",
+      text: "Product details",
+      textHash: "same-output",
+      url: `https://example.test/${productSlug}`,
+    },
+    modelCalls: 1,
+  });
+  const plan = compileDomWorkflow("open_product", "https://example.test/htc-smartphone", [
+    demonstration(18, "htc-smartphone"),
+    demonstration(20, "nokia-lumia-1020"),
+  ]);
+  assert.equal(
+    materializeDomStartUrl(plan, { productId: 17, productSlug: "apple-icam" }),
+    "https://example.test/apple-icam",
+  );
+  assert.match(JSON.stringify(plan.actions[0]!.selector), /productId/);
 });
 
 test("waits for asynchronous page scripts before demonstrating actions", async () => {

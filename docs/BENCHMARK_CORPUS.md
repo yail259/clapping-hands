@@ -110,6 +110,13 @@ the site-coverage percentage. Facebook Marketplace remains an important private
 dogfood workflow, but it is not needed to establish the public generality
 claim.
 
+The nopCommerce public demo was later found to return an explicit Cloudflare
+challenge to automated clients. No bypass was attempted; the row moved to the
+official self-hosted container. That local run preserved nopCommerce because it
+found a new general failure class—an input ID embedded inside a longer slug—and
+because its separately licensed Web API makes “is an API actually usable in
+this deployment?” part of the routing decision.
+
 After the freeze, WordPress Playground's post-search task found that compiled
 actions did not wait for an asynchronously mounted iframe. The frozen compiler
 failed closed; the general readiness regression now passes on the corrected

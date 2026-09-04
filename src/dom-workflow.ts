@@ -511,6 +511,19 @@ function looksHighEntropy(value: string): boolean {
     (value.length >= 48 && /^[A-Za-z0-9+/_=-]+$/.test(value) && new Set(value).size >= 12);
 }
 
+function inputBindingOrder(demonstration: DomWorkflowDemonstration, inputNames: string[]): Array<{
+  inputName: string;
+  inputIndex: number;
+  raw: string;
+}> {
+  return inputNames.map((inputName, inputIndex) => ({
+    inputName,
+    inputIndex,
+    raw: String(demonstration.input[inputName]),
+  })).filter((candidate) => candidate.raw.length > 0)
+    .sort((left, right) => right.raw.length - left.raw.length || left.inputIndex - right.inputIndex);
+}
+
 function splitByInputs(
   values: string[],
   demonstrations: DomWorkflowDemonstration[],
@@ -528,10 +541,9 @@ function splitByInputs(
   const sentinels = new Map<string, string>();
   const skeletons = values.map((value, index) => {
     let skeleton = value;
-    for (const inputName of inputNames) {
-      const raw = String(demonstrations[index]!.input[inputName]);
-      if (!raw || !skeleton.includes(raw)) continue;
-      const sentinel = `\u0000${inputName}\u0000`;
+    for (const { inputName, inputIndex, raw } of inputBindingOrder(demonstrations[index]!, inputNames)) {
+      if (!skeleton.includes(raw)) continue;
+      const sentinel = `\u0000input:${inputIndex}\u0000`;
       sentinels.set(sentinel, inputName);
       skeleton = skeleton.split(raw).join(sentinel);
     }
@@ -541,7 +553,7 @@ function splitByInputs(
     throw new Error("A learned selector or argument varied without a demonstrated input binding.");
   }
   const skeleton = skeletons[0]!;
-  const pattern = /\u0000([^\u0000]+)\u0000/g;
+  const pattern = /\u0000input:(\d+)\u0000/g;
   const parts: TemplatePart[] = [];
   let offset = 0;
   for (const match of skeleton.matchAll(pattern)) {
@@ -568,16 +580,14 @@ function splitUrlByInputs(
   const sentinels = new Map<string, UrlInputReference>();
   const skeletons = values.map((value, index) => {
     let skeleton = value;
-    for (const inputName of inputNames) {
-      const raw = String(demonstrations[index]!.input[inputName]);
-      if (!raw) continue;
+    for (const { inputName, inputIndex, raw } of inputBindingOrder(demonstrations[index]!, inputNames)) {
       const encoded = encodeURIComponent(raw);
       const candidates: Array<{ text: string; encoding: UrlInputReference["encoding"] }> = encoded === raw
         ? [{ text: raw, encoding: "uri-component" }]
         : [{ text: encoded, encoding: "uri-component" }, { text: raw, encoding: "none" }];
       const candidate = candidates.find(({ text }) => skeleton.includes(text));
       if (!candidate) continue;
-      const sentinel = `\u0000url:${inputName}\u0000`;
+      const sentinel = `\u0000url:${inputIndex}\u0000`;
       sentinels.set(sentinel, { $clappingHandsInput: inputName, encoding: candidate.encoding });
       skeleton = skeleton.split(candidate.text).join(sentinel);
     }
@@ -587,7 +597,7 @@ function splitUrlByInputs(
     throw new Error("A demonstrated start URL varied without a safe input binding.");
   }
   const skeleton = skeletons[0]!;
-  const pattern = /\u0000url:([^\u0000]+)\u0000/g;
+  const pattern = /\u0000url:(\d+)\u0000/g;
   const parts: UrlTemplatePart[] = [];
   let offset = 0;
   for (const match of skeleton.matchAll(pattern)) {
