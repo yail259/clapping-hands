@@ -40,6 +40,11 @@ export type DomActionMethod =
   | "uncheck"
   | "hover"
   | "scrollIntoViewIfNeeded"
+  | "scrollTo"
+  | "nextChunk"
+  | "prevChunk"
+  | "dblclick"
+  | "dragTo"
   | "setInputFiles";
 
 export type DomOutputSnapshot = {
@@ -121,7 +126,25 @@ const SUPPORTED_METHODS = new Set<DomActionMethod>([
   "uncheck",
   "hover",
   "scrollIntoViewIfNeeded",
+  "scrollTo",
+  "nextChunk",
+  "prevChunk",
+  "dblclick",
+  "dragTo",
   "setInputFiles",
+]);
+const METHOD_ALIASES: Record<string, DomActionMethod> = {
+  selectOptionFromDropdown: "selectOption",
+  doubleClick: "dblclick",
+  dragAndDrop: "dragTo",
+  scroll: "scrollTo",
+};
+const PASSIVE_METHODS = new Set<DomActionMethod>([
+  "hover",
+  "scrollIntoViewIfNeeded",
+  "scrollTo",
+  "nextChunk",
+  "prevChunk",
 ]);
 const SENSITIVE_INPUT_NAME = /(?:password|passwd|secret|token|csrf|xsrf|session|cookie|authorization|api[_-]?key)/i;
 const EFFECTFUL_INTENT_LANGUAGE = /\b(?:publish|send|purchase|buy|checkout|place (?:an )?order|delete|post (?:a |the |this )?(?:comment|message|reply|update|review|listing|content)|save|create|approve|transfer|pay|book (?:an? |the )?(?:appointment|room|ticket|table|flight|hotel)|reserve|subscribe|unsubscribe|upload|register|sign up|invite (?:a |the )?(?:user|member|person|collaborator)|follow (?:a |the )?(?:user|person|account|page)|like (?:a |the |this )?(?:post|comment|page|item)|connect with|bid (?:on|for)|make (?:an )?offer|apply (?:for|to)|submit (?:an? |the |this )?(?:application|order|request|claim|registration|response|review|comment|message)|cancel (?:an? |the |this )?(?:booking|reservation|order|subscription|appointment)|remove (?:an? |the |this )?(?:item|record|account|user|member|file|listing|post|comment)|(?:edit|update|change) (?:an? |the |this |my )?(?:profile|address|email|password|booking|reservation|order|listing|record|status|settings|subscription|quantity)|add (?:an? |the |this )?(?:item )?to (?:cart|basket|wishlist))\b/i;
@@ -212,7 +235,8 @@ export function assertDomWorkflowPlanSafety(plan: DomWorkflowPlan): void {
       `Compiled DOM argument ${index + 1}.${argumentIndex + 1}`,
       { rejectHighEntropy: true },
     ));
-    if (action.opensNewPage !== undefined && (typeof action.opensNewPage !== "boolean" || (action.opensNewPage && action.method !== "click"))) {
+    if (action.opensNewPage !== undefined && (typeof action.opensNewPage !== "boolean" ||
+      (action.opensNewPage && !new Set<DomActionMethod>(["click", "dblclick"]).has(action.method)))) {
       throw new Error("Only a compiled click action may open a new page.");
     }
     if (action.framePath !== undefined) {
@@ -406,7 +430,8 @@ async function discoverFramePath(page: Page, selector: string, origin: string): 
 }
 
 function normalizeMethod(action: BrowserAction): DomActionMethod {
-  const method = action.method ?? "click";
+  const rawMethod = action.method ?? "click";
+  const method = METHOD_ALIASES[rawMethod] ?? rawMethod;
   if (!SUPPORTED_METHODS.has(method as DomActionMethod)) {
     throw new Error(`Unsupported learned DOM method ${method}.`);
   }
@@ -417,8 +442,9 @@ function potentiallyEffectfulAction(action: BrowserAction): boolean {
   const method = normalizeMethod(action);
   if (method === "setInputFiles") return true;
   if (action.dialog?.action === "accept") return true;
-  if (method !== "click") return false;
-  return EFFECTFUL_INTENT_LANGUAGE.test(action.description) || EFFECTFUL_CONTROL_LANGUAGE.test(action.description);
+  if (PASSIVE_METHODS.has(method)) return false;
+  return EFFECTFUL_INTENT_LANGUAGE.test(action.description) || EFFECTFUL_CONTROL_LANGUAGE.test(action.description) ||
+    method !== "click";
 }
 
 function requestedDialogAction(instruction: string): "accept" | "dismiss" | null {
@@ -536,7 +562,7 @@ export function compileDomWorkflow(
     if (new Set(argumentCounts).size !== 1) throw new Error(`Learned DOM argument drift at action ${index + 1}.`);
     const pageTransitions = actions.map((candidate) => Boolean(candidate.opensNewPage));
     if (new Set(pageTransitions).size !== 1) throw new Error(`Learned DOM page-transition drift at action ${index + 1}.`);
-    if (pageTransitions[0] && methods[0] !== "click") {
+    if (pageTransitions[0] && !new Set<DomActionMethod>(["click", "dblclick"]).has(methods[0]!)) {
       throw new Error("Only a compiled click action may open a new page.");
     }
     const framePathLengths = actions.map((candidate) => candidate.framePath?.length ?? 0);
@@ -641,9 +667,7 @@ export function compileDomWorkflow(
     : [];
   const confirmation = options.confirmation?.trim() || null;
   const demonstratedInstructions = demonstrations.flatMap((demo) => demo.instructions ?? []);
-  const demonstratedControls = demonstrations.flatMap((demo) => demo.actions
-    .filter((candidate) => (candidate.method ?? "click") === "click")
-    .map((candidate) => candidate.description.trim()));
+  const demonstratedControls = demonstrations.flatMap((demo) => demo.actions.map((candidate) => candidate.description.trim()));
   if (effectLevel === "read" && (
     templates.some((template) => template.method === "setInputFiles" || template.dialog?.action === "accept") ||
     demonstratedInstructions.some((instruction) => EFFECTFUL_INTENT_LANGUAGE.test(instruction)) ||
@@ -766,6 +790,42 @@ export async function waitForDomOutputChange(
   throw new Error(`DOM output ${selector} did not change after the final action.`);
 }
 
+async function guidedFileSelection(
+  page: Page,
+  input: DomInput,
+  instruction: string,
+): Promise<BrowserActResult | null> {
+  const mentionedFiles = Object.entries(input).filter(([_name, value]) =>
+    typeof value === "string" && value.length > 0 && instruction.includes(value));
+  if (mentionedFiles.length === 0 || !/\b(?:upload|attach|choose|select|set)\b/i.test(instruction)) return null;
+  if (mentionedFiles.length !== 1) throw new Error("A file-selection instruction must mention exactly one compiled file input.");
+  const selector = 'input[type="file"]';
+  const matches: Frame[] = [];
+  for (const frame of page.frames()) {
+    const count = await frame.locator(selector).count().catch(() => 0);
+    if (count > 1) throw new Error("Guided file selection found multiple file inputs in one frame.");
+    if (count === 1) matches.push(frame);
+  }
+  if (matches.length !== 1) {
+    throw new Error(`Guided file selection requires exactly one file input; found ${matches.length}.`);
+  }
+  const file = String(mentionedFiles[0]![1]);
+  await matches[0]!.locator(selector).setInputFiles(await resolveUploadFiles([file]));
+  return {
+    success: true,
+    message: "Selected an operator-allowlisted file without a model call.",
+    actions: [{
+      selector,
+      description: "Select operator-allowlisted upload file",
+      method: "setInputFiles",
+      arguments: [file],
+    }],
+    modelCalls: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+  };
+}
+
 export async function demonstrateDomWorkflow(
   lease: Pick<BrowserLearnerLease, "act">,
   page: Page,
@@ -812,7 +872,7 @@ export async function demonstrateDomWorkflow(
       : null;
     let result: BrowserActResult;
     try {
-      result = await lease.act(instruction);
+      result = await guidedFileSelection(actionPage, input, instruction) ?? await lease.act(instruction);
       const dialogErrors = await Promise.all(dialogTasks);
       if (dialogErrors.some(Boolean)) throw dialogErrors.find(Boolean);
       const awaitedDownload = await expectedDownload;
@@ -1024,7 +1084,12 @@ export async function executeCompiledDomAction(
     : null;
   try {
     switch (method) {
-      case "click": await locator.click(); break;
+      case "click": {
+        const button = args[0];
+        if (button && !new Set(["left", "right", "middle"]).has(button)) throw new Error(`Unsupported compiled mouse button ${button}.`);
+        await locator.click(button ? { button: button as "left" | "right" | "middle" } : undefined);
+        break;
+      }
       case "fill": await locator.fill(args[0] ?? ""); break;
       case "type": await locator.pressSequentially(args[0] ?? ""); break;
       case "press": await locator.press(args[0] ?? "Enter"); break;
@@ -1033,6 +1098,36 @@ export async function executeCompiledDomAction(
       case "uncheck": await locator.uncheck(); break;
       case "hover": await locator.hover(); break;
       case "scrollIntoViewIfNeeded": await locator.scrollIntoViewIfNeeded(); break;
+      case "scrollTo": {
+        const match = (args[0] ?? "0%").match(/^(?:100(?:\.0+)?|\d{1,2}(?:\.\d+)?)%$/);
+        if (!match) throw new Error("Compiled scroll percentage must be between 0% and 100%.");
+        const percentage = Number.parseFloat(args[0] ?? "0%") / 100;
+        await locator.evaluate((element, ratio) => {
+          const root = element === document.documentElement || element === document.body;
+          if (root) window.scrollTo({ top: (document.documentElement.scrollHeight - window.innerHeight) * ratio });
+          else element.scrollTo({ top: (element.scrollHeight - element.clientHeight) * ratio });
+        }, percentage);
+        break;
+      }
+      case "nextChunk":
+      case "prevChunk": {
+        const direction = method === "nextChunk" ? 1 : -1;
+        await locator.evaluate((element, value) => {
+          const root = element === document.documentElement || element === document.body;
+          if (root) window.scrollBy({ top: window.innerHeight * value });
+          else element.scrollBy({ top: element.clientHeight * value });
+        }, direction);
+        break;
+      }
+      case "dblclick": await locator.dblclick(); break;
+      case "dragTo": {
+        const targetSelector = args[0];
+        if (!targetSelector) throw new Error("Compiled drag-and-drop requires a target selector.");
+        const target = locatorInFramePath(page, action.framePath ?? [], targetSelector);
+        if (await target.count() !== 1) throw new Error(`Compiled drag target matched ${await target.count()} elements: ${targetSelector}`);
+        await locator.dragTo(target);
+        break;
+      }
       case "setInputFiles": await locator.setInputFiles(await resolveUploadFiles(args)); break;
     }
     if (dialogTask) {
@@ -1146,57 +1241,14 @@ export async function replayDomWorkflow(
 }
 
 export async function replayDomWorkflowWithStagehand(
-  lease: BrowserLearnerLease,
+  _lease: BrowserLearnerLease,
   page: Page,
   plan: DomWorkflowPlan,
   input: DomInput,
 ): Promise<DomWorkflowResult> {
-  assertDomWorkflowPlanSafety(plan);
-  if (plan.actions.some((action) => action.download)) {
-    throw new Error("Compiled download workflows require direct deterministic replay.");
-  }
-  if (plan.effect.level !== "read") {
-    throw new Error("Write workflows require an explicit prepare/commit lifecycle.");
-  }
-  if (JSON.stringify(Object.keys(input).sort()) !== JSON.stringify(plan.inputNames)) {
-    throw new Error(`Compiled input keys must be exactly: ${plan.inputNames.join(", ")}.`);
-  }
-  const startedAt = performance.now();
-  await page.goto(new URL(plan.startPath, plan.origin).href, { waitUntil: "domcontentloaded", timeout: 30_000 });
-  let activePage = page;
-  let navigations = 1;
-  for (const [index, template] of plan.actions.entries()) {
-    const beforeUrl = activePage.url();
-    const beforeOutput = index === plan.actions.length - 1
-      ? await readDomOutputTextIfPresent(activePage, plan.validation.outputSelector, plan.validation.outputFramePath)
-      : null;
-    const pagesBefore = new Set(activePage.context().pages());
-    const result: BrowserActResult = await lease.act(materializeAction(template, input));
-    if (!result.success) throw new Error(`Compiled DOM action failed: ${result.message}`);
-    if (result.modelCalls !== 0) throw new Error("Compiled DOM replay unexpectedly invoked a model.");
-    const openedPages = activePage.context().pages().filter((candidate) => !pagesBefore.has(candidate));
-    if (template.opensNewPage) {
-      if (openedPages.length !== 1) throw new Error("Compiled DOM action did not open exactly one expected page.");
-      activePage = openedPages[0]!;
-    } else if (openedPages.length > 0) {
-      throw new Error("Compiled DOM action opened an undeclared page.");
-    }
-    await settle(activePage);
-    if (index === plan.actions.length - 1) {
-      await waitForDomOutputChange(
-        activePage,
-        plan.validation.outputSelector,
-        beforeOutput,
-        plan.validation.outputChangeTimeoutMs,
-        plan.validation.outputFramePath,
-      );
-    }
-    assertSameOrigin(activePage.url(), plan.origin, "Compiled DOM replay");
-    if (activePage.url() !== beforeUrl) navigations += 1;
-  }
-  const output = await captureDomOutput(activePage, plan.validation.outputSelector, plan.validation.outputFramePath);
-  validateDomOutput(plan, output, input);
-  return { ...output, actions: plan.actions.length, navigations, modelCalls: 0, durationMs: performance.now() - startedAt };
+  // Kept as a compatibility alias. Compiled actions intentionally execute via
+  // Playwright so Stagehand cannot reinterpret them or invoke another model.
+  return replayDomWorkflow(page, plan, input);
 }
 
 export async function repairDomWorkflow(

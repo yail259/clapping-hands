@@ -71,9 +71,9 @@ Never shadow a consequential action by performing it twice.
 The controlled DOM compiler now supports a conservative subset of this ADR:
 
 - every compiled DOM plan is explicitly declared `read` or `write`;
-- a write requires a plain-language confirmation description and treats the
-  first file selection or effect-labeled control (falling back to the final
-  action) as the effect boundary;
+- a write requires a plain-language confirmation description and treats its
+  first non-passive interaction as the conservative effect boundary (scroll
+  and hover may remain in the prepared prefix);
 - prepare executes only the deterministic prefix and creates an expiring
   receipt containing plan/input hashes, not raw inputs;
 - commit atomically moves the receipt to `committing` before executing every

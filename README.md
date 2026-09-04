@@ -28,7 +28,7 @@ suite, or a system for autonomous purchases, messages, and destructive actions.
 
 The scope is not limited to scraping or retrieval. The prototype compiles
 zero-argument and parameterized DOM interactions, same-origin frames and new
-tabs, and same-origin HTML forms. It can learn authenticated JSON and
+tabs, select/scroll/double-click/drag actions, and same-origin HTML forms. It can learn authenticated JSON and
 form-encoded GraphQL request accelerators on the workflow origin or an exact
 additional origin declared by the operator when that response is evidenced in
 the rendered result. Experimental write workflows use a separate prepare/commit
@@ -37,6 +37,9 @@ withheld behind an expiring receipt, journaled before execution, and never
 retried after an ambiguous outcome. File selection is supported only for
 regular files of at most 25 MiB beneath `CLAPPING_HANDS_UPLOAD_ROOT`; file
 contents are fingerprinted during prepare and must be unchanged at commit.
+Because Stagehand's model action vocabulary does not include file selection,
+Clapping Hands handles the unambiguous single-file-input case directly when the
+instruction names exactly one compiled input; ambiguous pages fail closed.
 Same-origin downloads are quarantined beneath `CLAPPING_HANDS_ARTIFACT_ROOT`,
 size-bounded to 50 MiB, hashed, and never auto-opened. Cross-origin file
 transfers, frames, and commits remain separately gated.

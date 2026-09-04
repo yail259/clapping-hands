@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { relative, resolve } from "node:path";
@@ -10,6 +10,7 @@ import {
   captureDomOutput,
   compileDomWorkflow,
   demonstrateDomWorkflow,
+  executeCompiledDomAction,
   recordDomShadow,
   repairDomWorkflow,
   replayDomWorkflow,
@@ -95,6 +96,30 @@ async function fixture(): Promise<{ server: Server; origin: string }> {
       response.setHeader("content-type", "text/plain");
       response.setHeader("content-disposition", 'attachment; filename="report.txt"');
       response.end("controlled artifact contents\n");
+      return;
+    }
+    if (url.pathname === "/advanced-actions") {
+      response.end(`<!doctype html><main>
+        <select id="choice"><option value="one">One</option><option value="two">Two</option></select>
+        <button id="double">Double click</button>
+        <div id="drag-source" draggable="true">Source</div><div id="drag-target">Target</div>
+        <div id="scroller" style="height:40px;overflow:auto"><div style="height:400px">Tall content</div></div>
+        <output id="result">Ready</output>
+        <script>
+          document.querySelector('#choice').onchange = event => document.querySelector('#result').textContent = 'Selected ' + event.target.value;
+          document.querySelector('#double').ondblclick = () => document.querySelector('#result').textContent = 'Double clicked';
+          document.querySelector('#drag-target').ondragover = event => event.preventDefault();
+          document.querySelector('#drag-target').ondrop = event => { event.preventDefault(); document.querySelector('#result').textContent = 'Dropped'; };
+          document.querySelector('#scroller').onscroll = () => document.querySelector('#result').textContent = 'Scrolled';
+        </script>
+      </main>`);
+      return;
+    }
+    if (url.pathname === "/upload-learning") {
+      response.end(`<!doctype html><main><input id="file" type="file"><output id="result">Ready</output>
+        <script>document.querySelector('#file').onchange = event => {
+          document.querySelector('#result').textContent = 'Selected ' + event.target.files[0].name;
+        };</script></main>`);
       return;
     }
     response.end(`<!doctype html><main>
@@ -476,7 +501,7 @@ test("file selection is write-only and establishes the earliest effect boundary"
   assert.doesNotMatch(JSON.stringify(plan), /first\.txt|second\.txt/);
 });
 
-test("an effectful click before a later result step starts the commit suffix", () => {
+test("a write conservatively starts its commit suffix at the first non-passive interaction", () => {
   const demo = (product: string): DomWorkflowDemonstration => ({
     input: { product },
     actions: [
@@ -497,7 +522,7 @@ test("an effectful click before a later result step starts the commit suffix", (
     effect: "write",
     confirmation: "Add this product to the cart",
   });
-  assert.equal(plan.effect.commitActionIndex, 1);
+  assert.equal(plan.effect.commitActionIndex, 0);
 });
 
 test("demonstration records an explicitly handled browser confirmation", async () => {
@@ -575,6 +600,90 @@ test("learns a download and returns a size-bounded hashed artifact", async () =>
   } finally {
     if (previousArtifactRoot === undefined) delete process.env.CLAPPING_HANDS_ARTIFACT_ROOT;
     else process.env.CLAPPING_HANDS_ARTIFACT_ROOT = previousArtifactRoot;
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("executes the Stagehand v4 action vocabulary without another model call", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    await page.goto(`${origin}/advanced-actions`);
+
+    await executeCompiledDomAction(page, {
+      selector: "#choice",
+      description: "Select two",
+      method: "selectOptionFromDropdown",
+      arguments: ["two"],
+    });
+    assert.equal(await page.locator("#result").innerText(), "Selected two");
+
+    await executeCompiledDomAction(page, {
+      selector: "#double",
+      description: "Double click",
+      method: "doubleClick",
+      arguments: [],
+    });
+    assert.equal(await page.locator("#result").innerText(), "Double clicked");
+
+    await executeCompiledDomAction(page, {
+      selector: "#drag-source",
+      description: "Drag source to target",
+      method: "dragAndDrop",
+      arguments: ["#drag-target"],
+    });
+    assert.equal(await page.locator("#result").innerText(), "Dropped");
+
+    await executeCompiledDomAction(page, {
+      selector: "#scroller",
+      description: "Scroll to bottom",
+      method: "scrollTo",
+      arguments: ["100%"],
+    });
+    await page.locator("#result").filter({ hasText: "Scrolled" }).waitFor();
+    assert.equal(await page.locator("#result").innerText(), "Scrolled");
+    assert.ok(await page.locator("#scroller").evaluate((element) => element.scrollTop > 0));
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("learns a single allowlisted file input without asking Stagehand for an unsupported method", async () => {
+  const { server, origin } = await fixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-guided-upload-"));
+  const uploadRoot = resolve(directory, "uploads");
+  const first = resolve(uploadRoot, "first.txt");
+  const second = resolve(uploadRoot, "second.txt");
+  const previousUploadRoot = process.env.CLAPPING_HANDS_UPLOAD_ROOT;
+  let browser: Browser | null = null;
+  try {
+    await mkdir(uploadRoot);
+    await Promise.all([writeFile(first, "first"), writeFile(second, "second")]);
+    process.env.CLAPPING_HANDS_UPLOAD_ROOT = uploadRoot;
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const demonstrate = (file: string) => demonstrateDomWorkflow({
+      act: async () => { throw new Error("Stagehand should not be asked to synthesize file selection."); },
+    }, page, `${origin}/upload-learning`, { file }, [`Choose the upload file ${file}`], "#result");
+    const demonstrations = [await demonstrate(first), await demonstrate(second)];
+    assert.equal(demonstrations[0]!.modelCalls, 0);
+    assert.equal(demonstrations[0]!.actions[0]!.method, "setInputFiles");
+    const plan = compileDomWorkflow("guided_upload", `${origin}/upload-learning`, demonstrations, {
+      effect: "write",
+      confirmation: "Select this controlled fixture file",
+    });
+    assert.equal(plan.effect.commitActionIndex, 0);
+    assert.doesNotMatch(JSON.stringify(plan), /first\.txt|second\.txt/);
+    await page.close();
+  } finally {
+    if (previousUploadRoot === undefined) delete process.env.CLAPPING_HANDS_UPLOAD_ROOT;
+    else process.env.CLAPPING_HANDS_UPLOAD_ROOT = previousUploadRoot;
     await browser?.close();
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     await rm(directory, { recursive: true, force: true });

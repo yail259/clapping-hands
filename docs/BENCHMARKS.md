@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 66 passing tests and the built MCP server
+cross-site speed claim. The current suite has 68 passing tests and the built MCP server
 advertises ten management/Marketplace tools before any generated workflow tools
 are loaded.
 
@@ -85,6 +85,9 @@ New regression coverage includes:
   also evidenced in the rendered task output;
 - compilation of learned Stagehand actions into redacted selector/argument
   templates and zero-model Playwright replay;
+- direct coverage of Stagehand v4's select, percentage/chunk scroll,
+  double-click, and drag/drop action vocabulary, plus an unambiguous
+  allowlisted-file selection bridge for the method its model cannot emit;
 - a persistent per-origin browser profile whose cookie and local-storage state
   survives restart without an LLM configuration;
 - two distinct-input shadows before network promotion (or two independent
