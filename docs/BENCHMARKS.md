@@ -787,6 +787,28 @@ and
 with setup notes in
 [`bench/fixtures/nopcommerce`](../bench/fixtures/nopcommerce/README.md).
 
+## Self-hosted Roundcube capability regression — 2026-09-05
+
+An official Roundcube 1.6.13 container was connected only to GreenMail 2.1.13,
+an explicitly sandboxed, non-forwarding SMTP/IMAP test server. The fixture
+seeded three synthetic messages, compiled two different subject searches, then
+closed and reopened Chrome before replaying an unseen third search.
+
+The compiled replay used zero model calls and returned the one exact unseen
+subject while excluding both decoys. The GreenMail API snapshot was equivalent
+at the semantic UID/message-ID/subject level before and after
+the read. Authentication survived the clean browser restart, and the mailbox
+was empty after cleanup.
+
+Roundcube also exposed an important readiness behavior without requiring a
+compiler change: immediately after login its global interface can be busy even
+though the search input is visible. A user search issued in that interval is
+ignored. The harness waits for application idle during demonstrations; the
+existing compiled navigation/hydration gate was sufficient for the unseen
+replay. This is a 1/1 post-v2 capability regression, not an untouched holdout
+or a latency distribution. The sanitized report is
+[`bench/runs/2026-09-05/roundcube-local-capability.json`](../bench/runs/2026-09-05/roundcube-local-capability.json).
+
 ## API-first negative control — 2026-09-04
 
 Public metadata for `yail259/clapping-hands` is fully covered by

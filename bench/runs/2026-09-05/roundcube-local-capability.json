@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "kind": "self-hosted-application-capability-regression",
+  "generatedAt": "2026-09-04T18:16:56.359Z",
+  "compilerCommit": "f1a284f8446730f54c468b2be00ff92965eb7841",
+  "application": "Roundcube Webmail with sandboxed GreenMail",
+  "origin": "http://127.0.0.1:18098",
+  "containerImages": {
+    "roundcube": {
+      "image": "roundcube/roundcubemail:1.6.13-apache",
+      "digest": "sha256:f6c97d0d2c61b42aa9fc96b8c2b6e5e09182b4c03391302f650b77f58b324399"
+    },
+    "greenmail": {
+      "image": "greenmail/standalone:2.1.13",
+      "digest": "sha256:3df66b7edd01c8a301343ca5e3601d8674760d4708655573560c24745e624fb2"
+    }
+  },
+  "intervention": "guided demonstrations",
+  "policyBasis": "Loopback-only official containers with synthetic mail; GreenMail is non-forwarding and sandboxed",
+  "credentialHandling": "Generated a synthetic password in process memory; GreenMail authentication was disabled and no credential or session value was persisted in the report or plan",
+  "claimScope": "One post-v2 capability regression; not an untouched holdout or latency distribution",
+  "authSurvivedBrowserRestart": true,
+  "compileMs": 6.44,
+  "task": {
+    "id": "search-synthetic-inbox-by-subject",
+    "effect": "read",
+    "engine": "stagehand-action-v1",
+    "exactResult": true,
+    "mailboxUnchanged": true,
+    "cleanupVerified": true,
+    "requests": 26,
+    "navigations": 1,
+    "modelCalls": 0,
+    "compiledDurationMs": 1526.88,
+    "oracle": {
+      "expectedSubjectFound": true,
+      "seededDecoysExcluded": true
+    }
+  },
+  "summary": {
+    "passed": 1,
+    "total": 1,
+    "falseSuccesses": 0
+  }
+}

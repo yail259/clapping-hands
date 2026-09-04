@@ -33,6 +33,7 @@
     "benchmark:osticket": "tsx scripts/benchmark-osticket.ts",
     "benchmark:osticket:v2:assignment": "tsx scripts/benchmark-osticket-v2-assignment-local.ts",
     "benchmark:osticket:performance": "tsx scripts/benchmark-osticket-performance.ts",
+    "benchmark:roundcube:local": "tsx scripts/benchmark-roundcube-local.ts",
     "benchmark:saucedemo": "tsx scripts/benchmark-saucedemo.ts",
     "benchmark:the-internet": "tsx scripts/benchmark-the-internet.ts",
     "benchmark:wordpress-playground": "tsx scripts/benchmark-wordpress-playground.ts",

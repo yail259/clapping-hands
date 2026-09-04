@@ -31,6 +31,59 @@ adding them retroactively to frozen corpus v1:
 | API-first controls | GitHub, MediaWiki, Hacker News, Open Library, Google Forms owner operations, Nextcloud WebDAV | API discovery and task-level routing | the expected pass is to choose the supported API, not compile the UI |
 | Permission-gated consumer services | Facebook Marketplace, eBay, Amazon, Craigslist, Gumtree, Airbnb, LinkedIn, Yahoo | high-mindshare authenticated search and account state | private low-volume dogfood only where authorized; exclude from public benchmark claims without explicit permission |
 
+### Third-wave brainstorm and narrowed expansion queue
+
+The post-v2 brainstorm deliberately included applications that will probably
+fail. The aim is to cover interaction mechanisms and safety boundaries, not to
+collect familiar logos:
+
+| Family | Candidates considered | New mechanism or product question | Triage |
+| --- | --- | --- | --- |
+| Business systems | Odoo Community, ERPNext/Frappe, Dolibarr, SuiteCRM | dense relational forms, autocomplete, modal stacks, kanban, JSON-RPC, background jobs | Odoo first; ERPNext reserve because its official Docker project provides a disposable demo |
+| Mail and collaboration | Roundcube, Mattermost, Zulip, Matrix/Element | split panes, rich compose, attachments, WebSockets, unread state, send-once semantics | Roundcube and Mattermost selected; together they cover classic and realtime communication UIs |
+| Work management and support | OpenProject, Zammad, Redmine, GLPI | large SPAs, filter builders, date pickers, permissions, assignment and status transitions | OpenProject selected; Zammad reserve because osTicket already covers helpdesk semantics |
+| Commerce | PrestaShop, OpenCart, Shopware, WooCommerce admin | variants, inventory, carts, checkout, order transitions, mixed storefront/admin roles | PrestaShop selected; official containers make exact reset and database oracles practical |
+| Identity and control planes | Keycloak, Home Assistant, Grafana | security-sensitive roles, Web Components, WebSockets, realtime state, dashboards | reserve/control rows; use official APIs when they completely cover the chosen task |
+| Hosted forms and scheduling | operator-owned Google Form, operator-owned Typeform, Cal.com | cross-origin multi-step forms, conditional pages, time zones, one-shot submissions | Google Form remains selected; Typeform is an API control; Cal.com dropped because self-hosting is no longer a self-serve path |
+| Public decision services | ATO calculators/simulator, GOV.UK calculators, USAGov Benefit Finder | independent production stacks, branching questions, numeric/date inputs, deterministic read-only outcomes | ATO selected as the next independent operator; keep traffic human-scale and never run a performance distribution |
+| Consumer production sites | Facebook Marketplace, Yahoo Finance, IKEA, Gumtree, Craigslist, airline and hotel search | authenticated virtualized feeds, volatile opaque traffic, anti-automation boundaries, live data | Marketplace remains private dogfood; the rest stay out of the public denominator pending task-specific policy review and stable oracles |
+| API-first controls | GitHub, WordPress core, Typeform, MediaWiki, Nextcloud WebDAV | whether routing detects a supported API instead of compiling an unnecessary UI | mandatory controls, never counted as no-API wins |
+
+The sources are first-party where possible: [Odoo publishes an official Docker
+image](https://hub.docker.com/_/odoo), [Frappe publishes a disposable ERPNext
+Compose setup](https://github.com/frappe/frappe_docker), [Roundcube publishes
+its Docker images](https://github.com/roundcube/roundcubemail-docker), and
+[GreenMail is explicitly a sandboxed SMTP/IMAP test
+server](https://greenmail-mail-test.github.io/greenmail/). [Mattermost](https://docs.mattermost.com/deployment-guide/server/deploy-containers),
+[OpenProject](https://www.openproject.org/docs/installation-and-operations/installation/docker/),
+[Keycloak](https://www.keycloak.org/server/containers), and
+[PrestaShop](https://github.com/PrestaShop/docker) likewise publish official
+container instructions or images. [Cal.com's own current
+guidance](https://cal.com/blog/self-hosted-scheduling-platforms-benefits-and-challenges)
+says self-hosting is now an enterprise-assisted rather than self-serve path, so
+it is no longer a good resettable benchmark dependency.
+
+The narrowed execution queue is five new isolated applications plus the two
+external rows already selected but not yet completed:
+
+| Priority | Row | Three-task slice | Distinct reason to keep it |
+| --- | --- | --- | --- |
+| 1 | Roundcube + GreenMail, local | filter seeded mail; save a draft with an allowlisted attachment; send one synthetic message exactly once | classic split-pane webmail, rich editor, IMAP/SMTP state, files, and an independently countable send side effect |
+| 2 | Odoo Community, local | filter quotations by customer/state; edit one synthetic line; confirm one quotation once | dense OWL client, relational widgets, modals, JSON-RPC, and background server work |
+| 3 | PrestaShop, local | find one seeded variant; change synthetic stock; place or advance one synthetic order once | a second commerce implementation with storefront/admin role separation and exact inventory/order oracles |
+| 4 | OpenProject, local | filter work packages; change one date/assignee; close one synthetic item once | large SPA, filter builder, date picker, optimistic state, and permission-sensitive transitions |
+| 5 | Mattermost, local | find a seeded thread; create an attachment-backed draft; post one synthetic message once | realtime React/WebSocket UI, virtualized history, uploads, and exactly-once notification-visible writes |
+| 6 | ATO, production read-only | three deterministic calculator/simulator journeys | a non-GOV.UK production operator; no mutation and no latency harvesting |
+| 7 | Operator-owned Google Form | traverse conditional pages; prepare mixed fields; submit and verify once | hosted cross-origin commit with owner-side reset and oracle |
+
+These seven rows form a 21-task expansion queue, not a retroactive v2 corpus and
+not yet a v3 freeze. Roundcube should run first because it adds the most new
+mechanisms at modest setup cost. Odoo and PrestaShop follow. OpenProject and
+Mattermost are heavier installations and should run only if the earlier rows do
+not expose a more general compiler defect worth fixing first. Facebook
+Marketplace stays in a separate private dogfood lane: useful for product truth,
+but not reproducible or permission-clear enough to carry the public percentage.
+
 Moodle explicitly offers a sandbox and resets demo sites every hour. Discourse
 links to its demo sandbox as a place to test features. Nextcloud's instant trial
 creates a test account that is removed after two hours. nopCommerce invites
@@ -144,6 +197,7 @@ denominator:
 | Reserve | Evidence completed | What it adds | Disposition |
 | --- | --- | --- | --- |
 | InvoicePlane 1.7.2 | unseen draft invoice with client lookup, line item, calculated totals, prepare/commit, restart, repeat rejection, and exact database cleanup: 1/1 | API-poor stateful finance UI; Select2 AJAX plus JSON save; short decimal and quantity bindings | retain as high-value regression; add a 20-pair read distribution only if a representative read task is selected in advance |
+| Roundcube 1.6.13 + GreenMail 2.1.13 | two varied subject searches compiled and one unseen search replayed exactly after restart: 1/1 | split-pane webmail, asynchronous IMAP search, opaque request IDs, and a non-forwarding SMTP/IMAP oracle | continue with a draft attachment and send-once workflow; the one read replay is capability evidence, not a speed row |
 
 OrangeHRM was also installed and inspected locally, but its current application
 exposes broad employee CRUD routes under `/api/v2`. It is therefore more useful
