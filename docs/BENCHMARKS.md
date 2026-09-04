@@ -50,9 +50,25 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-speed claim. The current suite has 54 passing tests and the built MCP server
+cross-site speed claim. The current suite has 58 passing tests and the built MCP server
 advertises ten management/Marketplace tools before any generated workflow tools
 are loaded.
+
+The reproducible controlled protocol at compiler commit
+[`387ede5`](https://github.com/yail259/clapping-hands/commit/387ede5) ran 20
+interleaved warm UI and compiled trials with exact output checks. Chrome
+151.0.7922.138 on Apple Silicon produced the following local result:
+
+| Workflow | Engine | n | UI p50 / p95 | Compiled p50 / p95 | Median ratio | Correctness | Requests; navigations |
+| --- | --- | ---: | ---: | ---: | ---: | --- | --- |
+| Controlled JSON search | `json-request-v1` | 20 | 91.88 / 109.69 ms | 0.71 / 0.99 ms | 129.41× | 20/20 + 20/20 | UI 2; 1 → compiled 1; 0 |
+
+This is an architectural ceiling on a loopback fixture: it mostly measures the
+cost of a navigation, rendering, locator work, and an extra request that direct
+replay avoids. It proves deterministic replay overhead and result equivalence;
+it does **not** prove semantic discovery, internet latency, or a typical-site
+speedup. The sanitized report is
+[`bench/runs/2026-09-04/controlled-general-compiler.json`](../bench/runs/2026-09-04/controlled-general-compiler.json).
 
 New regression coverage includes:
 
@@ -63,7 +79,7 @@ New regression coverage includes:
   headers, and capture from every attached tab; mutation-shaped methods stay on
   the prepared effectful path;
 - same-origin iframe action/output discovery, declared new-page transitions,
-  and zero-argument DOM and JSON workflows;
+  open Shadow DOM, and zero-argument DOM and JSON workflows;
 - nested input inference and replay for form-encoded GraphQL variables;
 - rejection of input-bound telemetry/config requests unless response values are
   also evidenced in the rendered task output;

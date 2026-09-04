@@ -82,6 +82,7 @@ In short: **first compile away the model; then compile away the UI.**
 - [`docs/BENCHMARK_PLAN.md`](docs/BENCHMARK_PLAN.md) — multi-site corpus, verification protocol, and claim gates
 - [`docs/BENCHMARK_CORPUS.md`](docs/BENCHMARK_CORPUS.md) — broad site inventory and narrowed representative sample
 - [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) — live smoke results, failed rows, and iteration evidence
+- [`docs/ALTERNATIVES.md`](docs/ALTERNATIVES.md) — direct competitors and the honest differentiation target
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — proposed system boundaries
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — staged path to a convincing prototype
 - [`docs/decisions/0001-stagehand.md`](docs/decisions/0001-stagehand.md) — why Stagehand is a replaceable dependency
@@ -103,6 +104,7 @@ npm install
 npm test
 npm run build
 npm run benchmark:corpus
+npm run benchmark:controlled
 npm run smoke:general
 npm run auth:marketplace
 npm run dogfood:marketplace

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-04T07:57:57.547Z",
+  "gitSha": "387ede5a41fede0370405970dadd3ac442fe7994",
+  "runner": "scripts/benchmark-controlled-general.ts",
+  "runClass": "controlled-protocol-performance",
+  "intervention": "fixture-authored action and oracle; not semantic compiler evidence",
+  "environment": {
+    "browserVersion": "151.0.7922.138",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "workflow": {
+    "id": "controlled-json-search",
+    "engine": "json-request-v1",
+    "sampleSize": 20,
+    "compileMs": 0.99,
+    "browser": {
+      "p50Ms": 91.88,
+      "p95Ms": 109.69,
+      "slowestMs": 110.61,
+      "correctness": "20/20",
+      "requestsPerRun": 2,
+      "navigationsPerRun": 1,
+      "modelCallsPerRun": 0
+    },
+    "compiled": {
+      "p50Ms": 0.71,
+      "p95Ms": 0.99,
+      "slowestMs": 1.02,
+      "correctness": "20/20",
+      "requestsPerRun": 1,
+      "navigationsPerRun": 0,
+      "modelCallsPerRun": 0
+    },
+    "medianSpeedup": 129.41
+  }
+}

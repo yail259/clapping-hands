@@ -22,14 +22,19 @@
       "id": "the-internet",
       "name": "The Internet",
       "role": "development",
-      "architecture": ["dynamic-dom", "multi-window"],
+      "architecture": ["dynamic-dom", "multi-window", "open-shadow-dom", "infinite-scroll", "file-transfer", "browser-dialog"],
       "policy": "purpose-built acceptance-test application",
       "trafficBudget": "human-scale smoke; warm distributions only with local deployment",
       "tasks": [
         { "id": "delayed-element-insertion", "effect": "read", "expectedPath": "dom" },
         { "id": "dynamic-controls", "effect": "read", "expectedPath": "dom" },
         { "id": "dropdown-and-checkbox", "effect": "read", "expectedPath": "dom" },
-        { "id": "multiple-windows", "effect": "read", "expectedPath": "dom" }
+        { "id": "multiple-windows", "effect": "read", "expectedPath": "dom" },
+        { "id": "open-shadow-root", "effect": "read", "expectedPath": "dom" },
+        { "id": "bounded-infinite-scroll", "effect": "read", "expectedPath": "dom" },
+        { "id": "download-file", "effect": "read", "expectedPath": "download-artifact" },
+        { "id": "upload-synthetic-file", "effect": "write", "expectedPath": "prepare-commit" },
+        { "id": "javascript-confirm", "effect": "commit", "expectedPath": "prepare-commit" }
       ]
     },
     {

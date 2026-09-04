@@ -57,6 +57,19 @@ async function fixture(): Promise<{ server: Server; origin: string }> {
       </main>`);
       return;
     }
+    if (url.pathname === "/shadow") {
+      response.end(`<!doctype html><main><search-panel></search-panel>
+        <script>
+          const host = document.querySelector('search-panel');
+          const root = host.attachShadow({ mode: 'open' });
+          root.innerHTML = '<label>Search <input id="shadow-query"></label><button id="shadow-run">Run</button><output id="shadow-result">Ready</output>';
+          root.querySelector('#shadow-run').onclick = () => {
+            root.querySelector('#shadow-result').textContent = 'Shadow result for ' + root.querySelector('#shadow-query').value;
+          };
+        </script>
+      </main>`);
+      return;
+    }
     if (url.pathname === "/fixed-status") {
       response.end(`<!doctype html><main><button id="check">Check status</button><output id="status">Ready</output>
         <script>document.querySelector('#check').onclick = () => setTimeout(() => {
@@ -262,6 +275,44 @@ test("discovers and replays actions and output inside a same-origin iframe", asy
     const result = await replayDomWorkflow(page, plan, { query: "lamp" });
     assert.equal(result.text, "Frame result for lamp");
     assert.deepEqual(result.framePath, ['iframe[id="app"]']);
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("discovers and replays controls inside an open shadow root", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const demonstrate = (query: string) => demonstrateDomWorkflow({
+      act: async (instruction) => {
+        const value = String(instruction).match(/^Search shadow for (.+)$/)?.[1] ?? "";
+        await page.locator("#shadow-query").fill(value);
+        await page.locator("#shadow-run").click();
+        return {
+          success: true,
+          message: "done",
+          actions: [
+            { selector: "#shadow-query", description: `Fill ${value}`, method: "fill", arguments: [value] },
+            { selector: "#shadow-run", description: "Run", method: "click", arguments: [] },
+          ],
+          modelCalls: 1,
+          inputTokens: 1,
+          outputTokens: 1,
+        };
+      },
+    }, page, `${origin}/shadow`, { query }, [`Search shadow for ${query}`], "#shadow-result");
+    const plan = compileDomWorkflow("shadow_search", `${origin}/shadow`, [
+      await demonstrate("sofa"),
+      await demonstrate("chair"),
+    ]);
+    const result = await replayDomWorkflow(page, plan, { query: "lamp" });
+    assert.equal(result.text, "Shadow result for lamp");
+    assert.equal(result.modelCalls, 0);
     await page.close();
   } finally {
     await browser?.close();
