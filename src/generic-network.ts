@@ -30,6 +30,14 @@ export type GenericJsonPlan = {
     bodyCodec: "none" | "json" | "form";
     bodyTemplate: TemplateValue | Record<string, TemplateValue[]> | null;
     bindings: Record<string, Array<{ source: "query" | "body"; path: Path }>>;
+    pagination?: {
+      strategy: "cursor";
+      requestSource: "query" | "body";
+      requestPath: Path;
+      responseCursorPath: Path;
+      responseHasNextPath?: Path;
+      maximumPages: number;
+    };
   };
   response: {
     shape: JsonShape;
@@ -59,6 +67,8 @@ const SENSITIVE_NAME = /(?:authorization|cookie|password|passwd|secret|token|csr
 const PUBLIC_OPAQUE_CONSTANT_NAME = /^(?:sha256hash|sha256_hash)$/i;
 const SAFE_HEADERS = new Set(["accept", "content-type", "x-requested-with"]);
 const READ_NETWORK_METHODS = new Set(["GET", "POST"]);
+const PAGINATION_FIELD_NAME = /(?:after|cursor|continuation|next|page.?token)/i;
+const HAS_NEXT_FIELD_NAME = /(?:has.?next|more)/i;
 
 function hash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -201,6 +211,16 @@ function pathKey(source: "query" | "body", path: Path): string {
   return `${source}:${JSON.stringify(path)}`;
 }
 
+function assertTemplatePath(path: unknown, label: string): asserts path is Path {
+  if (!Array.isArray(path) || path.length === 0 || path.length > 30 || path.some((segment) =>
+    typeof segment === "number"
+      ? !Number.isSafeInteger(segment) || segment < 0 || segment > 10_000
+      : typeof segment !== "string" || segment.length === 0 || segment.length > 128
+  )) {
+    throw new Error(`${label} is invalid.`);
+  }
+}
+
 function equivalent(source: "query" | "body", value: unknown, input: string | number | boolean): boolean {
   return source === "query" || typeof value === "string" ? String(value) === String(input) : value === input;
 }
@@ -268,6 +288,34 @@ export function assertGenericJsonPlanSafety(plan: GenericJsonPlan): void {
   if (plan.request.bodyCodec !== "none" && plan.request.bodyTemplate === null) {
     throw new Error("A compiled request body codec requires a body template.");
   }
+  if (plan.request.pagination !== undefined) {
+    const pagination = plan.request.pagination;
+    if (pagination.strategy !== "cursor" ||
+      !new Set(["query", "body"]).has(pagination.requestSource)) {
+      throw new Error("Compiled network pagination strategy is invalid.");
+    }
+    assertTemplatePath(pagination.requestPath, "Compiled pagination request path");
+    assertTemplatePath(pagination.responseCursorPath, "Compiled pagination response-cursor path");
+    if (pagination.responseHasNextPath !== undefined) {
+      assertTemplatePath(pagination.responseHasNextPath, "Compiled pagination has-next path");
+    }
+    if (!Number.isSafeInteger(pagination.maximumPages) ||
+      pagination.maximumPages < 2 || pagination.maximumPages > 40) {
+      throw new Error("Compiled pagination page limit is invalid.");
+    }
+    const requestRoot = pagination.requestSource === "query"
+      ? plan.request.queryTemplate
+      : plan.request.bodyTemplate;
+    if (requestRoot === null || valueAt(requestRoot, pagination.requestPath) === undefined) {
+      throw new Error("Compiled pagination request path does not exist in its request template.");
+    }
+    if (Object.values(plan.request.bindings).flat().some((binding) =>
+      binding.source === pagination.requestSource &&
+      JSON.stringify(binding.path) === JSON.stringify(pagination.requestPath)
+    )) {
+      throw new Error("Compiled pagination cannot overwrite a user input binding.");
+    }
+  }
   assertSafeTemplate(plan.request.queryTemplate);
   if (plan.request.bodyTemplate !== null) assertSafeTemplate(plan.request.bodyTemplate);
   if (!Number.isSafeInteger(plan.response.maximumBytes) || plan.response.maximumBytes < 1 || plan.response.maximumBytes > 8 * 1024 * 1024) {
@@ -308,6 +356,159 @@ function responseScalars(value: unknown): string[] {
   if (value && typeof value === "object") return Object.values(value).flatMap(responseScalars);
   if (typeof value === "string" || typeof value === "number") return [String(value)];
   return [];
+}
+
+type ParsedPaginationExchange = {
+  request: ReturnType<typeof parseRequest>;
+  response: unknown;
+};
+
+type CursorPaginationInference = {
+  pagination: NonNullable<GenericJsonPlan["request"]["pagination"]>;
+  responseShape: JsonShape;
+  demonstratedPages: number;
+};
+
+function lastNamedSegment(path: Path): string {
+  return [...path].reverse().find((segment): segment is string => typeof segment === "string") ?? "";
+}
+
+function sameScalar(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if ((typeof left === "string" || typeof left === "number") &&
+    (typeof right === "string" || typeof right === "number")) {
+    return String(left) === String(right);
+  }
+  return false;
+}
+
+function paginationSequence(
+  trace: GenericNetworkTrace,
+  selected: CapturedExchange,
+): ParsedPaginationExchange[] {
+  const selectedIndex = trace.exchanges.indexOf(selected);
+  if (selectedIndex < 0) return [];
+  const signature = requestSignature(selected);
+  const sequence: ParsedPaginationExchange[] = [];
+  for (const exchange of trace.exchanges.slice(selectedIndex)) {
+    let exchangeSignature: string | null;
+    try {
+      exchangeSignature = candidateSignature(exchange);
+    } catch {
+      continue;
+    }
+    if (exchangeSignature !== signature) continue;
+    try {
+      sequence.push({ request: parseRequest(exchange), response: parseJson(exchange.responseBody) });
+    } catch {
+      return [];
+    }
+    if (sequence.length > 40) return [];
+  }
+  return sequence;
+}
+
+function requestRoot(
+  request: ReturnType<typeof parseRequest>,
+  source: "query" | "body",
+): unknown {
+  return source === "query" ? request.query : request.body;
+}
+
+function sequencePreservesInputs(
+  plan: GenericJsonPlan,
+  sequence: ParsedPaginationExchange[],
+  input: NetworkInput,
+): boolean {
+  return Object.entries(plan.request.bindings).every(([inputName, bindings]) => bindings.every((binding) =>
+    sequence.every((page) => equivalent(
+      binding.source,
+      valueAt(requestRoot(page.request, binding.source), binding.path),
+      input[inputName]!,
+    )),
+  ));
+}
+
+function inferCursorPagination(
+  plan: GenericJsonPlan,
+  traces: GenericNetworkTrace[],
+  demonstrations: GenericNetworkDemonstration[],
+): CursorPaginationInference | null {
+  const sequences = traces.map((trace, index) => paginationSequence(trace, demonstrations[index]!.exchange));
+  if (sequences.some((sequence) => sequence.length < 2) ||
+    sequences.some((sequence, index) => !sequencePreservesInputs(plan, sequence, traces[index]!.input))) {
+    return null;
+  }
+  const boundPaths = new Set(Object.values(plan.request.bindings).flat()
+    .map((binding) => pathKey(binding.source, binding.path)));
+  const requestCandidates: Array<{ source: "query" | "body"; path: Path }> = [];
+  for (const source of ["query", "body"] as const) {
+    const root = requestRoot(sequences[0]![0]!.request, source);
+    if (root === null) continue;
+    for (const entry of leafEntries(root)) {
+      if (!PAGINATION_FIELD_NAME.test(lastNamedSegment(entry.path)) ||
+        boundPaths.has(pathKey(source, entry.path))) continue;
+      const initialValues = sequences.map((sequence) =>
+        valueAt(requestRoot(sequence[0]!.request, source), entry.path));
+      if (!initialValues.every((value) => value === null || value === "") ||
+        new Set(initialValues.map((value) => JSON.stringify(value))).size !== 1) continue;
+      const everyTransitionChanges = sequences.every((sequence) => sequence.slice(0, -1).every((page, index) => {
+        const current = valueAt(requestRoot(page.request, source), entry.path);
+        const next = valueAt(requestRoot(sequence[index + 1]!.request, source), entry.path);
+        return next !== undefined && !sameScalar(current, next);
+      }));
+      if (everyTransitionChanges) requestCandidates.push({ source, path: entry.path });
+    }
+  }
+
+  const rankedRequestCandidates = requestCandidates.sort((left, right) =>
+    left.path.length - right.path.length || JSON.stringify(left).localeCompare(JSON.stringify(right)));
+  for (const requestCandidate of rankedRequestCandidates) {
+    const firstNextToken = valueAt(
+      requestRoot(sequences[0]![1]!.request, requestCandidate.source),
+      requestCandidate.path,
+    );
+    const cursorPaths = leafEntries(sequences[0]![0]!.response)
+      .filter((entry) => PAGINATION_FIELD_NAME.test(lastNamedSegment(entry.path)) &&
+        sameScalar(entry.value, firstNextToken))
+      .map((entry) => entry.path)
+      .sort((left, right) => left.length - right.length || JSON.stringify(left).localeCompare(JSON.stringify(right)));
+    for (const responseCursorPath of cursorPaths) {
+      const cursorMatchesEveryTransition = sequences.every((sequence) =>
+        sequence.slice(0, -1).every((page, index) => sameScalar(
+          valueAt(page.response, responseCursorPath),
+          valueAt(requestRoot(sequence[index + 1]!.request, requestCandidate.source), requestCandidate.path),
+        )));
+      if (!cursorMatchesEveryTransition) continue;
+
+      const hasNextCandidates = leafEntries(sequences[0]![0]!.response)
+        .filter((entry) => entry.value === true && HAS_NEXT_FIELD_NAME.test(lastNamedSegment(entry.path)))
+        .map((entry) => entry.path)
+        .sort((left, right) => left.length - right.length || JSON.stringify(left).localeCompare(JSON.stringify(right)));
+      const responseHasNextPath = hasNextCandidates.find((path) => sequences.every((sequence) =>
+        sequence.slice(0, -1).every((page) => valueAt(page.response, path) === true) &&
+        valueAt(sequence.at(-1)!.response, path) === false
+      ));
+      const terminalCursorValues = sequences.map((sequence) => valueAt(sequence.at(-1)!.response, responseCursorPath));
+      const terminalCursor = terminalCursorValues.every((value) => value === null || value === "");
+      if (!responseHasNextPath && !terminalCursor) continue;
+
+      const responses = sequences.flatMap((sequence) => sequence.map((page) => page.response));
+      return {
+        pagination: {
+          strategy: "cursor",
+          requestSource: requestCandidate.source,
+          requestPath: requestCandidate.path,
+          responseCursorPath,
+          ...(responseHasNextPath ? { responseHasNextPath } : {}),
+          maximumPages: 40,
+        },
+        responseShape: inferJsonShape(responses),
+        demonstratedPages: responses.length,
+      };
+    }
+  }
+  return null;
 }
 
 export function jsonResponseSupportsOutput(responseBody: string, outputText: string, input: NetworkInput): boolean {
@@ -373,10 +574,17 @@ export function compileGenericJsonFromTraces(
           continue;
         }
         const plan = compileGenericJsonPlan(action, demonstrations, options);
+        const cursorPagination = inferCursorPagination(plan, traces, demonstrations);
+        if (cursorPagination) {
+          plan.request.pagination = cursorPagination.pagination;
+          plan.response.shape = cursorPagination.responseShape;
+          assertGenericJsonPlanSafety(plan);
+        }
         compiled.push({
           plan,
           demonstrations,
-          score: Object.values(plan.request.bindings).flat().length * 100 + shapeWeight(plan.response.shape),
+          score: Object.values(plan.request.bindings).flat().length * 100 +
+            shapeWeight(plan.response.shape) + (cursorPagination ? 1_000 + cursorPagination.demonstratedPages : 0),
         });
       } catch {
         // Most same-page traffic is analytics, configuration, or unrelated
@@ -518,39 +726,103 @@ export async function replayGenericJsonPlan(
   context: BrowserContext,
   plan: GenericJsonPlan,
   input: NetworkInput,
-): Promise<{ data: unknown; status: number; durationMs: number; requests: 1; navigations: 0 }> {
+): Promise<{ data: unknown; status: number; durationMs: number; requests: number; navigations: 0; complete: true }> {
   assertGenericJsonPlanSafety(plan);
   const expectedInputs = Object.keys(plan.request.bindings).sort();
   if (JSON.stringify(Object.keys(input).sort()) !== JSON.stringify(expectedInputs)) {
     throw new Error(`Compiled input keys must be exactly: ${expectedInputs.join(", ")}.`);
   }
   const startedAt = performance.now();
-  const url = new URL(plan.request.endpointPath, plan.request.endpointOrigin ?? plan.origin);
-  url.search = materializeParameters(plan.request.queryTemplate, input).toString();
-  let data: string | undefined;
-  if (plan.request.bodyCodec === "json") data = JSON.stringify(materialize(plan.request.bodyTemplate as TemplateValue, input));
-  if (plan.request.bodyCodec === "form") {
-    data = materializeParameters(plan.request.bodyTemplate as Record<string, TemplateValue[]>, input).toString();
+  const pagination = plan.request.pagination;
+  const maximumPages = pagination?.maximumPages ?? 1;
+  const pages: unknown[] = [];
+  const seenCursors = new Set<string>();
+  let nextCursor: string | number | undefined;
+  let totalBytes = 0;
+  let status = 0;
+
+  for (let pageIndex = 0; pageIndex < maximumPages; pageIndex += 1) {
+    const queryTemplate = structuredClone(plan.request.queryTemplate);
+    const bodyTemplate = structuredClone(plan.request.bodyTemplate);
+    if (pagination && pageIndex > 0) {
+      const target = pagination.requestSource === "query" ? queryTemplate : bodyTemplate;
+      if (target === null || nextCursor === undefined) {
+        throw new Error("Compiled pagination lost its next cursor before replay.");
+      }
+      setAt(target, pagination.requestPath, nextCursor);
+    }
+
+    const url = new URL(plan.request.endpointPath, plan.request.endpointOrigin ?? plan.origin);
+    url.search = materializeParameters(queryTemplate, input).toString();
+    let requestData: string | undefined;
+    if (plan.request.bodyCodec === "json") {
+      requestData = JSON.stringify(materialize(bodyTemplate as TemplateValue, input));
+    }
+    if (plan.request.bodyCodec === "form") {
+      requestData = materializeParameters(bodyTemplate as Record<string, TemplateValue[]>, input).toString();
+    }
+    const response = await context.request.fetch(url.href, {
+      method: plan.request.method,
+      headers: plan.request.headers,
+      data: requestData,
+      failOnStatusCode: false,
+      maxRedirects: 0,
+      timeout: 30_000,
+    });
+    status = response.status();
+    if (status >= 300 && status < 400) throw new Error("Compiled JSON request refused an unvalidated redirect.");
+    if (!response.ok()) throw new Error(`Compiled JSON request returned HTTP ${status}.`);
+    const contentType = response.headers()["content-type"] ?? "";
+    if (!/(?:json|graphql|javascript)/i.test(contentType)) {
+      throw new Error(`Compiled JSON response returned an unexpected content type: ${contentType || "missing"}.`);
+    }
+    const responseBody = await response.body();
+    totalBytes += responseBody.byteLength;
+    if (totalBytes > plan.response.maximumBytes) {
+      throw new Error("Compiled JSON pagination exceeded its aggregate response size limit.");
+    }
+    const parsed = parseJson(responseBody.toString("utf8"));
+    if (!matchesJsonShape(parsed, plan.response.shape)) {
+      throw new Error("Compiled JSON response failed its structural contract.");
+    }
+    pages.push(parsed);
+    if (!pagination) break;
+
+    const hasNext = pagination.responseHasNextPath === undefined
+      ? undefined
+      : valueAt(parsed, pagination.responseHasNextPath);
+    if (hasNext !== undefined && typeof hasNext !== "boolean") {
+      throw new Error("Compiled pagination returned an invalid has-next value.");
+    }
+    const cursor = valueAt(parsed, pagination.responseCursorPath);
+    if (hasNext === false || cursor === null || cursor === "") {
+      return {
+        data: pages,
+        status,
+        durationMs: performance.now() - startedAt,
+        requests: pages.length,
+        navigations: 0,
+        complete: true,
+      };
+    }
+    if (typeof cursor !== "string" && typeof cursor !== "number") {
+      throw new Error("Compiled pagination returned a missing or invalid next cursor.");
+    }
+    const cursorKey = JSON.stringify(cursor);
+    if (seenCursors.has(cursorKey)) throw new Error("Compiled pagination returned a repeated cursor.");
+    seenCursors.add(cursorKey);
+    nextCursor = cursor;
   }
-  const response = await context.request.fetch(url.href, {
-    method: plan.request.method,
-    headers: plan.request.headers,
-    data,
-    failOnStatusCode: false,
-    maxRedirects: 0,
-    timeout: 30_000,
-  });
-  if (response.status() >= 300 && response.status() < 400) throw new Error("Compiled JSON request refused an unvalidated redirect.");
-  if (!response.ok()) throw new Error(`Compiled JSON request returned HTTP ${response.status()}.`);
-  const contentType = response.headers()["content-type"] ?? "";
-  if (!/(?:json|graphql|javascript)/i.test(contentType)) {
-    throw new Error(`Compiled JSON response returned an unexpected content type: ${contentType || "missing"}.`);
-  }
-  const body = await response.body();
-  if (body.byteLength > plan.response.maximumBytes) throw new Error("Compiled JSON response exceeded its size limit.");
-  const parsed = parseJson(body.toString("utf8"));
-  if (!matchesJsonShape(parsed, plan.response.shape)) throw new Error("Compiled JSON response failed its structural contract.");
-  return { data: parsed, status: response.status(), durationMs: performance.now() - startedAt, requests: 1, navigations: 0 };
+
+  if (pagination) throw new Error("Compiled pagination reached its page limit before a terminal response.");
+  return {
+    data: pages[0],
+    status,
+    durationMs: performance.now() - startedAt,
+    requests: 1,
+    navigations: 0,
+    complete: true,
+  };
 }
 
 export function recordGenericJsonShadow(

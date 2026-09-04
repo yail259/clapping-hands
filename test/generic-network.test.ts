@@ -62,6 +62,20 @@ async function apiFixture(): Promise<{ server: Server; origin: string }> {
           : { items: [{ id: query.length, title: query }], meta: { count: 1 } }));
       return;
     }
+    if (url.pathname === "/api/paged") {
+      const query = url.searchParams.get("q") ?? "";
+      const cursor = url.searchParams.get("cursor") ?? "";
+      const page = cursor ? Number.parseInt(cursor.split("-").at(-1) ?? "0", 10) : 0;
+      const terminal = query === "endless" || query === "repeat" ? false : query === "lamp" ? page >= 2 : page >= 1;
+      response.end(JSON.stringify({
+        items: [{ id: `${query}-${page}`, title: `${query} page ${page + 1}` }],
+        pageInfo: {
+          hasNextPage: !terminal,
+          endCursor: terminal ? null : query === "repeat" ? "repeat-1" : `${query}-${page + 1}`,
+        },
+      }));
+      return;
+    }
     if (url.pathname === "/api/html-json") {
       response.setHeader("content-type", "text/html");
       response.end(JSON.stringify({ items: [{ title: "looks structured" }] }));
@@ -103,6 +117,31 @@ function searchDemonstrations(origin: string): GenericNetworkDemonstration[] {
   ));
 }
 
+function cursorTrace(origin: string, query: string) {
+  return {
+    input: { query },
+    outputText: `${query} page 1 ${query} page 2`,
+    exchanges: [
+      exchange(
+        `${origin}/api/paged?q=${query}&cursor=`,
+        { query },
+        {
+          items: [{ id: `${query}-0`, title: `${query} page 1` }],
+          pageInfo: { hasNextPage: true, endCursor: `${query}-1` },
+        },
+      ).exchange,
+      exchange(
+        `${origin}/api/paged?q=${query}&cursor=${query}-1`,
+        { query },
+        {
+          items: [{ id: `${query}-1`, title: `${query} page 2` }],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      ).exchange,
+    ],
+  };
+}
+
 test("infers a redacted GET query plan from two demonstrations and validates replay", async () => {
   const { server, origin } = await apiFixture();
   const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-get-"));
@@ -121,6 +160,69 @@ test("infers a redacted GET query plan from two demonstrations and validates rep
     assert.equal(stable.status, "stable");
     await assert.rejects(() => replayGenericJsonPlan(context!, plan, { query: "drift" }), /structural contract/);
     await assert.rejects(() => replayGenericJsonPlan(context!, plan, { query: "empty-drift" }), /structural contract/);
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("infers terminal cursor pagination from traces and replays every unseen page", async () => {
+  const { server, origin } = await apiFixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-pagination-"));
+  let context: BrowserContext | null = null;
+  try {
+    const compiled = compileGenericJsonFromTraces("paged_search", [
+      cursorTrace(origin, "sofa"),
+      cursorTrace(origin, "chair"),
+    ]);
+    const plan = compiled.plan;
+    assert.deepEqual(plan.request.pagination, {
+      strategy: "cursor",
+      requestSource: "query",
+      requestPath: ["cursor", 0],
+      responseCursorPath: ["pageInfo", "endCursor"],
+      responseHasNextPath: ["pageInfo", "hasNextPage"],
+      maximumPages: 40,
+    });
+    assert.doesNotMatch(JSON.stringify(plan), /sofa|chair/);
+
+    context = await chromium.launchPersistentContext(directory, { executablePath: CHROME, headless: true });
+    const replay = await replayGenericJsonPlan(context, plan, { query: "lamp" });
+    assert.equal(replay.requests, 3);
+    assert.equal(replay.complete, true);
+    assert.deepEqual(replay.data, [
+      {
+        items: [{ id: "lamp-0", title: "lamp page 1" }],
+        pageInfo: { hasNextPage: true, endCursor: "lamp-1" },
+      },
+      {
+        items: [{ id: "lamp-1", title: "lamp page 2" }],
+        pageInfo: { hasNextPage: true, endCursor: "lamp-2" },
+      },
+      {
+        items: [{ id: "lamp-2", title: "lamp page 3" }],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+    ]);
+
+    const bounded = structuredClone(plan);
+    bounded.request.pagination!.maximumPages = 2;
+    await assert.rejects(
+      () => replayGenericJsonPlan(context!, bounded, { query: "endless" }),
+      /page limit before a terminal response/,
+    );
+    await assert.rejects(
+      () => replayGenericJsonPlan(context!, plan, { query: "repeat" }),
+      /repeated cursor/,
+    );
+
+    const overwriting = structuredClone(plan);
+    overwriting.request.pagination!.requestPath = ["q", 0];
+    await assert.rejects(
+      () => replayGenericJsonPlan(context!, overwriting, { query: "lamp" }),
+      /cannot overwrite a user input binding/,
+    );
   } finally {
     await context?.close();
     await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
