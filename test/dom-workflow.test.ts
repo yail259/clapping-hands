@@ -51,6 +51,18 @@ async function fixture(): Promise<{ server: Server; origin: string }> {
       response.end(`<!doctype html><main><iframe id="app" title="Search app" src="/frame-body"></iframe></main>`);
       return;
     }
+    if (url.pathname === "/async-frame") {
+      response.end(`<!doctype html><main><script>
+        setTimeout(() => {
+          const frame = document.createElement('iframe');
+          frame.id = 'app';
+          frame.title = 'Delayed search app';
+          frame.src = '/frame-body';
+          document.querySelector('main').append(frame);
+        }, 100);
+      </script></main>`);
+      return;
+    }
     if (url.pathname === "/frame-body") {
       response.end(`<!doctype html><main>
         <label>Search <input id="frame-query"></label><button id="frame-run">Run</button>
@@ -212,6 +224,54 @@ test("compiles semantic DOM actions into redacted zero-model Playwright replay",
     let stable = recordDomShadow(plan, { query: "lamp" }, true);
     stable = recordDomShadow(stable, { query: "desk" }, true);
     assert.equal(stable.status, "stable");
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("waits for an asynchronously mounted compiled iframe", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    const demonstration = (query: string): DomWorkflowDemonstration => ({
+      input: { query },
+      actions: [
+        {
+          selector: "#frame-query",
+          framePath: ["#app"],
+          description: `Fill ${query}`,
+          method: "fill",
+          arguments: [query],
+        },
+        {
+          selector: "#frame-run",
+          framePath: ["#app"],
+          description: "Run search",
+          method: "click",
+          arguments: [],
+        },
+      ],
+      output: {
+        selector: "#frame-result",
+        framePath: ["#app"],
+        tagName: "output",
+        text: `Frame result for ${query}`,
+        textHash: createHash("sha256").update(`Frame result for ${query}`).digest("hex"),
+        url: `${origin}/async-frame`,
+      },
+      modelCalls: 1,
+    });
+    const plan = compileDomWorkflow("async_frame_search", `${origin}/async-frame`, [
+      demonstration("sofa"),
+      demonstration("chair"),
+    ]);
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const result = await replayDomWorkflow(page, plan, { query: "lamp" });
+    assert.equal(result.text, "Frame result for lamp");
+    assert.equal(result.modelCalls, 0);
     await page.close();
   } finally {
     await browser?.close();

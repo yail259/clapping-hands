@@ -153,6 +153,7 @@ const MAX_ACTIONS = 30;
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
 const DEFAULT_OUTPUT_CHANGE_TIMEOUT_MS = 10_000;
+const DEFAULT_ACTION_READINESS_TIMEOUT_MS = 30_000;
 const PLAN_STATUSES = new Set(["candidate", "provisional", "stable", "degraded"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -347,6 +348,24 @@ function locatorInFramePath(page: Page, framePath: string[], selector: string): 
   let scope: Page | FrameLocator = page;
   for (const frameSelector of framePath) scope = scope.frameLocator(frameSelector);
   return scope.locator(selector);
+}
+
+async function waitForUniqueCompiledLocator(
+  page: Page,
+  framePath: string[],
+  selector: string,
+  timeoutMs = DEFAULT_ACTION_READINESS_TIMEOUT_MS,
+): Promise<Locator> {
+  const locator = locatorInFramePath(page, framePath, selector);
+  const deadline = Date.now() + timeoutMs;
+  let count = 0;
+  while (Date.now() < deadline) {
+    count = await locator.count().catch(() => 0);
+    if (count === 1) return locator;
+    if (count > 1) throw new Error(`Compiled selector matched ${count} elements: ${selector}`);
+    await delay(50);
+  }
+  throw new Error(`Compiled selector did not become available: ${selector}`);
 }
 
 async function stableFrameElementSelector(frame: Frame): Promise<string> {
@@ -1032,10 +1051,7 @@ export async function executeCompiledDomAction(
   action: BrowserAction,
   options: { onDownload?: (artifact: DomDownloadArtifact) => void } = {},
 ): Promise<Page> {
-  const locator = locatorInFramePath(page, action.framePath ?? [], action.selector);
-  if (await locator.count() !== 1) {
-    throw new Error(`Compiled selector matched ${await locator.count()} elements: ${action.selector}`);
-  }
+  const locator = await waitForUniqueCompiledLocator(page, action.framePath ?? [], action.selector);
   const args = action.arguments ?? [];
   const method = normalizeMethod(action);
   const pagesBefore = new Set(page.context().pages());
