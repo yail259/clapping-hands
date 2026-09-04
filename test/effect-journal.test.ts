@@ -14,8 +14,9 @@ import {
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
-async function fixture(): Promise<{ server: Server; origin: string; commits: () => number }> {
+async function fixture(): Promise<{ server: Server; origin: string; commits: () => number; drafts: () => number }> {
   let commitCount = 0;
+  let draftCount = 0;
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://fixture.invalid");
     if (url.pathname === "/commit" && request.method === "POST") {
@@ -23,6 +24,13 @@ async function fixture(): Promise<{ server: Server; origin: string; commits: () 
       commitCount += 1;
       response.setHeader("content-type", "application/json");
       response.end(JSON.stringify({ commitCount }));
+      return;
+    }
+    if (url.pathname === "/draft" && request.method === "POST") {
+      for await (const _chunk of request) { /* consume request */ }
+      draftCount += 1;
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ draftCount }));
       return;
     }
     response.setHeader("content-type", "text/html");
@@ -64,6 +72,20 @@ async function fixture(): Promise<{ server: Server; origin: string; commits: () 
       </main>`);
       return;
     }
+    if (url.pathname === "/autosave") {
+      response.end(`<!doctype html><main>
+        <label>Title <input id="title"></label><button id="commit">Publish</button><output id="result">Ready</output>
+        <script>
+          document.querySelector('#title').oninput = () => fetch('/draft', { method: 'POST', body: 'draft' });
+          document.querySelector('#commit').onclick = async () => {
+            const response = await fetch('/commit', { method: 'POST', body: document.querySelector('#title').value });
+            const value = await response.json();
+            document.querySelector('#result').textContent = 'Published ' + value.commitCount;
+          };
+        </script>
+      </main>`);
+      return;
+    }
     response.end(`<!doctype html><main>
       <label>Note <input id="note"></label><button id="commit">Publish</button><output id="result">Ready</output>
       <script>document.querySelector('#commit').onclick = async () => {
@@ -76,7 +98,12 @@ async function fixture(): Promise<{ server: Server; origin: string; commits: () 
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Effect fixture did not bind.");
-  return { server, origin: `http://127.0.0.1:${address.port}`, commits: () => commitCount };
+  return {
+    server,
+    origin: `http://127.0.0.1:${address.port}`,
+    commits: () => commitCount,
+    drafts: () => draftCount,
+  };
 }
 
 function uploadDemonstration(origin: string, file: string, ordinal: number): DomWorkflowDemonstration {
@@ -135,6 +162,63 @@ function demonstration(origin: string, note: string): DomWorkflowDemonstration {
     modelCalls: 1,
   };
 }
+
+function autosaveDemonstration(origin: string, title: string): DomWorkflowDemonstration {
+  return {
+    input: { title },
+    actions: [
+      { selector: "#title", description: `Fill ${title}`, method: "fill", arguments: [title] },
+      { selector: "#commit", description: "Publish", method: "click", arguments: [] },
+    ],
+    output: {
+      selector: "#result",
+      tagName: "output",
+      text: `Published ${title}`,
+      textHash: `autosave-${title}`,
+      url: `${origin}/autosave`,
+    },
+    modelCalls: 1,
+  };
+}
+
+test("prepare performs no browser actions and hidden autosaves stay inside the one-shot commit", async () => {
+  const { server, origin, commits, drafts } = await fixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-effects-autosave-"));
+  let browser: Browser | null = null;
+  try {
+    const plan = compileDomWorkflow("publish-autosaved-topic", `${origin}/autosave`, [
+      autosaveDemonstration(origin, "first"),
+      autosaveDemonstration(origin, "second"),
+    ], { effect: "write", confirmation: "Publish this autosaved synthetic topic" });
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const journal = new EffectJournal(resolve(directory, "journal.json"));
+    const input = { title: "final title" };
+
+    const receipt = await prepareDomWorkflowWrite(page, journal, plan, input);
+    assert.equal(receipt.status, "prepared");
+    assert.equal(receipt.preparedUrl, `${origin}/autosave`);
+    assert.equal(page.url(), "about:blank");
+    assert.equal(drafts(), 0);
+    assert.equal(commits(), 0);
+
+    const committed = await commitPreparedDomWorkflowWrite(page, journal, receipt.id, plan, input);
+    assert.equal(committed.receipt.status, "committed");
+    assert.equal(drafts(), 1);
+    assert.equal(commits(), 1);
+    await assert.rejects(
+      () => commitPreparedDomWorkflowWrite(page, journal, receipt.id, plan, input),
+      /will not be repeated/,
+    );
+    assert.equal(drafts(), 1);
+    assert.equal(commits(), 1);
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test("write workflows require a durable prepare/commit receipt and commit at most once", async () => {
   const { server, origin, commits } = await fixture();

@@ -5,13 +5,14 @@ import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { relative, resolve } from "node:path";
 import test from "node:test";
-import { chromium, type Browser } from "playwright-core";
+import { chromium, type Browser, type Page } from "playwright-core";
 import {
   captureDomOutput,
   compileDomWorkflow,
   demonstrateDomWorkflow,
   executeCompiledDomAction,
   materializeDomStartUrl,
+  navigateForCompiledDomWorkflow,
   recordDomShadow,
   repairDomWorkflow,
   replayDomWorkflow,
@@ -20,6 +21,60 @@ import {
 } from "../src/dom-workflow.js";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+
+test("retries only an aborted start navigation before compiled actions begin", async () => {
+  const destination = "https://fixture.invalid/search";
+  let currentUrl = "about:blank";
+  let gotoCalls = 0;
+  const page = {
+    goto: async () => {
+      gotoCalls += 1;
+      if (gotoCalls === 1) throw new Error("page.goto: net::ERR_ABORTED");
+      currentUrl = destination;
+    },
+    url: () => currentUrl,
+    waitForLoadState: async () => {},
+    evaluate: async () => {},
+  } as unknown as Page;
+
+  await navigateForCompiledDomWorkflow(page, destination);
+  assert.equal(gotoCalls, 2);
+  assert.equal(currentUrl, destination);
+});
+
+test("bounds retries for transient empty start-page responses", async () => {
+  const destination = "https://fixture.invalid/topic";
+  let gotoCalls = 0;
+  const page = {
+    goto: async () => {
+      gotoCalls += 1;
+      if (gotoCalls < 3) throw new Error("page.goto: net::ERR_EMPTY_RESPONSE");
+    },
+    url: () => gotoCalls >= 3 ? destination : "about:blank",
+    waitForLoadState: async () => {},
+    evaluate: async () => {},
+  } as unknown as Page;
+
+  await navigateForCompiledDomWorkflow(page, destination);
+  assert.equal(gotoCalls, 3);
+});
+
+test("retries the readiness probe when an SPA replaces its execution context", async () => {
+  const destination = "https://fixture.invalid/app";
+  let evaluateCalls = 0;
+  const page = {
+    goto: async () => {},
+    url: () => destination,
+    waitForLoadState: async () => {},
+    evaluate: async () => {
+      evaluateCalls += 1;
+      if (evaluateCalls === 1) throw new Error("Execution context was destroyed, most likely because of a navigation");
+    },
+  } as unknown as Page;
+
+  await navigateForCompiledDomWorkflow(page, destination);
+  assert.equal(evaluateCalls, 2);
+});
 
 async function fixture(): Promise<{ server: Server; origin: string }> {
   const server = createServer((request, response) => {

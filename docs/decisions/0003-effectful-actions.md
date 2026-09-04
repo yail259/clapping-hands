@@ -72,19 +72,19 @@ The controlled DOM compiler now supports a conservative subset of this ADR:
 
 - every compiled DOM plan is explicitly declared `read` or `write`;
 - a write requires a plain-language confirmation description and treats its
-  first non-passive interaction as the conservative effect boundary (scroll
-  and hover may remain in the prepared prefix);
-- prepare executes only the deterministic prefix and creates an expiring
+  first non-passive interaction as the conservative effect boundary used in
+  confirmation metadata and effect-payload fingerprinting;
+- prepare performs no browser navigation or action and creates an expiring
   receipt containing plan/input hashes, not raw inputs;
-- commit atomically moves the receipt to `committing` before executing every
-  action from that boundary through postcondition proof;
+- commit atomically moves the receipt to `committing` before any browser work,
+  then executes the complete workflow through postcondition proof;
 - uploads accept only regular files of at most 25 MiB beneath an explicit local
   root, persist no path or contents, and require the prepared content hash to
   match at commit;
 - same-origin downloads are quarantined beneath an artifact root, capped at 50
   MiB, hashed, and returned without being opened;
-- a successful postcondition marks it `committed`; any error after the boundary
-  marks it `uncertain`; and
+- a successful postcondition marks it `committed`; any error after the receipt
+  enters `committing` marks it `uncertain`; and
 - committed, expired, and uncertain receipts cannot be replayed.
 
 The production gate remains closed. Independent remote-ID reconciliation,
@@ -100,6 +100,6 @@ on controlled fixtures, operator-owned forms, and isolated sandboxes.
 - Commit throughput is not the primary metric; correctness, at-most-once
   execution, and proof dominate latency.
 - Some workflows will remain browser-only or require confirmation forever.
-- The current prototype can demonstrate an at-most-once UI effect suffix on
+- The current prototype can demonstrate an at-most-once complete UI attempt on
   controlled targets, but cannot yet support an unqualified public claim that
   arbitrary consequential actions are production-ready.

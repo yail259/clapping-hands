@@ -108,16 +108,6 @@ function assertWritePlan(plan: DomWorkflowPlan): number {
   return plan.effect.commitActionIndex;
 }
 
-async function executePrefix(page: Page, plan: DomWorkflowPlan, input: DomInput, finalIndex: number): Promise<Page> {
-  await navigateForCompiledDomWorkflow(page, materializeDomStartUrl(plan, input));
-  let activePage = page;
-  for (let index = 0; index < finalIndex; index += 1) {
-    activePage = await executeCompiledDomAction(activePage, materializeAction(plan, index, input));
-    if (new URL(activePage.url()).origin !== plan.origin) throw new Error("Prepared write workflow left its allowed origin.");
-  }
-  return activePage;
-}
-
 export class EffectJournal {
   constructor(private readonly path: string) {}
 
@@ -191,7 +181,7 @@ export class EffectJournal {
 }
 
 export async function prepareDomWorkflowWrite(
-  page: Page,
+  _page: Page,
   journal: EffectJournal,
   plan: DomWorkflowPlan,
   input: DomInput,
@@ -201,7 +191,11 @@ export async function prepareDomWorkflowWrite(
   const effectBoundary = assertWritePlan(plan);
   const effectActions = plan.actions.slice(effectBoundary).map((_action, offset) => materializeAction(plan, effectBoundary + offset, input));
   const effectPayloadHash = await fingerprintCompiledDomActions(effectActions);
-  const activePage = await executePrefix(page, plan, input, effectBoundary);
+  // Preparation must not touch the browser. A fill, check, or even a route
+  // transition can trigger a hidden server-side autosave on reactive sites.
+  // The complete replay runs only after the durable receipt has transitioned
+  // to `committing`, so every possible mutation belongs to the one-shot attempt.
+  const preparedUrl = materializeDomStartUrl(plan, input);
   const finalAction = effectActions[0]!;
   const preparedAt = new Date();
   const receipt: EffectReceipt = {
@@ -214,7 +208,7 @@ export async function prepareDomWorkflowWrite(
     preparedAt: preparedAt.toISOString(),
     expiresAt: new Date(preparedAt.getTime() + ttlMs).toISOString(),
     committedAt: null,
-    preparedUrl: activePage.url(),
+    preparedUrl,
     finalAction: { method: finalAction.method ?? "click", selectorHash: hash(finalAction.selector) },
     ...(effectPayloadHash ? { effectPayloadHash } : {}),
   };
@@ -249,16 +243,18 @@ export async function commitPreparedDomWorkflowWrite(
   }
 
   const startedAt = performance.now();
-  let activePage = await executePrefix(page, plan, input, effectBoundary);
   await journal.transition(receipt.id, "prepared", "committing");
   try {
+    await navigateForCompiledDomWorkflow(page, materializeDomStartUrl(plan, input));
+    let activePage = page;
     const downloads: DomWorkflowResult["downloads"] = [];
     const beforeOutput = await readDomOutputTextIfPresent(
       activePage,
       plan.validation.outputSelector,
       plan.validation.outputFramePath,
     );
-    for (const action of effectActions) {
+    const allActions = plan.actions.map((_action, index) => materializeAction(plan, index, input));
+    for (const action of allActions) {
       activePage = await executeCompiledDomAction(activePage, action, {
         onDownload: (artifact) => downloads.push(artifact),
       });

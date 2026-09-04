@@ -32,9 +32,12 @@ tabs, select/scroll/double-click/drag actions, and same-origin HTML forms. It ca
 form-encoded GraphQL request accelerators on the workflow origin or an exact
 additional origin declared by the operator when that response is evidenced in
 the rendered result. Experimental write workflows use a separate prepare/commit
-lifecycle: the first potentially effectful action and every action after it are
-withheld behind an expiring receipt, journaled before execution, and never
-retried after an ambiguous outcome. File selection is supported only for
+lifecycle. Preparation validates and journals an expiring intent without
+navigating or touching the browser; after confirmation, the receipt enters its
+one-shot `committing` state before any navigation or UI action. This protects
+against reactive controls that autosave before the visible submit button, and
+the complete attempt is never retried after an ambiguous outcome. File
+selection is supported only for
 regular files of at most 25 MiB beneath `CLAPPING_HANDS_UPLOAD_ROOT`; file
 contents are fingerprinted during prepare and must be unchanged at commit.
 Because Stagehand's model action vocabulary does not include file selection,

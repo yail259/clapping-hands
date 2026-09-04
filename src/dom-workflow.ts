@@ -901,7 +901,29 @@ async function settle(page: Page): Promise<void> {
 }
 
 export async function navigateForCompiledDomWorkflow(page: Page, url: string): Promise<void> {
-  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+      break;
+    } catch (error) {
+      const transientNavigationFailure = /net::ERR_(?:ABORTED|EMPTY_RESPONSE|CONNECTION_RESET|CONNECTION_CLOSED|TIMED_OUT)/
+        .test(error instanceof Error ? error.message : String(error));
+      const destinationCommitted = (() => {
+        try {
+          return new URL(page.url()).href === new URL(url).href;
+        } catch {
+          return false;
+        }
+      })();
+      if (destinationCommitted) break;
+      if (!transientNavigationFailure || attempt === 2) throw error;
+      // Some client routers cancel an in-flight document load while detaching
+      // the previous SPA route, and a server can close an otherwise safe GET
+      // during worker recycling. Bounded retries are limited to the declared
+      // start navigation and never repeat a compiled action.
+      await delay(attempt === 0 ? 100 : 250);
+    }
+  }
   // Long-lived applications can keep resources or connections open forever.
   // DOMContentLoaded commits the navigation; load/network-idle are bounded
   // settling hints, while selector and output readiness remain the real gates.
@@ -909,9 +931,20 @@ export async function navigateForCompiledDomWorkflow(page: Page, url: string): P
     page.waitForLoadState("load", { timeout: 2_000 }).catch(() => {}),
     page.waitForLoadState("networkidle", { timeout: 2_000 }).catch(() => {}),
   ]);
-  await page.evaluate(() => new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-  }));
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await page.evaluate(() => new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }));
+      break;
+    } catch (error) {
+      const contextReplaced = /execution context was destroyed|most likely because of a navigation/i
+        .test(error instanceof Error ? error.message : String(error));
+      if (!contextReplaced || attempt === 1) throw error;
+      await page.waitForLoadState("domcontentloaded", { timeout: 2_000 }).catch(() => {});
+      await delay(50);
+    }
+  }
 }
 
 export async function readDomOutputTextIfPresent(page: Page, selector: string, framePath: string[] = []): Promise<string | null> {
