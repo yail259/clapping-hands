@@ -73,6 +73,14 @@ async function fixture(): Promise<{
       });</script>`));
       return;
     }
+    if (url.pathname === "/covered-submit") {
+      const query = url.searchParams.get("query") ?? "";
+      response.end(page(`<h2>Covered search</h2><form id="covered-search" action="/covered-submit" method="get">
+        <input name="query"><button type="submit" style="pointer-events:none">Search</button>
+        ${query ? `<section>Found ${query}</section>` : ""}
+      </form>`));
+      return;
+    }
     if (url.pathname === "/post") {
       response.end(page(`<h1>Topics</h1><form data-question-key="topics" action="/post/result" method="post">
         <input type="hidden" name="csrf" value="rotating-fixture-secret">
@@ -319,6 +327,29 @@ test("compiles a persistent same-document GET search form into direct requests",
     assert.match(replay.mainText, /Results for lamp/);
     assert.equal(replay.requests, 2);
     assert.equal(replay.navigations, 0);
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test("submits a compiled form through requestSubmit when its button cannot be hit-tested", async () => {
+  const { server, origin } = await fixture();
+  const userDataDir = await mkdtemp(resolve(tmpdir(), "clapping-hands-covered-submit-"));
+  let context: BrowserContext | null = null;
+  try {
+    context = await chromium.launchPersistentContext(userDataDir, { executablePath: CHROME, headless: true });
+    const formAnswers = { "covered-search": { query: "fixture" } };
+    const demonstration = await demonstrateFormWorkflow(
+      await context.newPage(),
+      `${origin}/covered-submit`,
+      formAnswers,
+    );
+    assert.match(demonstration.result.mainText, /Found fixture/);
+    const plan = compileFormWorkflow("covered_search", `${origin}/covered-submit`, [demonstration]);
+    const replay = await replayFormWorkflow(context, plan, formAnswers);
+    assert.match(replay.mainText, /Found fixture/);
   } finally {
     await context?.close();
     await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));

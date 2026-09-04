@@ -419,7 +419,15 @@ async function submitBrowserForm(page: Page, step: ObservedFormStep): Promise<"n
     { url: beforeUrl, text: beforeText },
     { timeout: 15_000 },
   ).then(() => "same-document" as const).catch(() => null);
-  await submit.click();
+  await form.evaluate((element, submitterIndex) => {
+    const formElement = element as HTMLFormElement;
+    const submitters = formElement.querySelectorAll<HTMLButtonElement | HTMLInputElement>(
+      'button[type="submit"], input[type="submit"], button:not([type]), input[type="image"]',
+    );
+    const submitter = submitters.item(submitterIndex);
+    if (!submitter) throw new Error("Compiled form submitter disappeared before submission.");
+    formElement.requestSubmit(submitter);
+  }, step.submitter.index);
   const outcome = await Promise.race([navigation, sameDocument]);
   if (!outcome) throw new Error(`Submitting ${step.questionKey} produced no observable page change.`);
   await page.waitForLoadState("networkidle", { timeout: 2_000 }).catch(() => {});

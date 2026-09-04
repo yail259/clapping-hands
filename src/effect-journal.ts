@@ -7,6 +7,7 @@ import {
   assertDomWorkflowPlanSafety,
   executeCompiledDomAction,
   fingerprintCompiledDomActions,
+  materializeDomStartUrl,
   navigateForCompiledDomWorkflow,
   readDomOutputTextIfPresent,
   validateDomOutput,
@@ -59,6 +60,7 @@ function planHash(plan: DomWorkflowPlan): string {
     effect: plan.effect,
     origin: plan.origin,
     startPath: plan.startPath,
+    startPathTemplate: plan.startPathTemplate,
     inputNames: plan.inputNames,
     actions: plan.actions,
     repairInstructions: plan.repairInstructions,
@@ -107,7 +109,7 @@ function assertWritePlan(plan: DomWorkflowPlan): number {
 }
 
 async function executePrefix(page: Page, plan: DomWorkflowPlan, input: DomInput, finalIndex: number): Promise<Page> {
-  await navigateForCompiledDomWorkflow(page, new URL(plan.startPath, plan.origin).href);
+  await navigateForCompiledDomWorkflow(page, materializeDomStartUrl(plan, input));
   let activePage = page;
   for (let index = 0; index < finalIndex; index += 1) {
     activePage = await executeCompiledDomAction(activePage, materializeAction(plan, index, input));

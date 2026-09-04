@@ -15,6 +15,30 @@ A benchmark label never grants permission to automate a site.
 | API-first negative controls | Hacker News, MediaWiki/Wikipedia, Open Library, nopCommerce with its Web API plugin, GitHub | prove the product recognizes when an official API is the better answer | nopCommerce selected as the primary control; HN and Open Library are cheap secondary controls |
 | High-mindshare consumer sites | Facebook Marketplace, Craigslist, Airbnb, Amazon, LinkedIn, Yahoo, Gumtree | authenticated search, opaque APIs, anti-automation and policy constraints | Marketplace remains an operator-owned dogfood case; do not add the others without explicit permission and policy clearance |
 
+### Second-wave inventory after the osTicket holdout
+
+The first holdout showed that application families matter more than famous
+domain names. A wider second pass considered the following candidates without
+adding them retroactively to frozen corpus v1:
+
+| Family | Wider candidates | Useful mechanisms | Triage |
+| --- | --- | --- | --- |
+| Official resettable sandboxes | Moodle Sandbox, Discourse Demo, Nextcloud instant trial, nopCommerce demo, WordPress Playground, SauceDemo | roles, rich editors, uploads, carts, branching forms, modern and legacy client state | strongest source of permission-positive live smoke tests; never run load tests on shared instances |
+| Purpose-built automation apps | The Internet, UI Testing Playground, Automation Exercise, ParaBank, DemoQA, TodoMVC, BrowserStack Demo | dynamic IDs, delayed AJAX, popups, dialogs, Shadow DOM, framework parity | retain as deterministic mechanism tests, not evidence that arbitrary production sites work |
+| Self-hostable production applications | Moodle, Discourse, Nextcloud, osTicket, GitLab CE, Ghost, BookStack, Mattermost, ERPNext, Odoo Community, InvoicePlane, OpenCart, OrangeHRM, Cal.com, Keycloak | persistent auth, per-role state, rich text, files, admin CRUD, notifications, background jobs | use isolated deployments with synthetic data for writes and timing distributions |
+| Operator-owned SaaS fixtures | Google Form, Shopify development store, Stripe test dashboard, GitHub test repository, Notion test workspace, Slack test workspace | hosted auth, cross-page workflows, drafts, submissions, webhooks, partial API gaps | eligible only in an account/workspace controlled by the benchmark operator; API-covered tasks become controls |
+| Public read-only decision services | GOV.UK visa and holiday calculators, GIAS, ATO calculators, USAGov Benefit Finder, public library catalogues, public transport planners | real deployment drift, server branching, dates/numbers, pagination and accessible forms | use only after a current policy and `robots.txt` check; no repeated traffic merely to produce a speed chart |
+| API-first controls | GitHub, MediaWiki, Hacker News, Open Library, Google Forms owner operations, Nextcloud WebDAV | API discovery and task-level routing | the expected pass is to choose the supported API, not compile the UI |
+| Permission-gated consumer services | Facebook Marketplace, eBay, Amazon, Craigslist, Gumtree, Airbnb, LinkedIn, Yahoo | high-mindshare authenticated search and account state | private low-volume dogfood only where authorized; exclude from public benchmark claims without explicit permission |
+
+Moodle explicitly offers a sandbox and resets demo sites every hour. Discourse
+links to its demo sandbox as a place to test features. Nextcloud's instant trial
+creates a test account that is removed after two hours. nopCommerce invites
+users to evaluate both storefront and administration demos and resets them
+hourly. Those published signals make them better live candidates than picking
+an unrelated production business and assuming that the word "benchmark"
+grants permission.
+
 The purpose-built choices are not toy substitutes for the whole corpus. They
 give repeatable coverage of browser pathologies without burdening unrelated
 production services. The Internet explicitly describes itself as an example
@@ -60,6 +84,31 @@ assumed. SauceDemo's inventory sort is client-only and therefore provides a
 useful DOM-only result rather than a forced network-speedup win. The Internet's
 delayed element appears about five seconds after the final click, which is now
 an explicit stale-output regression case for the runtime.
+
+### Recommended representative sample for corpus v2
+
+Do not expand indefinitely. The following eight application rows, plus two
+controls, cover materially different failure modes without counting five test
+sites that all exercise the same login-and-click loop:
+
+| Row | Environment | Minimum representative workflows | Why it survives narrowing |
+| --- | --- | --- | --- |
+| osTicket | self-hosted, synthetic data | authenticated search; public create; private note via input-bound URL | legacy PHP, role-separated auth, CSRF, dynamic dependent fields, rich editor, read and committed write |
+| WordPress | Playground for smoke; isolated instance for repeat runs | iframe search; create/edit draft; plugin-specific UI-only action | same-origin iframe/WASM boundary and the largest extension ecosystem; core-API-covered tasks are not counted as UI wins |
+| Moodle | official hourly-reset sandbox for smoke; local instance for distributions | find course; submit synthetic activity; teacher changes test grade | deep branching forms, multiple roles, server rendering plus JavaScript, and a published sandbox |
+| Discourse | official demo for read smoke; self-hosted for writes | search topics; compose draft; post/edit synthetic topic | modern Ember SPA, JSON traffic, rich composer, live updates, and stable item URLs |
+| Nextcloud | two-hour official trial for smoke; self-hosted for repeat runs | find file; create folder; upload/download allowlisted file | authenticated file UI, progress state, artifact boundaries, and a first-party WebDAV negative-control path |
+| nopCommerce | official hourly-reset demo or self-hosted | product search; configure cart item; admin edit on synthetic product | realistic commerce state machine; official Web API makes API selection part of the score |
+| GOV.UK decision tools | production, read-only, human-scale | visa branch and holiday-entitlement calculation | independently operated production deployment and deterministic multi-step outcomes with no remote mutation; never automate disallowed `/search/all` paths |
+| Operator-owned Google Form | owned form and synthetic responses | conditional multi-page response; prepare; submit once; verify as owner | hosted SaaS commit whose official response API supports reading responses but not creating them |
+| Browser-mechanism control | repository fixture plus The Internet/SauceDemo | dialogs, windows, Shadow DOM, dynamic controls, downloads, SPA login/cart | deterministic fault injection and regression coverage; reported separately from production-app coverage |
+| API-first negative control | GitHub test repository, with nopCommerce/Nextcloud task checks | issue/listing operation already covered by official API | proves Clapping Hands declines unnecessary UI compilation and routes secrets through supported auth |
+
+The v2 headline denominator should therefore be application-workflow pairs from
+the first eight rows. The two controls are mandatory gates but do not inflate
+the site-coverage percentage. Facebook Marketplace remains an important private
+dogfood workflow, but it is not needed to establish the public generality
+claim.
 
 After the freeze, WordPress Playground's post-search task found that compiled
 actions did not wait for an asynchronously mounted iframe. The frozen compiler
@@ -133,6 +182,18 @@ effect boundaries, validation, and fallback behavior.
 - [WordPress Playground](https://developer.wordpress.org/playground/) is an
   isolated in-browser WordPress environment intended for building,
   experimenting, and testing.
+- [Moodle's official demo page](https://moodle.org/demo) offers populated and
+  sandbox environments and says they reset every hour.
+- [Discourse Meta](https://meta.discourse.org/t/new-to-discourse-start-here/1)
+  points users to `try.discourse.org` as a no-setup demo sandbox for testing
+  features.
+- [Nextcloud's instant trial](https://try.nextcloud.com/) supplies a test
+  account that is removed after two hours.
+- [nopCommerce's official demo page](https://www.nopcommerce.com/en/demo)
+  invites storefront/admin evaluation and resets the shared demos every hour.
+- [GitHub's REST documentation](https://docs.github.com/en/rest) describes an
+  OpenAPI-specified API for retrieving data and automating workflows, making it
+  a clear API-first negative control.
 - The [Google Forms REST reference](https://developers.google.com/workspace/forms/api/reference/rest)
   exposes response `get` and `list`, but no REST method to submit a new response;
   the test form must be owned by the operator.

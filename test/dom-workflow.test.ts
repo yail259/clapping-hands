@@ -34,6 +34,17 @@ async function fixture(): Promise<{ server: Server; origin: string }> {
       </main>`);
       return;
     }
+    if (url.pathname === "/record") {
+      const id = url.searchParams.get("id") ?? "missing";
+      response.end(`<!doctype html><main>
+        <p id="record-id">Record ${id}</p><input id="note"><button id="preview">Preview</button>
+        <output id="result">Ready</output>
+        <script>document.querySelector('#preview').onclick = () => {
+          document.querySelector('#result').textContent = 'Record ${id}: ' + document.querySelector('#note').value;
+        };</script>
+      </main>`);
+      return;
+    }
     if (url.pathname === "/popup") {
       response.end(`<!doctype html><main>
         <label>Search <input id="query"></label><button id="open">Open result</button>
@@ -102,6 +113,22 @@ async function fixture(): Promise<{ server: Server; origin: string }> {
           document.querySelector('#editor').addEventListener('blur', () => setTimeout(() => {
             document.querySelector('#source').value = document.querySelector('#editor').innerText;
           }, 75));
+          document.querySelector('#preview').onclick = () => {
+            document.querySelector('#rich-result').textContent = 'Submitted ' + document.querySelector('#source').value;
+          };
+        </script>
+      </form></main>`);
+      return;
+    }
+    if (url.pathname === "/intercepted-rich-editor") {
+      response.end(`<!doctype html><main><form>
+        <div id="editor" contenteditable="true"></div><textarea id="source" hidden></textarea>
+        <button id="preview" type="button">Preview</button><output id="rich-result">Ready</output>
+        <script>
+          document.querySelector('#editor').addEventListener('keydown', event => event.preventDefault());
+          document.querySelector('#editor').addEventListener('input', () => {
+            document.querySelector('#source').value = document.querySelector('#editor').innerText;
+          });
           document.querySelector('#preview').onclick = () => {
             document.querySelector('#rich-result').textContent = 'Submitted ' + document.querySelector('#source').value;
           };
@@ -359,6 +386,73 @@ test("waits for asynchronous page scripts before executing compiled actions", as
   }
 });
 
+test("compiles an input-bound same-origin start URL", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    const demonstration = (id: string, note: string): DomWorkflowDemonstration => ({
+      input: { id, note },
+      startUrl: `${origin}/record?id=${encodeURIComponent(id)}`,
+      actions: [
+        { selector: "#note", description: `Enter ${note}`, method: "fill", arguments: [note] },
+        { selector: "#preview", description: "Preview record", method: "click", arguments: [] },
+      ],
+      output: {
+        selector: "#result",
+        tagName: "output",
+        text: `Record ${id}: ${note}`,
+        textHash: createHash("sha256").update(`Record ${id}: ${note}`).digest("hex"),
+        url: `${origin}/record?id=${encodeURIComponent(id)}`,
+      },
+      modelCalls: 1,
+    });
+    const demonstrations = [demonstration("record one", "first note"), demonstration("record two", "second note")];
+    const plan = compileDomWorkflow("preview_record", demonstrations[0]!.startUrl!, demonstrations);
+    assert.ok(plan.startPathTemplate?.some((part) => typeof part !== "string" && part.$clappingHandsInput === "id"));
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const result = await replayDomWorkflow(page, plan, { id: "record/three", note: "unseen note" });
+    assert.equal(result.text, "Record record/three: unseen note");
+    assert.equal(page.url(), `${origin}/record?id=record%2Fthree`);
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("waits for asynchronous page scripts before demonstrating actions", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const demonstration = await demonstrateDomWorkflow({
+      act: async () => {
+        await page.locator("#async-run").click();
+        return {
+          success: true,
+          message: "clicked the asynchronously initialized control",
+          actions: [{
+            selector: "#async-run",
+            description: "Run the asynchronous handler",
+            method: "click",
+            arguments: [],
+          }],
+          modelCalls: 1,
+          inputTokens: 0,
+          outputTokens: 0,
+        };
+      },
+    }, page, `${origin}/async-handler`, {}, ["Run the asynchronous handler"], "#async-result");
+    assert.equal(demonstration.output.text, "Async handler ready");
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
 test("waits for bounded post-load hydration before executing compiled actions", async () => {
   const { server, origin } = await fixture();
   let browser: Browser | null = null;
@@ -426,6 +520,77 @@ test("preserves focus-sensitive action chains and observes rich-editor source sy
     const result = await replayDomWorkflow(page, plan, { body: "unseen body" });
     assert.equal(result.text, "Submitted unseen body");
     assert.equal(result.modelCalls, 0);
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("explicitly blurs a compiled rich editor and waits for its form source", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    const demonstration = (body: string): DomWorkflowDemonstration => ({
+      input: { body },
+      actions: [
+        { selector: "#editor", description: "Focus editor", method: "click", arguments: [] },
+        { selector: "#editor", description: `Type ${body}`, method: "type", arguments: [body] },
+        { selector: "#editor", description: "Blur editor", method: "blur", arguments: [] },
+        { selector: "#preview", description: "Render preview", method: "click", arguments: [] },
+      ],
+      output: {
+        selector: "#rich-result",
+        tagName: "output",
+        text: `Submitted ${body}`,
+        textHash: createHash("sha256").update(`Submitted ${body}`).digest("hex"),
+        url: `${origin}/rich-editor`,
+      },
+      modelCalls: 1,
+    });
+    const plan = compileDomWorkflow("rich_editor_blur", `${origin}/rich-editor`, [
+      demonstration("first body"),
+      demonstration("second body"),
+    ]);
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const result = await replayDomWorkflow(page, plan, { body: "blurred body" });
+    assert.equal(result.text, "Submitted blurred body");
+    assert.equal(result.modelCalls, 0);
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("atomically recovers a type action when an editor suppresses every key event", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    const demonstration = (body: string): DomWorkflowDemonstration => ({
+      input: { body },
+      actions: [
+        { selector: "#editor", description: `Type ${body}`, method: "type", arguments: [body] },
+        { selector: "#preview", description: "Render preview", method: "click", arguments: [] },
+      ],
+      output: {
+        selector: "#rich-result",
+        tagName: "output",
+        text: `Submitted ${body}`,
+        textHash: createHash("sha256").update(`Submitted ${body}`).digest("hex"),
+        url: `${origin}/intercepted-rich-editor`,
+      },
+      modelCalls: 1,
+    });
+    const plan = compileDomWorkflow("intercepted_rich_editor", `${origin}/intercepted-rich-editor`, [
+      demonstration("first body"),
+      demonstration("second body"),
+    ]);
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const result = await replayDomWorkflow(page, plan, { body: "recovered body" });
+    assert.equal(result.text, "Submitted recovered body");
     await page.close();
   } finally {
     await browser?.close();

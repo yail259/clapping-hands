@@ -13,6 +13,8 @@ export type DomInput = Record<string, string | number | boolean>;
 
 type InputReference = { $clappingHandsInput: string };
 type TemplatePart = string | InputReference;
+type UrlInputReference = { $clappingHandsInput: string; encoding: "none" | "uri-component" };
+type UrlTemplatePart = string | UrlInputReference;
 
 export type DomActionTemplate = {
   selector: TemplatePart[];
@@ -34,6 +36,7 @@ export type DomActionMethod =
   | "click"
   | "fill"
   | "type"
+  | "blur"
   | "press"
   | "selectOption"
   | "check"
@@ -58,6 +61,7 @@ export type DomOutputSnapshot = {
 
 export type DomWorkflowDemonstration = {
   input: DomInput;
+  startUrl?: string;
   actions: BrowserAction[];
   output: DomOutputSnapshot;
   modelCalls: number;
@@ -77,6 +81,7 @@ export type DomWorkflowPlan = {
   origin: string;
   allowedNetworkOrigins?: string[];
   startPath: string;
+  startPathTemplate?: UrlTemplatePart[];
   status: "candidate" | "provisional" | "stable" | "degraded";
   inputNames: string[];
   actions: DomActionTemplate[];
@@ -120,6 +125,7 @@ const SUPPORTED_METHODS = new Set<DomActionMethod>([
   "click",
   "fill",
   "type",
+  "blur",
   "press",
   "selectOption",
   "check",
@@ -198,6 +204,30 @@ function assertTemplateParts(
   }
 }
 
+function assertUrlTemplateParts(
+  value: unknown,
+  inputNames: Set<string>,
+  origin: string,
+): asserts value is UrlTemplatePart[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 50) {
+    throw new Error("Compiled DOM start-path template has an invalid shape.");
+  }
+  for (const part of value) {
+    if (typeof part === "string") {
+      if (part.length > 2_000 || part.includes("\0")) {
+        throw new Error("Compiled DOM start-path template contains an unsafe constant.");
+      }
+      continue;
+    }
+    if (!isRecord(part) || Object.keys(part).length !== 2 || typeof part.$clappingHandsInput !== "string" ||
+      !inputNames.has(part.$clappingHandsInput) || !new Set(["none", "uri-component"]).has(String(part.encoding))) {
+      throw new Error("Compiled DOM start-path template contains an invalid input reference.");
+    }
+  }
+  const structuralProbe = value.map((part) => typeof part === "string" ? part : "clapping-hands-input").join("");
+  assertStoredPath(structuralProbe, origin, "Compiled DOM start-path template");
+}
+
 export function assertDomWorkflowPlanSafety(plan: DomWorkflowPlan): void {
   if (!isRecord(plan) || plan.formatVersion !== "clapping-hands.dev/v1alpha2" || plan.engine !== "stagehand-action-v1") {
     throw new Error("Invalid compiled DOM workflow identity.");
@@ -222,6 +252,9 @@ export function assertDomWorkflowPlanSafety(plan: DomWorkflowPlan): void {
     throw new Error("Compiled DOM input names are invalid or sensitive.");
   }
   const inputNames = new Set(plan.inputNames);
+  if (plan.startPathTemplate !== undefined) {
+    assertUrlTemplateParts(plan.startPathTemplate, inputNames, plan.origin);
+  }
   if (!Array.isArray(plan.actions) || plan.actions.length < 1 || plan.actions.length > MAX_ACTIONS) {
     throw new Error("Compiled DOM action list is invalid.");
   }
@@ -524,6 +557,52 @@ function splitByInputs(
   return parts;
 }
 
+function splitUrlByInputs(
+  values: string[],
+  demonstrations: DomWorkflowDemonstration[],
+  inputNames: string[],
+  bound: Set<string>,
+): UrlTemplatePart[] {
+  if (new Set(values).size === 1) return [values[0]!];
+
+  const sentinels = new Map<string, UrlInputReference>();
+  const skeletons = values.map((value, index) => {
+    let skeleton = value;
+    for (const inputName of inputNames) {
+      const raw = String(demonstrations[index]!.input[inputName]);
+      if (!raw) continue;
+      const encoded = encodeURIComponent(raw);
+      const candidates: Array<{ text: string; encoding: UrlInputReference["encoding"] }> = encoded === raw
+        ? [{ text: raw, encoding: "uri-component" }]
+        : [{ text: encoded, encoding: "uri-component" }, { text: raw, encoding: "none" }];
+      const candidate = candidates.find(({ text }) => skeleton.includes(text));
+      if (!candidate) continue;
+      const sentinel = `\u0000url:${inputName}\u0000`;
+      sentinels.set(sentinel, { $clappingHandsInput: inputName, encoding: candidate.encoding });
+      skeleton = skeleton.split(candidate.text).join(sentinel);
+    }
+    return skeleton;
+  });
+  if (new Set(skeletons).size !== 1) {
+    throw new Error("A demonstrated start URL varied without a safe input binding.");
+  }
+  const skeleton = skeletons[0]!;
+  const pattern = /\u0000url:([^\u0000]+)\u0000/g;
+  const parts: UrlTemplatePart[] = [];
+  let offset = 0;
+  for (const match of skeleton.matchAll(pattern)) {
+    if (match.index! > offset) parts.push(skeleton.slice(offset, match.index));
+    const reference = sentinels.get(match[0]);
+    if (!reference) throw new Error("Invalid DOM start URL template.");
+    parts.push(reference);
+    bound.add(reference.$clappingHandsInput);
+    offset = match.index! + match[0].length;
+  }
+  if (offset < skeleton.length) parts.push(skeleton.slice(offset));
+  if (parts.length === 0) throw new Error("A demonstrated start URL varied without a safe input binding.");
+  return parts;
+}
+
 function actionAt(demonstration: DomWorkflowDemonstration, index: number): BrowserAction {
   const action = demonstration.actions[index];
   if (!action) throw new Error("DOM demonstrations contained different action counts.");
@@ -557,12 +636,24 @@ export function compileDomWorkflow(
       throw new Error("DOM demonstrations must use the same input schema.");
     }
     assertSameOrigin(demonstration.output.url, start.origin, "DOM demonstration");
+    if (demonstration.startUrl) {
+      const demonstratedStart = new URL(demonstration.startUrl);
+      assertSameOrigin(demonstratedStart.href, start.origin, "DOM demonstration start");
+      if (demonstratedStart.hash) throw new Error("DOM demonstration start URLs cannot contain fragments.");
+    }
   }
   for (const inputName of inputNames) {
     if (new Set(demonstrations.map((demo) => JSON.stringify(demo.input[inputName]))).size < 2) {
       throw new Error(`Input ${inputName} did not vary across demonstrations.`);
     }
   }
+  const bound = new Set<string>();
+  const demonstratedStartPaths = demonstrations.map((demonstration) =>
+    normalizedPath(new URL(demonstration.startUrl ?? start.href)));
+  const startPathTemplate = new Set(demonstratedStartPaths).size > 1
+    ? splitUrlByInputs(demonstratedStartPaths, demonstrations, inputNames, bound)
+    : undefined;
+
   const actionCount = demonstrations[0]!.actions.length;
   if (actionCount === 0 || actionCount > MAX_ACTIONS) {
     throw new Error(`DOM demonstration must contain 1-${MAX_ACTIONS} learned actions.`);
@@ -571,7 +662,6 @@ export function compileDomWorkflow(
     throw new Error("DOM demonstrations contained different action counts.");
   }
 
-  const bound = new Set<string>();
   const templates: DomActionTemplate[] = [];
   for (let index = 0; index < actionCount; index += 1) {
     const actions = demonstrations.map((demo) => actionAt(demo, index));
@@ -717,6 +807,7 @@ export function compileDomWorkflow(
     origin: start.origin,
     ...(allowedNetworkOrigins.length > 0 ? { allowedNetworkOrigins } : {}),
     startPath: normalizedPath(start),
+    ...(startPathTemplate ? { startPathTemplate } : {}),
     status: "provisional",
     inputNames,
     actions: templates,
@@ -749,6 +840,19 @@ function materialize(parts: TemplatePart[], input: DomInput): string {
     if (!(name in input)) throw new Error(`Missing compiled input ${name}.`);
     return String(input[name]);
   }).join("");
+}
+
+export function materializeDomStartUrl(plan: DomWorkflowPlan, input: DomInput): string {
+  const path = plan.startPathTemplate
+    ? plan.startPathTemplate.map((part) => {
+      if (typeof part === "string") return part;
+      const value = input[part.$clappingHandsInput];
+      if (value === undefined) throw new Error(`Missing compiled input ${part.$clappingHandsInput}.`);
+      return part.encoding === "uri-component" ? encodeURIComponent(String(value)) : String(value);
+    }).join("")
+    : plan.startPath;
+  assertStoredPath(path, plan.origin, "Materialized DOM start path");
+  return new URL(path, plan.origin).href;
 }
 
 function materializeAction(template: DomActionTemplate, input: DomInput): BrowserAction {
@@ -862,7 +966,7 @@ export async function demonstrateDomWorkflow(
   outputSelector: string,
 ): Promise<DomWorkflowDemonstration> {
   const origin = new URL(startUrl).origin;
-  await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  await navigateForCompiledDomWorkflow(page, startUrl);
   let activePage = page;
   const actions: BrowserAction[] = [];
   let modelCalls = 0;
@@ -967,6 +1071,7 @@ export async function demonstrateDomWorkflow(
   const outputFramePath = await discoverFramePath(activePage, outputSelector, origin);
   return {
     input,
+    startUrl,
     actions,
     output: await captureDomOutput(activePage, outputSelector, outputFramePath),
     modelCalls,
@@ -1054,6 +1159,61 @@ async function persistDownloadArtifact(download: Download, environment: NodeJS.P
   }
 }
 
+async function richTextSourceValues(locator: Locator): Promise<string[]> {
+  return locator.evaluate((element) => {
+    if (element.getAttribute("contenteditable") !== "true") return [];
+    const form = element.closest("form");
+    let scope: Element | null = element.parentElement;
+    while (scope) {
+      const sources = [...scope.querySelectorAll("textarea")];
+      if (sources.length > 0) return sources.map((textarea) => textarea.value);
+      if (scope === form) break;
+      scope = scope.parentElement;
+    }
+    return [];
+  }).catch(() => []);
+}
+
+async function waitForRichTextSourceChange(locator: Locator, before: string[]): Promise<void> {
+  if (before.length === 0) return;
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    const current = await richTextSourceValues(locator);
+    if (JSON.stringify(current) !== JSON.stringify(before)) return;
+    await delay(25);
+  }
+  throw new Error("A compiled contenteditable did not synchronize its form source after blur.");
+}
+
+async function editableText(locator: Locator): Promise<{ kind: "contenteditable" | "control"; value: string } | null> {
+  return locator.evaluate((element) => {
+    if (element.getAttribute("contenteditable") === "true") {
+      return { kind: "contenteditable" as const, value: element.textContent ?? "" };
+    }
+    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+      return { kind: "control" as const, value: element.value };
+    }
+    return null;
+  }).catch(() => null);
+}
+
+async function typeWithVerifiedFallback(locator: Locator, text: string): Promise<void> {
+  const before = await editableText(locator);
+  await locator.pressSequentially(text);
+  if (!before || text.length === 0) return;
+  const after = await editableText(locator);
+  if (!after || after.value !== before.value) return;
+
+  // Rich editors and autocomplete widgets can asynchronously reclaim focus or
+  // suppress keyboard events. A type action that changed nothing is safe to
+  // retry as one atomic state-setting operation; a partial edit is not.
+  await locator.fill(`${before.value}${text}`);
+  const recovered = await editableText(locator);
+  if (!recovered || recovered.value === before.value) {
+    throw new Error("A compiled type action produced no editable state change.");
+  }
+}
+
 export async function executeCompiledDomAction(
   page: Page,
   action: BrowserAction,
@@ -1115,36 +1275,18 @@ export async function executeCompiledDomAction(
         break;
       }
       case "fill": await locator.fill(args[0] ?? ""); break;
-      case "type": await locator.pressSequentially(args[0] ?? ""); break;
+      case "type": await typeWithVerifiedFallback(locator, args[0] ?? ""); break;
+      case "blur": {
+        const sourceValuesBefore = await richTextSourceValues(locator);
+        await locator.blur();
+        await waitForRichTextSourceChange(locator, sourceValuesBefore);
+        break;
+      }
       case "press": {
         const key = args[0] ?? "Enter";
-        const observeRichTextBridge = key === "Tab" &&
-          await locator.getAttribute("contenteditable").then((value) => value === "true").catch(() => false);
-        const sourceValuesBefore = observeRichTextBridge
-          ? await locator.evaluate((element) => {
-            const scope = element.closest("form") ?? element.ownerDocument;
-            return [...scope.querySelectorAll("textarea")].map((textarea) => textarea.value);
-          })
-          : [];
+        const sourceValuesBefore = key === "Tab" ? await richTextSourceValues(locator) : [];
         await locator.press(key);
-        if (sourceValuesBefore.length > 0) {
-          const deadline = Date.now() + 2_000;
-          while (Date.now() < deadline) {
-            const sourceValues = await locator.evaluate((element) => {
-              const scope = element.closest("form") ?? element.ownerDocument;
-              return [...scope.querySelectorAll("textarea")].map((textarea) => textarea.value);
-            });
-            if (JSON.stringify(sourceValues) !== JSON.stringify(sourceValuesBefore)) break;
-            await delay(25);
-          }
-          const sourceValuesAfter = await locator.evaluate((element) => {
-            const scope = element.closest("form") ?? element.ownerDocument;
-            return [...scope.querySelectorAll("textarea")].map((textarea) => textarea.value);
-          });
-          if (JSON.stringify(sourceValuesAfter) === JSON.stringify(sourceValuesBefore)) {
-            throw new Error("A compiled contenteditable did not synchronize its form source after blur.");
-          }
-        }
+        await waitForRichTextSourceChange(locator, sourceValuesBefore);
         break;
       }
       case "selectOption": await locator.selectOption(args); break;
@@ -1270,7 +1412,7 @@ export async function replayDomWorkflow(
   }
   if (plan.actions.length > plan.validation.maximumActions) throw new Error("Compiled DOM action budget exceeded.");
   const startedAt = performance.now();
-  await navigateForCompiledDomWorkflow(page, new URL(plan.startPath, plan.origin).href);
+  await navigateForCompiledDomWorkflow(page, materializeDomStartUrl(plan, input));
   let activePage = page;
   let navigations = 1;
   const downloads: DomDownloadArtifact[] = [];
@@ -1337,7 +1479,7 @@ export async function repairDomWorkflow(
     throw new Error(`Compiled input keys must be exactly: ${plan.inputNames.join(", ")}.`);
   }
   const startedAt = performance.now();
-  await navigateForCompiledDomWorkflow(page, new URL(plan.startPath, plan.origin).href);
+  await navigateForCompiledDomWorkflow(page, materializeDomStartUrl(plan, input));
   let activePage = page;
   let modelCalls = 0;
   let actions = 0;
