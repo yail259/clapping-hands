@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 89 passing tests and the built MCP
+cross-site speed claim. The current suite has 90 passing tests and the built MCP
 server advertises ten management/Marketplace tools before any generated
 workflow tools are loaded.
 
@@ -106,7 +106,9 @@ New regression coverage includes:
 - full persisted-plan safety validation for DOM, form, and network engines on
   save, load, update, and replay; and
 - fail-closed output freshness: a cached DOM path cannot report unchanged,
-  pre-action content as a successful fresh result.
+  pre-action content as a successful fresh result; and
+- input-evidenced write validation: when every demonstration echoes a submitted
+  field in the result UI, an unseen commit must echo that field too.
 
 The opt-in real-Stagehand local smoke found and fixed a v4 configuration bug:
 Stagehand requires an explicit model configuration instead of inferring one
@@ -304,13 +306,52 @@ reusable inputs. Read semantics now require an explicit conservative submitter
 allowlist, and form signatures/projected steps exclude unanswered result-row
 controls. Repeated result-page URLs with a query string are also recognized as
 terminal results when an empty form action resolves back to that URL. The full
-89-test suite covers these cases.
+90-test suite covers these cases.
 
 This supports only the pinned WordPress version and post-search workflow above;
 it is not a claim that all WordPress tasks—or websites generally—are 7× faster.
 The report retains all samples, image digests, environment metadata, and the
 exact code revision in
 [`bench/runs/2026-09-04/wordpress-local-performance.json`](../bench/runs/2026-09-04/wordpress-local-performance.json).
+
+### WordPress Redirection plugin capability regression
+
+The same isolated WordPress 7.1 fixture was extended with the official
+[Redirection plugin](https://wordpress.org/plugins/redirection/) pinned at
+5.10.0. This adds a materially different architecture from core post search:
+the plugin owns a React admin screen and communicates through WordPress's
+same-origin REST API. The tested task was an actual plugin write, not a core
+WordPress form.
+
+Compiler checkpoint
+[`6a05aec`](https://github.com/yail259/clapping-hands/commit/6a05aec)
+used two isolated synthetic source/target demonstrations, removed each one,
+restarted the persistent browser, and committed a never-demonstrated third
+redirect:
+
+| Workflow | Mechanism | Effect path | Compiled model calls | Independent result | Verdict |
+| --- | --- | --- | ---: | --- | --- |
+| Create unseen 301 redirect | plugin React SPA over same-origin REST | browser-idle prepare, then one-shot commit | 0 | one exact database row plus public HTTP 301 to the requested target | pass after compiler fix |
+
+Prepare changed neither the page nor the database. Commit created exactly one
+enabled 301 in the intended group, the compiled result contained both unseen
+inputs, and an unauthenticated public request returned the intended location.
+Reusing the receipt was rejected before another site action and left the same
+row ID in place. All alpha, beta, and gamma rules were then removed and verified
+absent.
+
+The run exposed a general false-success gap. Write plans previously ignored
+input evidence even when every demonstration proved that the resulting screen
+echoed each submitted value. The compiler now retains that demonstrated
+contract for reads and writes; non-echoing write screens continue to use
+plausibility/change validation. Three older test demonstrations were also
+corrected because they had claimed to echo payloads their fixture never
+rendered.
+
+This is one guided capability observation on one pinned plugin version. Its
+single replay duration is deliberately not promoted as a speed result. The
+sanitized report is
+[`bench/runs/2026-09-04/wordpress-redirection-local-capability.json`](../bench/runs/2026-09-04/wordpress-redirection-local-capability.json).
 
 ## Discourse official-demo holdout — 2026-09-04
 

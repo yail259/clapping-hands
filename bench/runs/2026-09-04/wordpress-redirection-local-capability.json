@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "kind": "self-hosted-application-capability-regression",
+  "generatedAt": "2026-09-04T14:26:00.081Z",
+  "compilerCommit": "6a05aec37e8ba8ec502e4a9556bfd0a25fd81c85",
+  "application": "Self-hosted WordPress 7.1 with Redirection 5.10.0",
+  "origin": "http://127.0.0.1:18090",
+  "containerImages": {
+    "application": "sha256:5a93c470ae8220fddf71f6ebe3bc94e615ddc2ae4d9810f795b830fb11c41a17",
+    "database": "sha256:611a2fcc5fa7c6ceb8644c6f74b25ede004ff6c3a6b38c8f8c23d3bbf6c26430"
+  },
+  "plugin": {
+    "slug": "redirection",
+    "version": "5.10.0",
+    "source": "https://wordpress.org/plugins/redirection/"
+  },
+  "intervention": "guided",
+  "policyBasis": "Loopback-only official containers with one synthetic administrator and synthetic redirect paths",
+  "credentialHandling": "Read a rotated synthetic credential from the process environment; persisted no credential in plans or reports",
+  "claimScope": "Capability regression on one pinned WordPress/plugin pair; not a speed or untouched-holdout result",
+  "apiDisposition": "The plugin REST API is an internal UI transport here; the database and public 301 response were independent correctness oracles",
+  "developmentHistory": [
+    {
+      "stage": "write-output-validation",
+      "result": "general-compiler-fix",
+      "reason": "Write plans ignored demonstrated input evidence even when the result UI echoed every input.",
+      "fix": "Retain proven write-result evidence and require both unseen redirect inputs after commit."
+    }
+  ],
+  "environment": {
+    "browserVersion": "151.0.7922.138",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "authSurvivedBrowserRestart": true,
+  "fixtureCleanupVerified": true,
+  "plan": {
+    "actionCount": 4,
+    "commitActionIndex": 0,
+    "outputMode": "present",
+    "inputEvidenceNames": [
+      "sourceUrl",
+      "targetUrl"
+    ]
+  },
+  "rows": [
+    {
+      "task": "create-unseen-plugin-redirect",
+      "effect": "write",
+      "architecture": "WordPress plugin React SPA over same-origin REST API",
+      "path": "compiled-dom-prepare-commit",
+      "exactResult": true,
+      "preparedWithoutEffect": true,
+      "prepareLeftBrowserUntouched": true,
+      "receiptStatus": "committed",
+      "repeatedCommitRejected": true,
+      "oracle": {
+        "databaseRowsAfterCommit": 1,
+        "exactDatabaseRecord": true,
+        "unchangedAfterRejectedRepeat": true,
+        "publicRequestStatus": 301,
+        "publicLocationMatched": true
+      },
+      "outputEvidenceNames": [
+        "sourceUrl",
+        "targetUrl"
+      ],
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 1674.55
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "total": 1,
+    "falseSuccesses": 0,
+    "duplicateCommits": 0
+  }
+}

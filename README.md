@@ -176,6 +176,18 @@ passed the same guided post-search workflow with an exact unseen result and zero
 compiled model calls. Because the holdout caused the fix, that pass is retained
 as regression evidence and excluded from the untouched-holdout success rate.
 
+A separate pinned WordPress 7.1 +
+[Redirection 5.10.0](https://wordpress.org/plugins/redirection/) regression
+passed 1/1 on a plugin-owned React write: two synthetic 301 demonstrations
+compiled into a plan that created an unseen third redirect after a clean browser
+restart. Prepare left the database and browser untouched; commit created one
+exact row and a real public 301, receipt reuse was rejected, and cleanup removed
+every synthetic rule. The run also produced a general validation fix: when a
+write result demonstrably echoes its inputs, unseen replay must contain those
+inputs instead of accepting any plausible changed screen. This is capability
+evidence, not a speed row or a claim about all WordPress plugins. Compiler
+checkpoint [`6a05aec`](https://github.com/yail259/clapping-hands/commit/6a05aec).
+
 The self-hosted osTicket holdout also failed closed during development and then
 passed 3/3 on compiler checkpoint
 [`e0e2f0e`](https://github.com/yail259/clapping-hands/commit/e0e2f0e):

@@ -109,7 +109,7 @@ Current execution ledger for those eight application rows:
 | Row | Evidence completed | Highest-value missing workflow |
 | --- | --- | --- |
 | osTicket | local search, public create, and private note: 3/3 regression; qualifying search distribution | a second staff-side state transition distinct from rich-text notes |
-| WordPress | Playground iframe search regression; qualifying local post-search distribution | an isolated plugin-specific UI-only write |
+| WordPress | Playground iframe search regression; qualifying local post-search distribution; Redirection 5.10.0 plugin write: 1/1 regression | an isolated core create/edit draft workflow, reported as architecture coverage rather than a no-API win |
 | Moodle | local unseen course navigation and one exact grade write: 2/2 | a student-side synthetic activity submission |
 | Discourse | official-demo category read plus local search/create/edit: 3/3 local regression | a permission/role transition or allowlisted upload |
 | Nextcloud | local folder, upload, download artifact, and public share: 4/4 | a user-targeted share or permission transition distinct from public links |
@@ -150,6 +150,16 @@ without waiting forever on a renewed `/poll` subscription. Because this row
 drove those corrections, it is regression evidence rather than untouched
 coverage. Discourse's first-party API remains preferred whenever configured and
 task-complete.
+
+The isolated WordPress row now also passes a plugin-owned Redirection 5.10.0
+write. Two source/target pairs compiled into a four-action React workflow; after
+a clean browser restart, prepare was browser-idle and database-idle, while the
+unseen third commit produced exactly one database row and a matching public 301.
+Receipt reuse was rejected and all synthetic rows were removed. The row found a
+general validator gap: write outputs now retain demonstrated input evidence just
+as read outputs do, while write UIs that do not echo their inputs remain valid.
+Because this row caused that fix, it is regression evidence rather than an
+untouched holdout pass.
 
 ## Claim gates
 
@@ -215,6 +225,9 @@ effect boundaries, validation, and fallback behavior.
 - [WordPress Playground](https://developer.wordpress.org/playground/) is an
   isolated in-browser WordPress environment intended for building,
   experimenting, and testing.
+- [Redirection](https://wordpress.org/plugins/redirection/) is an open-source
+  WordPress plugin with a React admin interface and REST-backed redirect
+  manager; the benchmark pins version 5.10.0 in a local synthetic fixture.
 - [Moodle's official demo page](https://moodle.org/demo) offers populated and
   sandbox environments and says they reset every hour.
 - [Discourse Meta](https://meta.discourse.org/t/new-to-discourse-start-here/1)
