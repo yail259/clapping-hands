@@ -126,3 +126,29 @@ The complete sanitized observation log is
 [`bench/runs/2026-09-04/govuk-live-smoke.json`](../bench/runs/2026-09-04/govuk-live-smoke.json).
 The benchmark protocol and release gates are in
 [`docs/BENCHMARK_PLAN.md`](BENCHMARK_PLAN.md).
+
+## Purpose-built live-site capability smoke — 2026-09-04
+
+Compiler checkpoint [`8073759`](https://github.com/yail259/clapping-hands/commit/8073759)
+was exercised against [The Internet](https://the-internet.herokuapp.com/),
+whose [official repository](https://github.com/saucelabs/the-internet) describes
+it as an application for automated acceptance tests. This was a bounded
+capability smoke: two guided demonstrations and one compiled run per task, not
+a latency benchmark.
+
+| Workflow | Mechanism | Effect path | Compiled model calls | Exact result | Verdict |
+| --- | --- | --- | ---: | --- | --- |
+| Delayed element removal | asynchronous DOM replacement | read | 0 | yes | pass |
+| JavaScript confirm | typed dialog + one-time receipt | prepare/commit | 0 | yes | pass |
+| Download `test_file.txt` | same-origin quarantined artifact | read | 0 | yes; 40 bytes + SHA-256 | pass |
+
+The first delayed-element attempt failed closed because the guided benchmark
+adapter returned before the AJAX output existed. The adapter was changed to
+wait for the declared result region; the rerun then passed. The successful run
+used ten page journeys and made no upload to the demo's shared file list; the
+failed development attempt used one additional journey. The sanitized report
+is [`bench/runs/2026-09-04/the-internet-live-smoke.json`](../bench/runs/2026-09-04/the-internet-live-smoke.json).
+
+This adds a second public domain and three browser mechanisms to the evidence,
+but still does not satisfy the frozen-corpus or unseen-holdout gates. In
+particular, it supports no “80–90% of websites” claim and no speed ratio.

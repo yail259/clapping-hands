@@ -153,6 +153,11 @@ compiled result agreement after one recorded fix. These are `guided`, `n=1`
 observations on one domain—not evidence for “any website” or a general latency
 claim. See [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
+A second bounded smoke on The Internet acceptance-test app passed 3/3 guided
+capability probes—delayed DOM output, JavaScript confirmation, and a quarantined
+download—with exact results and zero compiled model calls. It is `n=1` per task
+and is not presented as a speed benchmark or a cross-site success-rate claim.
+
 Restart Codex after adding the server so these tools are discovered:
 
 - `clapping_hands_compile_dom`

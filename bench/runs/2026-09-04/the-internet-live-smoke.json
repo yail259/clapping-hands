@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "kind": "live-purpose-built-smoke",
+  "generatedAt": "2026-09-04T08:31:15.951Z",
+  "compilerCommit": "80737593e99917c51e57b946b2f160a52a03f931",
+  "application": "The Internet",
+  "origin": "https://the-internet.herokuapp.com",
+  "policyBasis": "Official example application for automated acceptance tests",
+  "traffic": {
+    "totalJourneys": 10,
+    "writesToSharedFileList": 0
+  },
+  "intervention": "guided",
+  "claimScope": "Capability smoke only; n=1 compiled run per task, not a speed benchmark",
+  "developmentHistory": [
+    {
+      "attempt": 1,
+      "task": "delayed-element-removal",
+      "result": "failed-closed",
+      "reason": "The guided benchmark action returned before the AJAX result region existed.",
+      "fix": "Wait for the declared output region before ending each guided demonstration.",
+      "journeys": 1
+    }
+  ],
+  "rows": [
+    {
+      "task": "delayed-element-removal",
+      "effect": "read",
+      "intervention": "guided",
+      "demonstrations": 2,
+      "compiledRuns": 1,
+      "compiledModelCalls": 0,
+      "exactResult": true,
+      "compiledDurationMs": 3266.810625
+    },
+    {
+      "task": "javascript-confirm",
+      "effect": "commit",
+      "intervention": "guided",
+      "demonstrations": 2,
+      "compiledRuns": 1,
+      "compiledModelCalls": 0,
+      "exactResult": true,
+      "compiledDurationMs": 355.67654200000106
+    },
+    {
+      "task": "download-file",
+      "effect": "read",
+      "intervention": "guided",
+      "demonstrations": 2,
+      "compiledRuns": 1,
+      "compiledModelCalls": 0,
+      "exactResult": true,
+      "compiledDurationMs": 4145.514207999997,
+      "artifact": {
+        "suggestedFilename": "test_file.txt",
+        "size": 40,
+        "sha256": "a4193168dd5c7a86eaaadd524cca1a5d27cc13e72cadbbac4c06b5f57ab6c557"
+      }
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "total": 3,
+    "falseSuccesses": 0
+  }
+}
