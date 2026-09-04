@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "auth:marketplace": "tsx scripts/auth-marketplace.ts",
+    "benchmark:live": "tsx scripts/benchmark-live-forms.ts",
     "benchmark:marketplace": "tsx scripts/benchmark-marketplace.ts",
     "check": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx src/server.ts",
@@ -20,6 +21,7 @@
   "dependencies": {
     "@browserbasehq/stagehand": "4.0.2",
     "@modelcontextprotocol/sdk": "1.30.0",
+    "cheerio": "^1.2.0",
     "playwright-core": "1.62.1",
     "zod": "4.4.3"
   },
