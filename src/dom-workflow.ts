@@ -1030,6 +1030,9 @@ async function guidedFileSelection(
   const mentionedFiles = Object.entries(input).filter(([_name, value]) =>
     typeof value === "string" && value.length > 0 && instruction.includes(value));
   if (mentionedFiles.length === 0 || !/\b(?:upload|attach|choose|select|set)\b/i.test(instruction)) return null;
+  const explicitFileIntent = /\b(?:upload|attach)\b/i.test(instruction) ||
+    /\b(?:choose|select|set)\b.{0,48}\b(?:file|attachment|document|image|photo)\b/i.test(instruction);
+  if (!explicitFileIntent) return null;
   if (mentionedFiles.length !== 1) throw new Error("A file-selection instruction must mention exactly one compiled file input.");
   const genericSelector = 'input[type="file"]';
   const candidates: Array<{ frame: Frame; selector: string | null; descriptor: string; score: number }> = [];

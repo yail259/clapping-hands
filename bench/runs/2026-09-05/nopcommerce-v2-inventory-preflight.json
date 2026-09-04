@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-04T17:21:48.000Z",
+  "compilerCommit": "3e3d2393df2015565fd5d5e350c17b510fb43d2f",
+  "corpus": {
+    "path": "bench/corpus-v2.json",
+    "freezeSha": "3e3d2393df2015565fd5d5e350c17b510fb43d2f"
+  },
+  "application": {
+    "id": "nopcommerce-local-v2",
+    "name": "Self-hosted nopCommerce 4.90.6",
+    "environment": "Loopback-only official container and PostgreSQL fixture",
+    "policyReviewDate": "2026-09-05",
+    "trafficBudget": "Local installation; read-only preflight with no fixture mutation"
+  },
+  "tasks": [
+    {
+      "id": "change-variant-inventory-quantity",
+      "effect": "write",
+      "status": "failed",
+      "unseen": true,
+      "authoringMode": "demonstrated",
+      "engine": "not-run-invalid-task-contract",
+      "exactResult": false,
+      "falseSuccess": false,
+      "duplicateCommits": 0,
+      "cleanupVerified": true,
+      "requests": 0,
+      "navigations": 0,
+      "modelCalls": 0,
+      "failureClassification": "environment-harness",
+      "oracleEvidence": {
+        "finding": "The frozen oracle requires per-variant inventory to change while another warehouse remains unchanged, but nopCommerce models attribute-combination stock and multi-warehouse product stock as separate inventory modes.",
+        "officialInventoryDocumentation": "https://docs.nopcommerce.com/en/running-your-store/order-management/inventory-management.html",
+        "localProductAttributeCombinationRowsBeforeFixture": 0,
+        "localProductWarehouseInventoryRowsBeforeFixture": 0
+      },
+      "resetEvidence": {
+        "mutationAttempted": false,
+        "applicationStateChanged": false
+      }
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "total": 1,
+    "successRate": 0,
+    "falseSuccesses": 0,
+    "duplicateCommits": 0
+  }
+}

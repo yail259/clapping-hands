@@ -298,6 +298,15 @@ async function fixture(): Promise<{ server: Server; origin: string }> {
       response.end(`<!doctype html><main><input type="file"><input type="file"><output id="result">Ready</output></main>`);
       return;
     }
+    if (url.pathname === "/select-with-unrelated-file") {
+      response.end(`<!doctype html><main>
+        <select id="status"><option value="10">Pending</option><option value="20">Processing</option></select>
+        <input id="license" type="file"><output id="result">Ready</output>
+        <script>document.querySelector('#status').onchange = event => {
+          document.querySelector('#result').textContent = 'Status ' + event.target.value;
+        };</script></main>`);
+      return;
+    }
     if (url.pathname === "/idempotent-select") {
       response.end(`<!doctype html><main><select id="sort"><option value="az" selected>A to Z</option><option value="za">Z to A</option></select>
         <output id="result">Inventory ready</output></main>`);
@@ -1356,6 +1365,44 @@ test("learns a single allowlisted file input without asking Stagehand for an uns
     await browser?.close();
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("does not mistake a status selection for an unrelated file upload", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    let learnerCalls = 0;
+    const status = "20";
+    const demonstration = await demonstrateDomWorkflow({
+      act: async (instruction) => {
+        learnerCalls += 1;
+        assert.equal(instruction, `Select order status ${status}`);
+        await page.locator("#status").selectOption(status);
+        return {
+          success: true,
+          message: "selected status",
+          actions: [{
+            selector: "#status",
+            description: instruction,
+            method: "selectOptionFromDropdown",
+            arguments: [status],
+          }],
+          modelCalls: 1,
+          inputTokens: 0,
+          outputTokens: 0,
+        };
+      },
+    }, page, `${origin}/select-with-unrelated-file`, { status }, [`Select order status ${status}`], "#result");
+    assert.equal(learnerCalls, 1);
+    assert.equal(demonstration.actions[0]!.method, "selectOptionFromDropdown");
+    assert.equal(demonstration.output.text, "Status 20");
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 });
 

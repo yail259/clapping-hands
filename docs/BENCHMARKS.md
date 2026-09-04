@@ -50,9 +50,33 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 98 passing tests and the built MCP
+cross-site speed claim. The current suite has 99 passing tests and the built MCP
 server advertises ten management/Marketplace tools before any generated
 workflow tools are loaded.
+
+## Prospective corpus v2 — 2026-09-05
+
+The v2 cohort was frozen before execution at compiler commit `3e3d239` with 24
+new tasks across eight application rows. The first preflight retained a genuine
+failure: nopCommerce does not model inventory per attribute combination per
+warehouse. Its official inventory modes track stock either by product (where
+multiple warehouses are available) or by product attributes (where stock lives
+on the combination). The frozen
+`change-variant-inventory-quantity` oracle incorrectly required both dimensions.
+No mutation was attempted, and this task remains 0/1 under the
+`environment-harness` failure class rather than being edited after the freeze.
+The sanitized result is
+[`bench/runs/2026-09-05/nopcommerce-v2-inventory-preflight.json`](../bench/runs/2026-09-05/nopcommerce-v2-inventory-preflight.json).
+
+The first executable v2 task also failed before its first demonstrated effect.
+On nopCommerce's order page, the instruction `Select order status 20` was
+mistaken for a file upload merely because that page contains an unrelated
+license-file input. The upload bridge had treated the generic verb `select` as
+sufficient file intent. The compiler now requires an explicit upload/attach
+verb or a file-like noun near choose/select/set, with a controlled regression
+covering the original mixed-control page. The corrected order transition is
+retained only as regression evidence; the frozen task remains a 0/1 compiler
+failure.
 
 The reproducible controlled protocol at compiler commit
 [`387ede5`](https://github.com/yail259/clapping-hands/commit/387ede5) ran 20
