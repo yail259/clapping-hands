@@ -7,6 +7,7 @@ import {
   assertDomWorkflowPlanSafety,
   executeCompiledDomAction,
   fingerprintCompiledDomActions,
+  navigateForCompiledDomWorkflow,
   readDomOutputTextIfPresent,
   validateDomOutput,
   waitForDomOutputChange,
@@ -105,16 +106,11 @@ function assertWritePlan(plan: DomWorkflowPlan): number {
   return plan.effect.commitActionIndex;
 }
 
-async function settle(page: Page): Promise<void> {
-  await page.waitForLoadState("domcontentloaded", { timeout: 2_000 }).catch(() => {});
-}
-
 async function executePrefix(page: Page, plan: DomWorkflowPlan, input: DomInput, finalIndex: number): Promise<Page> {
-  await page.goto(new URL(plan.startPath, plan.origin).href, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  await navigateForCompiledDomWorkflow(page, new URL(plan.startPath, plan.origin).href);
   let activePage = page;
   for (let index = 0; index < finalIndex; index += 1) {
     activePage = await executeCompiledDomAction(activePage, materializeAction(plan, index, input));
-    await settle(activePage);
     if (new URL(activePage.url()).origin !== plan.origin) throw new Error("Prepared write workflow left its allowed origin.");
   }
   return activePage;
@@ -264,7 +260,6 @@ export async function commitPreparedDomWorkflowWrite(
       activePage = await executeCompiledDomAction(activePage, action, {
         onDownload: (artifact) => downloads.push(artifact),
       });
-      await settle(activePage);
       if (new URL(activePage.url()).origin !== plan.origin) {
         throw new Error("Committed write workflow left its allowed origin.");
       }

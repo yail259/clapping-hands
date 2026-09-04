@@ -63,6 +63,52 @@ async function fixture(): Promise<{ server: Server; origin: string }> {
       </script></main>`);
       return;
     }
+    if (url.pathname === "/async-handler.js") {
+      response.setHeader("content-type", "text/javascript");
+      setTimeout(() => response.end(`document.querySelector('#async-run').onclick = () => {
+        document.querySelector('#async-result').textContent = 'Async handler ready';
+      };`), 150);
+      return;
+    }
+    if (url.pathname === "/async-handler") {
+      response.end(`<!doctype html><main>
+        <button id="async-run">Run async handler</button><output id="async-result">Ready</output>
+        <script async src="/async-handler.js"></script>
+      </main>`);
+      return;
+    }
+    if (url.pathname === "/hydration-ready") {
+      response.setHeader("content-type", "application/json");
+      setTimeout(() => response.end('{"ready":true}'), 150);
+      return;
+    }
+    if (url.pathname === "/post-load-hydration") {
+      response.end(`<!doctype html><main>
+        <button id="hydrated-run">Run hydrated handler</button><output id="hydrated-result">Ready</output>
+        <script>window.addEventListener('load', async () => {
+          await fetch('/hydration-ready');
+          document.querySelector('#hydrated-run').onclick = () => {
+            document.querySelector('#hydrated-result').textContent = 'Hydrated handler ready';
+          };
+        });</script>
+      </main>`);
+      return;
+    }
+    if (url.pathname === "/rich-editor") {
+      response.end(`<!doctype html><main><form>
+        <div id="editor" contenteditable="true"></div><textarea id="source" hidden></textarea>
+        <button id="preview" type="button">Preview</button><output id="rich-result">Ready</output>
+        <script>
+          document.querySelector('#editor').addEventListener('blur', () => setTimeout(() => {
+            document.querySelector('#source').value = document.querySelector('#editor').innerText;
+          }, 75));
+          document.querySelector('#preview').onclick = () => {
+            document.querySelector('#rich-result').textContent = 'Submitted ' + document.querySelector('#source').value;
+          };
+        </script>
+      </form></main>`);
+      return;
+    }
     if (url.pathname === "/frame-body") {
       response.end(`<!doctype html><main>
         <label>Search <input id="frame-query"></label><button id="frame-run">Run</button>
@@ -271,6 +317,114 @@ test("waits for an asynchronously mounted compiled iframe", async () => {
     const page = await browser.newPage();
     const result = await replayDomWorkflow(page, plan, { query: "lamp" });
     assert.equal(result.text, "Frame result for lamp");
+    assert.equal(result.modelCalls, 0);
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("waits for asynchronous page scripts before executing compiled actions", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    const demonstration = (): DomWorkflowDemonstration => ({
+      input: {},
+      actions: [{
+        selector: "#async-run",
+        description: "Run the asynchronous handler",
+        method: "click",
+        arguments: [],
+      }],
+      output: {
+        selector: "#async-result",
+        tagName: "output",
+        text: "Async handler ready",
+        textHash: createHash("sha256").update("Async handler ready").digest("hex"),
+        url: `${origin}/async-handler`,
+      },
+      modelCalls: 1,
+    });
+    const plan = compileDomWorkflow("async_handler", `${origin}/async-handler`, [demonstration(), demonstration()]);
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const result = await replayDomWorkflow(page, plan, {});
+    assert.equal(result.text, "Async handler ready");
+    assert.equal(result.modelCalls, 0);
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("waits for bounded post-load hydration before executing compiled actions", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    const demonstration = (): DomWorkflowDemonstration => ({
+      input: {},
+      actions: [{
+        selector: "#hydrated-run",
+        description: "Run the hydrated handler",
+        method: "click",
+        arguments: [],
+      }],
+      output: {
+        selector: "#hydrated-result",
+        tagName: "output",
+        text: "Hydrated handler ready",
+        textHash: createHash("sha256").update("Hydrated handler ready").digest("hex"),
+        url: `${origin}/post-load-hydration`,
+      },
+      modelCalls: 1,
+    });
+    const plan = compileDomWorkflow("post_load_hydration", `${origin}/post-load-hydration`, [
+      demonstration(),
+      demonstration(),
+    ]);
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const result = await replayDomWorkflow(page, plan, {});
+    assert.equal(result.text, "Hydrated handler ready");
+    assert.equal(result.modelCalls, 0);
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("preserves focus-sensitive action chains and observes rich-editor source synchronization", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    const demonstration = (body: string): DomWorkflowDemonstration => ({
+      input: { body },
+      actions: [
+        { selector: "#editor", description: "Focus editor", method: "click", arguments: [] },
+        { selector: "#editor", description: `Type ${body}`, method: "type", arguments: [body] },
+        { selector: "#editor", description: "Finish editing", method: "press", arguments: ["Tab"] },
+        { selector: "#preview", description: "Render preview", method: "click", arguments: [] },
+      ],
+      output: {
+        selector: "#rich-result",
+        tagName: "output",
+        text: `Submitted ${body}`,
+        textHash: createHash("sha256").update(`Submitted ${body}`).digest("hex"),
+        url: `${origin}/rich-editor`,
+      },
+      modelCalls: 1,
+    });
+    const plan = compileDomWorkflow("rich_editor_preview", `${origin}/rich-editor`, [
+      demonstration("first body"),
+      demonstration("second body"),
+    ]);
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const result = await replayDomWorkflow(page, plan, { body: "unseen body" });
+    assert.equal(result.text, "Submitted unseen body");
     assert.equal(result.modelCalls, 0);
     await page.close();
   } finally {

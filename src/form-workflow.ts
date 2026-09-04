@@ -186,11 +186,12 @@ export function extractMainResult(
   const main = $(resultSelector).first();
   // Compare the task result, not page furniture whose text can change after
   // client-side enhancement (for example an expandable GOV.UK step nav).
-  main.find("script, style, form, .govuk-feedback, .gem-c-feedback, .gem-c-contextual-sidebar").remove();
+  main.find("script, style, input, select, textarea, button, .govuk-feedback, .gem-c-feedback, .gem-c-contextual-sidebar").remove();
   main.find("h1, h2, h3, h4, h5, h6, p, li, dt, dd, section, article, div, aside, br").after(" ");
   const mainText = normalizedText(main.text());
   if (!mainText) throw new Error("Final page main result region was empty.");
-  const heading = normalizedText(main.find("h1").first().text()) || null;
+  const heading = normalizedText(main.find("h1, h2, h3, h4, h5, h6").first().text()) ||
+    normalizedText($("title").first().text()) || null;
   return {
     finalUrl: url,
     heading,
@@ -411,7 +412,7 @@ async function submitBrowserForm(page: Page, step: ObservedFormStep): Promise<"n
   const beforeUrl = page.url();
   const beforeText = await page.locator("body").innerText().catch(() => "");
   const navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 15_000 })
-    .then(() => "navigation" as const)
+    .then((response) => response ? "navigation" as const : "same-document" as const)
     .catch(() => null);
   const sameDocument = page.waitForFunction(
     ({ url, text }) => location.href === url && (document.body?.innerText ?? "") !== text,
@@ -443,6 +444,20 @@ export async function demonstrateFormWorkflow(
     const html = await page.content();
     const step = inspectFormPage(html, page.url(), { answerKeys });
     if (!step) {
+      const extracted = extractMainResult(html, page.url());
+      return {
+        steps,
+        inputHash: hashFormInput(answers),
+        result: {
+          ...extracted,
+          questionKeys: steps.map((candidate) => candidate.questionKey),
+          requests: navigations,
+          navigations,
+          durationMs: performance.now() - startedAt,
+        },
+      };
+    }
+    if (steps.some((candidate) => candidate.questionKey === step.questionKey && candidate.formSignature === step.formSignature)) {
       const extracted = extractMainResult(html, page.url());
       return {
         steps,
@@ -605,7 +620,7 @@ export async function replayFormWorkflow(
   answers: FormWorkflowAnswers,
 ): Promise<FormWorkflowResult> {
   assertFormWorkflowPlanSafety(plan);
-  const nonNavigating = plan.steps.find((step) => step.transition !== "navigation");
+  const nonNavigating = plan.steps.find((step) => step.transition !== "navigation" && step.method !== "GET");
   if (nonNavigating) {
     throw new Error(`Step ${nonNavigating.questionKey} requires deterministic browser replay, not direct form requests.`);
   }

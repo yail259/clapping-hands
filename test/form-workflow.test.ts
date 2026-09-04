@@ -61,6 +61,18 @@ async function fixture(): Promise<{
         });</script>`));
       return;
     }
+    if (url.pathname === "/persistent-search") {
+      const query = url.searchParams.get("query") ?? "";
+      response.end(page(`<h2>Catalogue</h2><form id="repeat-search" action="/persistent-search" method="get">
+        <input name="query"><button type="submit">Search</button>
+        <section id="results">${query ? `Results for ${query}` : "Search the catalogue"}</section>
+      </form><script>document.querySelector('#repeat-search').addEventListener('submit', event => {
+        event.preventDefault(); const value = new FormData(event.currentTarget).get('query');
+        history.pushState({}, '', '/persistent-search?query=' + encodeURIComponent(value));
+        document.querySelector('#results').textContent = 'Results for ' + value;
+      });</script>`));
+      return;
+    }
     if (url.pathname === "/post") {
       response.end(page(`<h1>Topics</h1><form data-question-key="topics" action="/post/result" method="post">
         <input type="hidden" name="csrf" value="rotating-fixture-secret">
@@ -267,7 +279,7 @@ test("generic form replay preserves browser default successful controls", async 
   }
 });
 
-test("same-document forms compile to deterministic browser replay and refuse network replay", async () => {
+test("same-document JS-only forms fail direct validation and replay in the browser", async () => {
   const { server, origin } = await fixture();
   const userDataDir = await mkdtemp(resolve(tmpdir(), "clapping-hands-spa-"));
   let context: BrowserContext | null = null;
@@ -277,10 +289,36 @@ test("same-document forms compile to deterministic browser replay and refuse net
     const demonstration = await demonstrateFormWorkflow(await context.newPage(), `${origin}/spa`, spaAnswers);
     assert.equal(demonstration.steps[0]?.transition, "same-document");
     const plan = compileFormWorkflow("fixture_spa", `${origin}/spa`, [demonstration]);
-    await assert.rejects(() => replayFormWorkflow(context!, plan, spaAnswers), /browser replay/);
+    await assert.rejects(() => replayFormWorkflow(context!, plan, spaAnswers), /final result|heading/);
     const replay = await replayFormWorkflowInBrowser(await context.newPage(), plan, spaAnswers);
     assert.equal(replay.mainText, demonstration.result.mainText);
     assert.equal(replay.navigations, 1);
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test("compiles a persistent same-document GET search form into direct requests", async () => {
+  const { server, origin } = await fixture();
+  const userDataDir = await mkdtemp(resolve(tmpdir(), "clapping-hands-persistent-search-"));
+  let context: BrowserContext | null = null;
+  try {
+    context = await chromium.launchPersistentContext(userDataDir, { executablePath: CHROME, headless: true });
+    const firstAnswers = { "repeat-search": { query: "sofa" } };
+    const secondAnswers = { "repeat-search": { query: "chair" } };
+    const first = await demonstrateFormWorkflow(await context.newPage(), `${origin}/persistent-search`, firstAnswers);
+    const second = await demonstrateFormWorkflow(await context.newPage(), `${origin}/persistent-search`, secondAnswers);
+    assert.equal(first.steps.length, 1);
+    assert.equal(first.steps[0]?.transition, "same-document");
+    assert.match(first.result.mainText, /Results for sofa/);
+    assert.equal(first.result.heading, "Catalogue");
+    const plan = compileFormWorkflow("persistent_search", `${origin}/persistent-search`, [first, second]);
+    const replay = await replayFormWorkflow(context, plan, { "repeat-search": { query: "lamp" } });
+    assert.match(replay.mainText, /Results for lamp/);
+    assert.equal(replay.requests, 2);
+    assert.equal(replay.navigations, 0);
   } finally {
     await context?.close();
     await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));

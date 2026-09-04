@@ -786,6 +786,14 @@ async function settle(page: Page): Promise<void> {
   await page.waitForLoadState("domcontentloaded", { timeout: 2_000 }).catch(() => {});
 }
 
+export async function navigateForCompiledDomWorkflow(page: Page, url: string): Promise<void> {
+  await page.goto(url, { waitUntil: "load", timeout: 30_000 });
+  await page.waitForLoadState("networkidle", { timeout: 2_000 }).catch(() => {});
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  }));
+}
+
 export async function readDomOutputTextIfPresent(page: Page, selector: string, framePath: string[] = []): Promise<string | null> {
   const locator = locatorInFramePath(page, framePath, selector);
   if (await locator.count() !== 1) return null;
@@ -1108,7 +1116,37 @@ export async function executeCompiledDomAction(
       }
       case "fill": await locator.fill(args[0] ?? ""); break;
       case "type": await locator.pressSequentially(args[0] ?? ""); break;
-      case "press": await locator.press(args[0] ?? "Enter"); break;
+      case "press": {
+        const key = args[0] ?? "Enter";
+        const observeRichTextBridge = key === "Tab" &&
+          await locator.getAttribute("contenteditable").then((value) => value === "true").catch(() => false);
+        const sourceValuesBefore = observeRichTextBridge
+          ? await locator.evaluate((element) => {
+            const scope = element.closest("form") ?? element.ownerDocument;
+            return [...scope.querySelectorAll("textarea")].map((textarea) => textarea.value);
+          })
+          : [];
+        await locator.press(key);
+        if (sourceValuesBefore.length > 0) {
+          const deadline = Date.now() + 2_000;
+          while (Date.now() < deadline) {
+            const sourceValues = await locator.evaluate((element) => {
+              const scope = element.closest("form") ?? element.ownerDocument;
+              return [...scope.querySelectorAll("textarea")].map((textarea) => textarea.value);
+            });
+            if (JSON.stringify(sourceValues) !== JSON.stringify(sourceValuesBefore)) break;
+            await delay(25);
+          }
+          const sourceValuesAfter = await locator.evaluate((element) => {
+            const scope = element.closest("form") ?? element.ownerDocument;
+            return [...scope.querySelectorAll("textarea")].map((textarea) => textarea.value);
+          });
+          if (JSON.stringify(sourceValuesAfter) === JSON.stringify(sourceValuesBefore)) {
+            throw new Error("A compiled contenteditable did not synchronize its form source after blur.");
+          }
+        }
+        break;
+      }
       case "selectOption": await locator.selectOption(args); break;
       case "check": await locator.check(); break;
       case "uncheck": await locator.uncheck(); break;
@@ -1232,7 +1270,7 @@ export async function replayDomWorkflow(
   }
   if (plan.actions.length > plan.validation.maximumActions) throw new Error("Compiled DOM action budget exceeded.");
   const startedAt = performance.now();
-  await page.goto(new URL(plan.startPath, plan.origin).href, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  await navigateForCompiledDomWorkflow(page, new URL(plan.startPath, plan.origin).href);
   let activePage = page;
   let navigations = 1;
   const downloads: DomDownloadArtifact[] = [];
@@ -1248,7 +1286,6 @@ export async function replayDomWorkflow(
     activePage = await executeCompiledDomAction(activePage, action, {
       onDownload: (artifact) => downloads.push(artifact),
     });
-    await settle(activePage);
     if (index === plan.actions.length - 1 && !template.download && !alreadySatisfied) {
       await waitForDomOutputChange(
         activePage,
@@ -1300,7 +1337,7 @@ export async function repairDomWorkflow(
     throw new Error(`Compiled input keys must be exactly: ${plan.inputNames.join(", ")}.`);
   }
   const startedAt = performance.now();
-  await page.goto(new URL(plan.startPath, plan.origin).href, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  await navigateForCompiledDomWorkflow(page, new URL(plan.startPath, plan.origin).href);
   let activePage = page;
   let modelCalls = 0;
   let actions = 0;
