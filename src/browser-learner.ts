@@ -14,6 +14,7 @@ export type BrowserLaunchRequest = {
 export interface BrowserLearnerLease {
   readonly cdpUrl: string;
   readonly provider: string;
+  activatePage(url: string): Promise<void>;
   act(instruction: string | BrowserAction): Promise<BrowserActResult>;
   observe(instruction?: string): Promise<{ actions: BrowserAction[]; modelCalls: number }>;
   close(): Promise<void>;
@@ -24,6 +25,8 @@ export type BrowserAction = {
   description: string;
   method?: string;
   arguments?: string[];
+  opensNewPage?: boolean;
+  framePath?: string[];
 };
 
 export type BrowserActResult = {
@@ -142,10 +145,25 @@ export class StagehandBrowserLearner implements BrowserLearner {
     return {
       cdpUrl: `http://127.0.0.1:${port}`,
       provider: "stagehand-v4-local",
+      async activatePage(url) {
+        const pages = await browser.context.pages();
+        const matches = [];
+        for (const page of pages) {
+          if (await page.url() === url) matches.push(page);
+        }
+        if (matches.length !== 1) {
+          throw new Error(`Could not select exactly one learner page for the deterministic driver; found ${matches.length}.`);
+        }
+        await browser.context.setActivePage(matches[0]!);
+      },
       async act(instruction) {
-        const result = typeof instruction === "string"
-          ? await stagehand.act(instruction)
-          : await stagehand.act(instruction as Action);
+        let result;
+        if (typeof instruction === "string") {
+          result = await stagehand.act(instruction);
+        } else {
+          const { opensNewPage: _opensNewPage, framePath: _framePath, ...action } = instruction;
+          result = await stagehand.act(action as Action);
+        }
         return {
           success: result.data.success,
           message: result.data.message,

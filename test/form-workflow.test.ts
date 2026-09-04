@@ -42,14 +42,14 @@ async function fixture(): Promise<{
         <input required name="display"><input name="nickname" value="default nick">
         <label><input type="checkbox" name="newsletter" value="yes" checked> Newsletter</label>
         <select name="locale"><option value="en" selected>English</option><option value="fr">French</option></select>
-        <button type="submit" name="intent" value="save">Save</button></form>`));
+        <button type="submit" name="intent" value="preview">Preview</button></form>`));
       return;
     }
     if (url.pathname === "/generic/result" && request.method === "POST") {
       const chunks: Buffer[] = [];
       for await (const chunk of request) chunks.push(Buffer.from(chunk));
       const fields = new URLSearchParams(Buffer.concat(chunks).toString("utf8"));
-      response.end(page(`<h1>Profile saved</h1><p>${["display", "nickname", "newsletter", "locale", "intent"]
+      response.end(page(`<h1>Profile preview</h1><p>${["display", "nickname", "newsletter", "locale", "intent"]
         .map((name) => `${name}=${fields.get(name)}`).join("|")}</p>`));
       return;
     }
@@ -150,13 +150,21 @@ test("credential forms are excluded from generic form compilation", () => {
   assert.deepEqual(inspectFormCandidates(html, "https://example.test/login"), []);
 });
 
+test("effectful submit forms are excluded from the read-only form compiler", () => {
+  const html = `<!doctype html><main><form method="post" action="/messages">
+    <label>Message <textarea name="message"></textarea></label>
+    <button type="submit">Send message</button>
+  </form></main>`;
+  assert.deepEqual(inspectFormCandidates(html, "https://example.test/contact"), []);
+});
+
 test("discovers a generic form among unrelated forms and honors document base URLs", () => {
   const html = page(`<base href="/base/"><form id="search" action="search"><input name="q"><button>Go</button></form>
-    <form id="checkout" action="result" method="post"><input required name="name"><button name="intent" value="save">Save</button></form>`);
+    <form id="estimate" action="result" method="post"><input required name="name"><button name="intent" value="calculate">Calculate</button></form>`);
   const candidates = inspectFormCandidates(html, "https://example.test/start");
   assert.equal(candidates.length, 2);
-  const selected = inspectFormPage(html, "https://example.test/start", { answerKeys: ["checkout"] });
-  assert.equal(selected?.questionKey, "checkout");
+  const selected = inspectFormPage(html, "https://example.test/start", { answerKeys: ["estimate"] });
+  assert.equal(selected?.questionKey, "estimate");
   assert.equal(selected?.actionPath, "/base/result");
   assert.equal(selected?.submitter.name, "intent");
 });
@@ -241,7 +249,7 @@ test("generic form replay preserves browser default successful controls", async 
     const plan = compileFormWorkflow("fixture_generic", `${origin}/generic`, [demonstration]);
     const replay = await replayFormWorkflow(context, plan, genericAnswers);
     assert.equal(replay.mainText, demonstration.result.mainText);
-    assert.match(replay.mainText, /nickname=default nick\|newsletter=yes\|locale=en\|intent=save/);
+    assert.match(replay.mainText, /nickname=default nick\|newsletter=yes\|locale=en\|intent=preview/);
   } finally {
     await context?.close();
     await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));

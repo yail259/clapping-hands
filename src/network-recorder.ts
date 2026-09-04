@@ -71,6 +71,18 @@ export class NetworkRecorder {
   private readonly diagnostics: CaptureDiagnostic[] = [];
   private readonly pending = new Set<Promise<void>>();
   private readonly attachedPages = new WeakSet<Page>();
+  private allowedOrigins: Set<string> | null = null;
+
+  setAllowedOrigins(origins: string[]): void {
+    const normalized = origins.map((origin) => {
+      const url = new URL(origin);
+      if (!new Set(["http:", "https:"]).has(url.protocol) || url.pathname !== "/" || url.search || url.hash) {
+        throw new Error(`Network capture origin must be an HTTP(S) origin without a path: ${origin}`);
+      }
+      return url.origin;
+    });
+    this.allowedOrigins = new Set(normalized);
+  }
 
   attach(page: Page): void {
     if (this.attachedPages.has(page)) return;
@@ -130,7 +142,9 @@ export class NetworkRecorder {
     const operation = safeOperation(request);
     try {
       const pageOrigin = new URL(page.url()).origin;
-      if (new URL(request.url()).origin !== pageOrigin) {
+      const requestOrigin = new URL(request.url()).origin;
+      const allowed = this.allowedOrigins ?? new Set([pageOrigin]);
+      if (!allowed.has(requestOrigin)) {
         this.recordDiagnostic({ outcome: "cross-origin", operation });
         return;
       }

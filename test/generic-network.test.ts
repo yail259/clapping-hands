@@ -31,7 +31,9 @@ function exchange(
     method,
     resourceType: "fetch",
     requestHeaders: contentType ? { "content-type": contentType, accept: "application/json" } : { accept: "application/json" },
-    requestBody: options.requestBody ? JSON.stringify(options.requestBody) : "",
+    requestBody: options.requestBody
+      ? typeof options.requestBody === "string" ? options.requestBody : JSON.stringify(options.requestBody)
+      : "",
     responseStatus: 200,
     responseBody: JSON.stringify(response),
   };
@@ -41,6 +43,7 @@ function exchange(
 async function apiFixture(): Promise<{ server: Server; origin: string }> {
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://fixture.invalid");
+    response.setHeader("access-control-allow-origin", "*");
     if (url.pathname === "/capture") {
       response.setHeader("content-type", "text/html");
       response.end(`<!doctype html><script>fetch('/api/search?q=captured', {
@@ -56,11 +59,23 @@ async function apiFixture(): Promise<{ server: Server; origin: string }> {
         : { items: [{ id: query.length, title: query }], meta: { count: 1 } }));
       return;
     }
+    if (url.pathname === "/api/status") {
+      response.end(JSON.stringify({ status: "ok", checked: true }));
+      return;
+    }
     if (url.pathname === "/api/filter" && request.method === "POST") {
       const chunks: Buffer[] = [];
       for await (const chunk of request) chunks.push(Buffer.from(chunk));
       const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { query?: string; limit?: number };
       response.end(JSON.stringify({ items: [{ title: body.query }], limit: body.limit }));
+      return;
+    }
+    if (url.pathname === "/api/graphql" && request.method === "POST") {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const form = new URLSearchParams(Buffer.concat(chunks).toString("utf8"));
+      const variables = JSON.parse(form.get("variables") ?? "{}") as { query?: string; limit?: number };
+      response.end(JSON.stringify({ data: { items: [{ title: variables.query }], limit: variables.limit } }));
       return;
     }
     response.statusCode = 404;
@@ -109,14 +124,16 @@ test("infers JSON body bindings while retaining safe constants", async () => {
   const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-post-"));
   let context: BrowserContext | null = null;
   try {
+    const persistedHash = "ab".repeat(32);
     const demos = ["sofa", "chair"].map((query) => exchange(
       `${origin}/api/filter`,
       { query },
       { items: [{ title: query }], limit: 5 },
-      { method: "POST", requestBody: { query, limit: 5 } },
+      { method: "POST", requestBody: { query, limit: 5, extensions: { persistedQuery: { sha256Hash: persistedHash } } } },
     ));
     const plan = compileGenericJsonPlan("filter", demos);
     assert.equal(plan.request.bodyCodec, "json");
+    assert.match(JSON.stringify(plan.request.bodyTemplate), new RegExp(persistedHash));
     assert.doesNotMatch(JSON.stringify(plan), /sofa|chair/);
     context = await chromium.launchPersistentContext(directory, { executablePath: CHROME, headless: true });
     const replay = await replayGenericJsonPlan(context, plan, { query: "lamp" });
@@ -124,6 +141,131 @@ test("infers JSON body bindings while retaining safe constants", async () => {
   } finally {
     await context?.close();
     await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("binds inputs nested in form-encoded GraphQL variables", async () => {
+  const { server, origin } = await apiFixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-graphql-form-"));
+  let context: BrowserContext | null = null;
+  try {
+    const demos = ["sofa", "chair"].map((query) => exchange(
+      `${origin}/api/graphql`,
+      { query },
+      { data: { items: [{ title: query }], limit: 5 } },
+      {
+        method: "POST",
+        requestBody: new URLSearchParams({
+          variables: JSON.stringify({ query, limit: 5 }),
+          doc_id: "123456",
+        }).toString(),
+        contentType: "application/x-www-form-urlencoded",
+      },
+    ));
+    const plan = compileGenericJsonPlan("graphql_search", demos);
+    assert.equal(plan.request.bodyCodec, "form");
+    assert.deepEqual(plan.request.bindings.query, [{ source: "body", path: ["variables", 0, "query"] }]);
+    assert.doesNotMatch(JSON.stringify(plan), /sofa|chair/);
+    context = await chromium.launchPersistentContext(directory, { executablePath: CHROME, headless: true });
+    const result = await replayGenericJsonPlan(context, plan, { query: "lamp" });
+    assert.deepEqual(result.data, { data: { items: [{ title: "lamp" }], limit: 5 } });
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("compiles a zero-argument JSON request and counts repeated independent shadows", async () => {
+  const { server, origin } = await apiFixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-status-"));
+  let context: BrowserContext | null = null;
+  try {
+    const demonstrations = [
+      exchange(`${origin}/api/status`, {}, { status: "ok", checked: true }),
+      exchange(`${origin}/api/status`, {}, { status: "ok", checked: true }),
+    ];
+    const plan = compileGenericJsonPlan("check_status", demonstrations);
+    assert.deepEqual(plan.request.bindings, {});
+    context = await chromium.launchPersistentContext(directory, { executablePath: CHROME, headless: true });
+    const result = await replayGenericJsonPlan(context, plan, {});
+    assert.deepEqual(result.data, { status: "ok", checked: true });
+    let stable = recordGenericJsonShadow(plan, {}, true);
+    stable = recordGenericJsonShadow(stable, {}, true);
+    assert.equal(stable.evidence.successfulShadowInputHashes.length, 1);
+    assert.equal(stable.evidence.successfulShadowCount, 2);
+    assert.equal(stable.status, "stable");
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("compiles an explicitly allowed API origin without changing workflow identity", async () => {
+  const { server, origin } = await apiFixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-cross-origin-"));
+  let context: BrowserContext | null = null;
+  try {
+    const demonstrations = [
+      exchange(`${origin}/api/status`, {}, { status: "ok", checked: true }),
+      exchange(`${origin}/api/status`, {}, { status: "ok", checked: true }),
+    ];
+    assert.throws(
+      () => compileGenericJsonPlan("cross_origin_status", demonstrations, { workflowOrigin: "http://app.example" }),
+      /not explicitly allowed/,
+    );
+    const plan = compileGenericJsonPlan("cross_origin_status", demonstrations, {
+      workflowOrigin: "http://app.example",
+      allowedNetworkOrigins: [origin],
+    });
+    assert.equal(plan.origin, "http://app.example");
+    assert.equal(plan.request.endpointOrigin, origin);
+    context = await chromium.launchPersistentContext(directory, { executablePath: CHROME, headless: true });
+    const result = await replayGenericJsonPlan(context, plan, {});
+    assert.deepEqual(result.data, { status: "ok", checked: true });
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("recorder captures only explicitly allowed cross-origin API responses", async () => {
+  const api = await apiFixture();
+  const pageServer = createServer((_request, response) => {
+    response.setHeader("content-type", "text/html");
+    response.end(`<!doctype html><script>fetch(${JSON.stringify(`${api.origin}/api/status`)})</script>`);
+  });
+  await new Promise<void>((resolvePromise) => pageServer.listen(0, "127.0.0.1", resolvePromise));
+  const address = pageServer.address();
+  if (!address || typeof address === "string") throw new Error("Page fixture did not bind.");
+  const pageOrigin = `http://127.0.0.1:${address.port}`;
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-recorder-cross-origin-"));
+  let context: BrowserContext | null = null;
+  try {
+    context = await chromium.launchPersistentContext(directory, { executablePath: CHROME, headless: true });
+    const page = await context.newPage();
+    const denied = new NetworkRecorder();
+    denied.attach(page);
+    const deniedMark = denied.mark();
+    await page.goto(pageOrigin, { waitUntil: "networkidle" });
+    assert.equal((await denied.since(deniedMark)).length, 0);
+    assert.equal((await denied.diagnosticsSince(deniedMark)).outcomes["cross-origin"], 1);
+
+    const allowed = new NetworkRecorder();
+    allowed.setAllowedOrigins([pageOrigin, api.origin]);
+    allowed.attach(page);
+    const allowedMark = allowed.mark();
+    await page.reload({ waitUntil: "networkidle" });
+    const captured = await allowed.since(allowedMark);
+    assert.equal(captured.length, 1);
+    assert.equal(new URL(captured[0]!.url).origin, api.origin);
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => pageServer.close((error) => error ? reject(error) : resolvePromise()));
+    await new Promise<void>((resolvePromise, reject) => api.server.close((error) => error ? reject(error) : resolvePromise()));
     await rm(directory, { recursive: true, force: true });
   }
 });

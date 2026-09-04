@@ -112,8 +112,8 @@ server.registerTool(
   {
     title: "Compile a browser workflow",
     description:
-      "Learn the same user-authorized UI workflow from two varied demonstrations, redact inputs, and create a typed deterministic tool. " +
-      "A read workflow may also learn a same-origin JSON request accelerator when its response is evidenced in the rendered output.",
+      "Learn the same user-authorized UI workflow from two demonstrations, vary every declared input, redact inputs, and create a typed deterministic tool. Zero-argument workflows are supported. " +
+      "A read workflow may also learn a JSON or form-encoded GraphQL request accelerator on the workflow origin or an exact operator-allowed origin when its response is evidenced in the rendered output.",
     inputSchema: {
       action: z.string().regex(/^[a-z][a-z0-9_]{1,62}$/),
       startUrl: z.string().url(),
@@ -124,6 +124,7 @@ server.registerTool(
       })).min(2).max(5),
       effect: z.enum(["read", "write"]).default("read"),
       confirmation: z.string().min(1).max(240).optional(),
+      allowedNetworkOrigins: z.array(z.string().url()).max(5).optional(),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },

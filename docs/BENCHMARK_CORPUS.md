@@ -64,8 +64,9 @@ representative workflow corpus” only after:
 - at least 80% end-to-end success on unseen holdout tasks, with the exact task
   result independently checked;
 - zero false-success results and zero duplicate commits;
-- at least two varied demonstrations and two distinct successful shadows before
-  any network plan is called stable;
+- at least two varied demonstrations and two distinct-input successful shadows
+  before any parameterized network plan is called stable; zero-argument tools
+  require two independent successful shadows;
 - failures classified as compiler defects, policy/auth blocks, or explicitly
   unsupported browser capabilities;
 - warm timing distributions rather than one-off timings (local/test apps:

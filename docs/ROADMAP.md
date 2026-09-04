@@ -2,8 +2,10 @@
 
 Implementation snapshot: Milestone 0 is complete. The controlled-fixture parts
 of Milestones 1–3 are implemented (versioned product-owned plans, zero-model DOM
-and form replay, response-linked JSON promotion, drift degradation, and browser
-fallback). The representative-corpus and live evidence gates are still open;
+and form replay, same-origin frames and new-page transitions, zero-argument
+tools, explicitly allowlisted API origins, form-encoded GraphQL variables,
+response-linked JSON promotion, drift degradation, and browser fallback). The
+representative-corpus and live evidence gates are still open;
 see [`BENCHMARK_CORPUS.md`](BENCHMARK_CORPUS.md).
 
 ## Milestone 0 — contract

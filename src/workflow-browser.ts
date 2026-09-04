@@ -145,7 +145,21 @@ export class WorkflowBrowser {
 
   async act(instruction: string | BrowserAction): Promise<BrowserActResult> {
     await this.start();
+    if (!this.driverPage) throw new Error("Workflow browser page is unavailable.");
+    await this.learnerLease!.activatePage(this.driverPage.url());
+    const pagesBefore = new Set((await this.context()).pages());
     const result = await this.learnerLease!.act(instruction);
+    const openedPages = (await this.context()).pages().filter((page) => !pagesBefore.has(page));
+    if (openedPages.length > 1) throw new Error("A single browser action opened more than one page.");
+    if (openedPages.length === 1) {
+      await openedPages[0]!.waitForLoadState("domcontentloaded", { timeout: 10_000 }).catch(() => {});
+      if (!this.isAllowedPage(openedPages[0]!)) {
+        let destination = "non-http page";
+        try { destination = new URL(openedPages[0]!.url()).origin; } catch { /* keep a redacted label */ }
+        throw new Error(`Workflow opened a page outside the allowed origins: ${destination}`);
+      }
+      this.driverPage = openedPages[0]!;
+    }
     await this.assertPagesStayAllowed();
     return result;
   }
@@ -163,6 +177,14 @@ export class WorkflowBrowser {
       if (!this.allowedOrigins.includes(new URL(url).origin)) {
         throw new Error(`Workflow opened a page outside the allowed origins: ${new URL(url).origin}`);
       }
+    }
+  }
+
+  private isAllowedPage(page: Page): boolean {
+    try {
+      return this.allowedOrigins.includes(new URL(page.url()).origin);
+    } catch {
+      return false;
     }
   }
 

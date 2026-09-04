@@ -79,11 +79,20 @@ Promotion is per operation, not per website. A single action may mix network and
 browser steps.
 
 The current implementation stores a deterministic form or DOM baseline plus an
-optional JSON-request accelerator. An accelerator is eligible only when its
-response contains non-input evidence visible in the demonstrated output. It is
-promoted after two distinct runtime shadows, degraded on drift, and bypassed in
-favor of the baseline. A deterministic DOM failure may invoke the redacted
-semantic repair recipe for reads; semantic repair cannot cross a write boundary.
+optional JSON-request accelerator. DOM plans now preserve zero-argument tools,
+same-origin nested-frame paths, and declared new-page transitions. An
+accelerator may target the workflow origin or one of at most five exact origins
+declared during compilation; this does not broaden top-level navigation. Both
+JSON request bodies and form/query parameters containing JSON-encoded GraphQL
+variables can be parameterized.
+
+An accelerator is eligible only when its response contains non-input evidence
+visible in the demonstrated output. It is promoted after two distinct-input
+runtime shadows, or two independent shadows for a zero-argument workflow,
+degraded on drift, and bypassed in favor of the baseline. A deterministic DOM
+failure may invoke the redacted semantic repair recipe for reads; semantic
+repair cannot cross a write boundary. Cross-origin frames remain a declared
+unsupported boundary rather than being inferred from iframe ownership.
 
 ## Action IR sketch
 

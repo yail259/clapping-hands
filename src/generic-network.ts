@@ -23,6 +23,7 @@ export type GenericJsonPlan = {
   status: "candidate" | "provisional" | "stable" | "degraded";
   request: {
     method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+    endpointOrigin?: string;
     endpointPath: string;
     headers: Record<string, string>;
     queryTemplate: Record<string, TemplateValue[]>;
@@ -37,6 +38,7 @@ export type GenericJsonPlan = {
   evidence: {
     demonstrationInputHashes: string[];
     successfulShadowInputHashes: string[];
+    successfulShadowCount?: number;
     failedShadowCount: number;
     lastValidatedAt: string | null;
   };
@@ -54,6 +56,7 @@ export type GenericNetworkTrace = {
 };
 
 const SENSITIVE_NAME = /(?:authorization|cookie|password|passwd|secret|token|csrf|xsrf|session|api[_-]?key|jazoest|dtsg|\blsd\b)/i;
+const PUBLIC_OPAQUE_CONSTANT_NAME = /^(?:sha256hash|sha256_hash)$/i;
 const SAFE_HEADERS = new Set(["accept", "content-type", "x-requested-with"]);
 
 function hash(value: unknown): string {
@@ -128,9 +131,20 @@ function bodyCodec(exchange: CapturedExchange): "none" | "json" | "form" {
   throw new Error(`Unsupported request body content type ${contentType || "unknown"}.`);
 }
 
+function embeddedJson(value: string): TemplateValue {
+  const candidate = value.trim();
+  if (!candidate.startsWith("{") && !candidate.startsWith("[")) return value;
+  try {
+    const parsed = JSON.parse(candidate) as unknown;
+    return parsed && typeof parsed === "object" ? parsed as TemplateValue : value;
+  } catch {
+    return value;
+  }
+}
+
 function recordFromSearchParams(parameters: URLSearchParams): Record<string, TemplateValue[]> {
   const output: Record<string, TemplateValue[]> = {};
-  for (const [name, value] of parameters) (output[name] ??= []).push(value);
+  for (const [name, value] of parameters) (output[name] ??= []).push(embeddedJson(value));
   return output;
 }
 
@@ -202,6 +216,8 @@ function assertSafeTemplate(value: unknown, path: Path = []): void {
     return;
   }
   if (typeof value === "string" && looksHighEntropy(value)) {
+    const fieldName = [...path].reverse().find((segment): segment is string => typeof segment === "string");
+    if (fieldName && PUBLIC_OPAQUE_CONSTANT_NAME.test(fieldName)) return;
     throw new Error(`Refusing to persist a high-entropy request constant at ${path.join(".")}.`);
   }
 }
@@ -259,6 +275,7 @@ export function jsonResponseSupportsOutput(responseBody: string, outputText: str
 export function compileGenericJsonFromTraces(
   action: string,
   traces: GenericNetworkTrace[],
+  options: { workflowOrigin?: string; allowedNetworkOrigins?: string[] } = {},
 ): { plan: GenericJsonPlan; demonstrations: GenericNetworkDemonstration[] } {
   if (traces.length < 2) throw new Error("Two network traces are required.");
   const indexed = traces.map((trace) => {
@@ -302,7 +319,7 @@ export function compileGenericJsonFromTraces(
           !jsonResponseSupportsOutput(combination[index]!.responseBody, trace.outputText, trace.input))) {
           continue;
         }
-        const plan = compileGenericJsonPlan(action, demonstrations);
+        const plan = compileGenericJsonPlan(action, demonstrations, options);
         compiled.push({
           plan,
           demonstrations,
@@ -323,6 +340,7 @@ export function compileGenericJsonFromTraces(
 export function compileGenericJsonPlan(
   action: string,
   demonstrations: GenericNetworkDemonstration[],
+  options: { workflowOrigin?: string; allowedNetworkOrigins?: string[] } = {},
 ): GenericJsonPlan {
   if (demonstrations.length < 2) throw new Error("Two distinct network demonstrations are required.");
   const signatures = new Set(demonstrations.map(({ exchange }) => requestSignature(exchange)));
@@ -330,8 +348,8 @@ export function compileGenericJsonPlan(
   const parsed = demonstrations.map(({ exchange }) => parseRequest(exchange));
   const first = parsed[0]!;
   const inputs = Object.keys(demonstrations[0]!.input).sort();
-  if (inputs.length === 0 || demonstrations.some((demo) => JSON.stringify(Object.keys(demo.input).sort()) !== JSON.stringify(inputs))) {
-    throw new Error("Network demonstrations must use the same non-empty input schema.");
+  if (demonstrations.some((demo) => JSON.stringify(Object.keys(demo.input).sort()) !== JSON.stringify(inputs))) {
+    throw new Error("Network demonstrations must use the same input schema.");
   }
   const queryTemplate = structuredClone(first.query);
   const bodyTemplate = structuredClone(first.body);
@@ -374,8 +392,13 @@ export function compileGenericJsonPlan(
   assertSafeTemplate(queryTemplate);
   if (bodyTemplate !== null) assertSafeTemplate(bodyTemplate);
   const responses = demonstrations.map(({ exchange }) => parseJson(exchange.responseBody));
-  const origin = first.url.origin;
-  if (parsed.some((request) => request.url.origin !== origin)) throw new Error("Network demonstrations crossed origins.");
+  const endpointOrigin = first.url.origin;
+  if (parsed.some((request) => request.url.origin !== endpointOrigin)) throw new Error("Network demonstrations crossed origins.");
+  const origin = options.workflowOrigin ? new URL(options.workflowOrigin).origin : endpointOrigin;
+  const allowedNetworkOrigins = new Set([origin, ...(options.allowedNetworkOrigins ?? []).map((value) => new URL(value).origin)]);
+  if (!allowedNetworkOrigins.has(endpointOrigin)) {
+    throw new Error(`Network endpoint origin was not explicitly allowed: ${endpointOrigin}`);
+  }
   return {
     formatVersion: "clapping-hands.dev/v1alpha2",
     engine: "json-request-v1",
@@ -386,6 +409,7 @@ export function compileGenericJsonPlan(
     status: "provisional",
     request: {
       method: demonstrations[0]!.exchange.method.toUpperCase() as GenericJsonPlan["request"]["method"],
+      ...(endpointOrigin !== origin ? { endpointOrigin } : {}),
       endpointPath: first.url.pathname,
       headers: requestHeaders(demonstrations[0]!.exchange),
       queryTemplate,
@@ -397,6 +421,7 @@ export function compileGenericJsonPlan(
     evidence: {
       demonstrationInputHashes: demonstrations.map((demo) => hash(demo.input)),
       successfulShadowInputHashes: [],
+      successfulShadowCount: 0,
       failedShadowCount: 0,
       lastValidatedAt: null,
     },
@@ -419,7 +444,10 @@ function materialize(value: TemplateValue, input: NetworkInput): unknown {
 function materializeParameters(template: Record<string, TemplateValue[]>, input: NetworkInput): URLSearchParams {
   const output = new URLSearchParams();
   for (const [name, values] of Object.entries(template)) {
-    values.forEach((value) => output.append(name, String(materialize(value, input))));
+    values.forEach((value) => {
+      const rendered = materialize(value, input);
+      output.append(name, rendered && typeof rendered === "object" ? JSON.stringify(rendered) : String(rendered));
+    });
   }
   return output;
 }
@@ -434,7 +462,7 @@ export async function replayGenericJsonPlan(
     throw new Error(`Compiled input keys must be exactly: ${expectedInputs.join(", ")}.`);
   }
   const startedAt = performance.now();
-  const url = new URL(plan.request.endpointPath, plan.origin);
+  const url = new URL(plan.request.endpointPath, plan.request.endpointOrigin ?? plan.origin);
   url.search = materializeParameters(plan.request.queryTemplate, input).toString();
   let data: string | undefined;
   if (plan.request.bodyCodec === "json") data = JSON.stringify(materialize(plan.request.bodyTemplate as TemplateValue, input));
@@ -466,11 +494,16 @@ export function recordGenericJsonShadow(
   const updated = structuredClone(plan);
   const inputHash = hash(input);
   if (matches) {
+    updated.evidence.successfulShadowCount = (updated.evidence.successfulShadowCount ??
+      updated.evidence.successfulShadowInputHashes.length) + 1;
     if (!updated.evidence.successfulShadowInputHashes.includes(inputHash)) {
       updated.evidence.successfulShadowInputHashes.push(inputHash);
     }
     updated.evidence.lastValidatedAt = new Date().toISOString();
-    if (updated.evidence.successfulShadowInputHashes.length >= 2) updated.status = "stable";
+    const enoughEvidence = Object.keys(updated.request.bindings).length === 0
+      ? updated.evidence.successfulShadowCount >= 2
+      : updated.evidence.successfulShadowInputHashes.length >= 2;
+    if (enoughEvidence) updated.status = "stable";
   } else {
     updated.evidence.failedShadowCount += 1;
     updated.status = "degraded";

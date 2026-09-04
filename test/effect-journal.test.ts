@@ -26,6 +26,10 @@ async function fixture(): Promise<{ server: Server; origin: string; commits: () 
       return;
     }
     response.setHeader("content-type", "text/html");
+    if (url.pathname === "/framed") {
+      response.end(`<!doctype html><main><iframe id="editor" src="/framed-body"></iframe></main>`);
+      return;
+    }
     response.end(`<!doctype html><main>
       <label>Note <input id="note"></label><button id="commit">Publish</button><output id="result">Ready</output>
       <script>document.querySelector('#commit').onclick = async () => {
@@ -124,6 +128,42 @@ test("a post-click validation failure becomes uncertain and is never retried", a
       () => commitPreparedDomWorkflowWrite(page, journal, receipt.id, plan, input),
       /will not be repeated/,
     );
+    assert.equal(commits(), 1);
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("prepared writes execute inside a same-origin iframe", async () => {
+  const { server, origin, commits } = await fixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-effects-frame-"));
+  let browser: Browser | null = null;
+  try {
+    const framedDemo = (note: string): DomWorkflowDemonstration => ({
+      ...demonstration(origin, note),
+      actions: demonstration(origin, note).actions.map((action) => ({ ...action, framePath: ["#editor"] })),
+      output: {
+        ...demonstration(origin, note).output,
+        url: `${origin}/framed`,
+        framePath: ["#editor"],
+      },
+    });
+    const plan = compileDomWorkflow("publish_framed_note", `${origin}/framed`, [
+      framedDemo("first"),
+      framedDemo("second"),
+    ], { effect: "write", confirmation: "Publish this framed test note" });
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const journal = new EffectJournal(resolve(directory, "journal.json"));
+    const input = { note: "framed payload" };
+    const receipt = await prepareDomWorkflowWrite(page, journal, plan, input);
+    assert.equal(commits(), 0);
+    const committed = await commitPreparedDomWorkflowWrite(page, journal, receipt.id, plan, input);
+    assert.equal(committed.result.text, "Published 1");
+    assert.deepEqual(committed.result.framePath, ["#editor"]);
     assert.equal(commits(), 1);
     await page.close();
   } finally {

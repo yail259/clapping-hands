@@ -75,6 +75,8 @@ export type FormWorkflowDemonstration = {
   inputHash: string;
 };
 
+const EFFECTFUL_FORM_LANGUAGE = /^(?:publish|send|purchase|buy|checkout|place (?:an )?order|delete|post|save|create|approve|transfer|pay|book|reserve|subscribe|unsubscribe|follow|like|upload|add to cart|register|sign up)(?:\b|$)/i;
+
 function assertSameOrigin(url: URL, origin: string, label: string): void {
   if (url.origin !== origin) throw new Error(`${label} left the allowed origin: ${url.origin}`);
 }
@@ -164,6 +166,11 @@ export function inspectFormCandidates(html: string, currentUrl: string): Observe
       return !candidate.is(":disabled") && !["hidden", "submit", "button", "reset", "image"].includes(type ?? "");
     });
     if (submitters.length === 0 || editable.length === 0) return;
+    const submitterLanguage = submitters.map((_index, submitter) => {
+      const candidate = $(submitter);
+      return candidate.attr("value") ?? candidate.attr("aria-label") ?? candidate.text();
+    }).get().join(" ");
+    if (EFFECTFUL_FORM_LANGUAGE.test(submitterLanguage)) return;
     if (form.find('input[type="file"]').length > 0) {
       throw new Error("File uploads require a separately gated compiler.");
     }

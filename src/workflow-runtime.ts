@@ -47,6 +47,7 @@ export type DomCompilationRequest = {
   }>;
   effect?: "read" | "write";
   confirmation?: string;
+  allowedNetworkOrigins?: string[];
 };
 
 export type FormCompilationRequest = {
@@ -90,6 +91,17 @@ function assertRuntimeInput(workflow: StoredWorkflow, input: DomInput | FormWork
     : workflow.baseline.steps.map((step) => step.questionKey);
   if (JSON.stringify(Object.keys(input).sort()) !== JSON.stringify([...new Set(expected)].sort())) {
     throw new Error(`Compiled input keys must be exactly: ${[...new Set(expected)].sort().join(", ")}.`);
+  }
+}
+
+function assertAcceleratorOrigin(workflow: StoredWorkflow): void {
+  if (!workflow.accelerator) return;
+  const endpointOrigin = workflow.accelerator.request.endpointOrigin ?? workflow.accelerator.origin;
+  const additional = workflow.baseline.engine === "stagehand-action-v1"
+    ? workflow.baseline.allowedNetworkOrigins ?? []
+    : [];
+  if (!new Set([workflow.origin, ...additional]).has(endpointOrigin)) {
+    throw new Error(`Compiled network endpoint is outside the workflow allowlist: ${endpointOrigin}`);
   }
 }
 
@@ -143,11 +155,19 @@ export class WorkflowRuntime {
     assertActionName(request.action);
     if (request.demonstrations.length < 2) throw new Error("Two distinct DOM demonstrations are required.");
     const origin = workflowOrigin(request.startUrl);
+    const allowedNetworkOrigins = [...new Set((request.allowedNetworkOrigins ?? []).map(workflowOrigin))]
+      .filter((candidate) => candidate !== origin)
+      .sort();
+    if (allowedNetworkOrigins.length > 5) throw new Error("At most five additional network origins may be declared.");
+    if (new URL(origin).protocol === "https:" && allowedNetworkOrigins.some((candidate) => new URL(candidate).protocol !== "https:")) {
+      throw new Error("An HTTPS workflow cannot capture a plaintext network endpoint.");
+    }
     const browser = await this.browser(origin, true);
-    const page = await browser.page();
+    browser.network.setAllowedOrigins([origin, ...allowedNetworkOrigins]);
     const demonstrations: DomWorkflowDemonstration[] = [];
     const traces: GenericNetworkTrace[] = [];
     for (const requested of request.demonstrations) {
+      const page = await browser.page();
       const mark = browser.network.mark();
       const demonstration = await demonstrateDomWorkflow(
         browser,
@@ -167,11 +187,15 @@ export class WorkflowRuntime {
     const baseline = compileDomWorkflow(request.action, request.startUrl, demonstrations, {
       effect: request.effect,
       confirmation: request.confirmation,
+      allowedNetworkOrigins,
     });
     let accelerator = null;
     if (baseline.effect.level === "read") {
       try {
-        accelerator = compileGenericJsonFromTraces(request.action, traces).plan;
+        accelerator = compileGenericJsonFromTraces(request.action, traces, {
+          workflowOrigin: origin,
+          allowedNetworkOrigins,
+        }).plan;
       } catch {
         // A deterministic DOM plan is the safe general baseline. Network
         // acceleration is optional and must have rendered-output evidence.
@@ -200,6 +224,7 @@ export class WorkflowRuntime {
     const workflow = await this.store.load(action);
     if (!workflow) throw new Error(`Compiled workflow ${action} was not found.`);
     assertRuntimeInput(workflow, input);
+    assertAcceleratorOrigin(workflow);
     const browser = await this.browser(workflow.origin);
     const page = await browser.page();
 

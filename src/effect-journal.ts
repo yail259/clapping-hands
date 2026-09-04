@@ -1,9 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { Page } from "playwright-core";
+import type { FrameLocator, Page } from "playwright-core";
 import {
   captureDomOutput,
+  readDomOutputTextIfPresent,
+  validateDomOutput,
   waitForDomOutputChange,
   type DomInput,
   type DomWorkflowPlan,
@@ -71,6 +73,8 @@ function materializeAction(plan: DomWorkflowPlan, index: number, input: DomInput
     description: `Compiled ${template.method} action`,
     method: template.method,
     arguments: template.arguments.map((argument) => materialize(argument, input)),
+    ...(template.opensNewPage ? { opensNewPage: true } : {}),
+    ...(template.framePath ? { framePath: template.framePath.map((segment) => materialize(segment, input)) } : {}),
   };
 }
 
@@ -90,11 +94,17 @@ function assertWritePlan(plan: DomWorkflowPlan): number {
   return plan.effect.commitActionIndex;
 }
 
-async function executeAction(page: Page, action: BrowserAction): Promise<void> {
-  const locator = page.locator(action.selector);
+async function executeAction(page: Page, action: BrowserAction): Promise<Page> {
+  let scope: Page | FrameLocator = page;
+  for (const frameSelector of action.framePath ?? []) scope = scope.frameLocator(frameSelector);
+  const locator = scope.locator(action.selector);
   const count = await locator.count();
   if (count !== 1) throw new Error(`Compiled selector matched ${count} elements: ${action.selector}`);
   const args = action.arguments ?? [];
+  const pagesBefore = new Set(page.context().pages());
+  const openedPage = action.opensNewPage
+    ? page.context().waitForEvent("page", { timeout: 10_000 })
+    : null;
   switch (action.method ?? "click") {
     case "click": await locator.click(); break;
     case "fill": await locator.fill(args[0] ?? ""); break;
@@ -107,27 +117,29 @@ async function executeAction(page: Page, action: BrowserAction): Promise<void> {
     case "scrollIntoViewIfNeeded": await locator.scrollIntoViewIfNeeded(); break;
     default: throw new Error(`Unsupported compiled write method ${action.method}.`);
   }
+  if (!openedPage) {
+    const unexpectedPages = page.context().pages().filter((candidate) => !pagesBefore.has(candidate));
+    if (unexpectedPages.length > 0) throw new Error("Compiled write action opened an undeclared page.");
+    return page;
+  }
+  const nextPage = await openedPage;
+  await nextPage.waitForLoadState("domcontentloaded", { timeout: 10_000 }).catch(() => {});
+  return nextPage;
 }
 
 async function settle(page: Page): Promise<void> {
   await page.waitForLoadState("domcontentloaded", { timeout: 2_000 }).catch(() => {});
 }
 
-async function outputTextIfPresent(page: Page, selector: string): Promise<string | null> {
-  const locator = page.locator(selector);
-  if (await locator.count() !== 1) return null;
-  if (!await locator.isVisible().catch(() => false)) return null;
-  const text = (await locator.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
-  return text || null;
-}
-
-async function executePrefix(page: Page, plan: DomWorkflowPlan, input: DomInput, finalIndex: number): Promise<void> {
+async function executePrefix(page: Page, plan: DomWorkflowPlan, input: DomInput, finalIndex: number): Promise<Page> {
   await page.goto(new URL(plan.startPath, plan.origin).href, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  let activePage = page;
   for (let index = 0; index < finalIndex; index += 1) {
-    await executeAction(page, materializeAction(plan, index, input));
-    await settle(page);
-    if (new URL(page.url()).origin !== plan.origin) throw new Error("Prepared write workflow left its allowed origin.");
+    activePage = await executeAction(activePage, materializeAction(plan, index, input));
+    await settle(activePage);
+    if (new URL(activePage.url()).origin !== plan.origin) throw new Error("Prepared write workflow left its allowed origin.");
   }
+  return activePage;
 }
 
 export class EffectJournal {
@@ -211,7 +223,7 @@ export async function prepareDomWorkflowWrite(
 ): Promise<EffectReceipt> {
   assertInput(plan, input);
   const finalIndex = assertWritePlan(plan);
-  await executePrefix(page, plan, input, finalIndex);
+  const activePage = await executePrefix(page, plan, input, finalIndex);
   const finalAction = materializeAction(plan, finalIndex, input);
   const preparedAt = new Date();
   const receipt: EffectReceipt = {
@@ -224,7 +236,7 @@ export async function prepareDomWorkflowWrite(
     preparedAt: preparedAt.toISOString(),
     expiresAt: new Date(preparedAt.getTime() + ttlMs).toISOString(),
     committedAt: null,
-    preparedUrl: page.url(),
+    preparedUrl: activePage.url(),
     finalAction: { method: finalAction.method ?? "click", selectorHash: hash(finalAction.selector) },
   };
   await journal.create(receipt);
@@ -252,27 +264,26 @@ export async function commitPreparedDomWorkflowWrite(
   }
 
   const startedAt = performance.now();
-  await executePrefix(page, plan, input, finalIndex);
+  let activePage = await executePrefix(page, plan, input, finalIndex);
   await journal.transition(receipt.id, "prepared", "committing");
   try {
-    const beforeOutput = await outputTextIfPresent(page, plan.validation.outputSelector);
-    await executeAction(page, materializeAction(plan, finalIndex, input));
-    await settle(page);
+    const beforeOutput = await readDomOutputTextIfPresent(
+      activePage,
+      plan.validation.outputSelector,
+      plan.validation.outputFramePath,
+    );
+    activePage = await executeAction(activePage, materializeAction(plan, finalIndex, input));
+    await settle(activePage);
     await waitForDomOutputChange(
-      page,
+      activePage,
       plan.validation.outputSelector,
       beforeOutput,
       plan.validation.outputChangeTimeoutMs,
+      plan.validation.outputFramePath,
     );
-    if (new URL(page.url()).origin !== plan.origin) throw new Error("Committed write workflow left its allowed origin.");
-    const output = await captureDomOutput(page, plan.validation.outputSelector);
-    if (output.tagName !== plan.validation.outputTagName) throw new Error("Committed DOM output changed element type.");
-    if (plan.validation.outputMode === "one-of" && !plan.validation.outputTextHashes.includes(output.textHash)) {
-      throw new Error("Committed DOM output did not match the demonstrated result.");
-    }
-    if (/\b(?:sign[ -]?in|log[ -]?in|session expired|captcha|checkpoint|access denied|verify (?:you|your identity))\b/i.test(output.text.slice(0, 500))) {
-      throw new Error("Committed DOM output appears to be an authentication or access-control page.");
-    }
+    if (new URL(activePage.url()).origin !== plan.origin) throw new Error("Committed write workflow left its allowed origin.");
+    const output = await captureDomOutput(activePage, plan.validation.outputSelector, plan.validation.outputFramePath);
+    validateDomOutput(plan, output, input);
     const committed = await journal.transition(receipt.id, "committing", "committed");
     return {
       receipt: committed,

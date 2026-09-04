@@ -27,12 +27,14 @@ The first release is not a bulk scraper, an anti-bot bypass, a general RPA
 suite, or a system for autonomous purchases, messages, and destructive actions.
 
 The scope is not limited to scraping or retrieval. The prototype compiles
-demonstrated DOM interactions and same-origin HTML forms, and it can learn an
-authenticated JSON request accelerator when that response is evidenced in the
-rendered result. Experimental write workflows use a separate prepare/commit
+zero-argument and parameterized DOM interactions, same-origin frames and new
+tabs, and same-origin HTML forms. It can learn authenticated JSON and
+form-encoded GraphQL request accelerators on the workflow origin or an exact
+additional origin declared by the operator when that response is evidenced in
+the rendered result. Experimental write workflows use a separate prepare/commit
 lifecycle: the final action is withheld behind an expiring receipt, journaled
 before execution, and never retried after an ambiguous outcome. File uploads
-and cross-origin commits remain separately gated.
+and cross-origin frames or commits remain separately gated.
 
 ## Responsible use
 
@@ -100,6 +102,7 @@ context requires. No trademark or domain clearance has been completed.
 npm install
 npm test
 npm run build
+npm run benchmark:corpus
 npm run smoke:general
 npm run auth:marketplace
 npm run dogfood:marketplace
@@ -158,8 +161,10 @@ Authentication happens manually inside the dedicated Chrome profile. Clapping
 Hands never accepts a Facebook password or persists/exports session cookies,
 CSRF values, request bodies, or response bodies in compiled plans and reports.
 
-The network path is promoted only after two distinct demonstrations and two
-successful shadow comparisons. Facebook server-renders the first search page
+The network path is promoted only after two demonstrations and two successful
+shadow comparisons. Inputs must vary when the workflow has inputs; a
+zero-argument workflow instead requires two independent successful shadows.
+Facebook server-renders the first search page
 and exposes an opaque cursor only when pagination begins, so its stable path
 performs one deterministic navigation and one scroll to obtain fresh first-page
 results and a current cursor, then compiles the remaining pagination into
