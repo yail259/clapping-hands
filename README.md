@@ -198,21 +198,25 @@ form submission, rich-editor synchronization, role-separated profiles, and
 input-bound same-origin start URLs. This is regression evidence, not an
 untouched holdout or speed result.
 
-Three pinned, self-hosted application workflows now have qualifying warm
+Four pinned, self-hosted application workflows now have qualifying warm
 distributions. Each result uses 20 interleaved browser/compiled pairs after
 three warmups and requires an exact result on every run:
 
 | Application workflow | Browser p50 / p95 | Compiled p50 / p95 | Median speedup | Correctness | Browser → compiled navigations |
 | --- | ---: | ---: | ---: | --- | ---: |
 | **WordPress 7.1 post search** | 860.74 / 971.67 ms | 122.08 / 144.44 ms | **7.05×** | 20/20 + 20/20 | 2 → 0 |
+| **Moodle 5.2.2 course search** | 11,072.75 / 11,215.91 ms | 890.41 / 1,034.66 ms | **12.44×** | 20/20 + 20/20 | 2 → 0 |
 | osTicket ticket search | 626.06 / 643.56 ms | 42.74 / 61.09 ms | **14.65×** | 20/20 + 20/20 | 2 → 0 |
 | nopCommerce 4.90.6 product search | 1,437.72 / 1,901.28 ms | 68.49 / 96.80 ms | **20.99×** | 20/20 + 20/20 | 2 → 0 |
 
-Both paths made two fresh requests per run; compilation removed browser
-navigation and rendering, not network freshness. These are three real
-applications and one read workflow per application—not a general website speed
-claim. Raw sanitized samples are in
+Both paths made two fresh workflow-document requests per run; compilation
+removed browser navigation and rendering, not network freshness. These are four
+real applications and one read workflow per application—not a general website
+speed claim. Moodle ran in the official developer environment with debugging
+enabled, so its absolute latency is not representative of a tuned production deployment.
+Raw sanitized samples are in
 [`wordpress-local-performance.json`](bench/runs/2026-09-04/wordpress-local-performance.json),
+[`moodle-local-performance.json`](bench/runs/2026-09-05/moodle-local-performance.json),
 [`osticket-local-performance.json`](bench/runs/2026-09-04/osticket-local-performance.json),
 and [`nopcommerce-local.json`](bench/runs/2026-09-04/nopcommerce-local.json).
 
@@ -275,9 +279,12 @@ server state untouched, each commit wrote exactly once, repeated receipts were
 rejected, and cleanup restored every synthetic grade and submission to empty.
 Moodle's persistent Edit mode uses an idempotent `check` rather than a literal
 toggle, while the assignment plan treats opening its form as passive and the
-following fill as the conservative effect boundary. This is capability
-regression evidence, not an untouched holdout or speed result. Expanded
-checkpoint [`271a2bd`](https://github.com/yail259/clapping-hands/commit/271a2bd).
+following fill as the conservative effect boundary. This remains capability
+regression evidence rather than untouched-holdout credit. A separate 20-pair
+authenticated course-search distribution passed 40/40 exact checks at a
+12.44× median speedup; its developer-mode scope is stated in the table above.
+Expanded capability checkpoint
+[`271a2bd`](https://github.com/yail259/clapping-hands/commit/271a2bd).
 
 A pinned, loopback-only nopCommerce 4.90.6 regression now passes 3/3 across
 storefront and protected admin workflows. Product search compiled from a

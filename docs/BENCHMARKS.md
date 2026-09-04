@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 90 passing tests and the built MCP
+cross-site speed claim. The current suite has 91 passing tests and the built MCP
 server advertises ten management/Marketplace tools before any generated
 workflow tools are loaded.
 
@@ -604,6 +604,29 @@ sanitized report is
 The earlier 2/2 report remains as historical evidence. Fixture sources and
 setup notes are in
 [`bench/fixtures/moodle`](../bench/fixtures/moodle/README.md).
+
+A separate authenticated course-search distribution ran after three warmups
+with 20 interleaved browser/direct pairs. Every browser and compiled result
+returned the exact requested fixture course and excluded the other two:
+
+| Engine | n | p50 | p95 | Correctness | Requests; navigations |
+| --- | ---: | ---: | ---: | --- | --- |
+| Browser form | 20 | 11,072.75 ms | 11,215.91 ms | 20/20 | 2 workflow documents; 2 navigations |
+| `html-form-v2` | 20 | 890.41 ms | 1,034.66 ms | 20/20 | 2 workflow documents; 0 navigations |
+
+The median ratio was **12.44×**. This result used Moodle's official local
+developer environment with debugging enabled; its absolute latency must not be
+presented as representative production Moodle performance. Both paths fetched
+fresh authenticated workflow documents. The compiled path skipped browser
+navigation, theme/JavaScript boot, and rendering rather than serving cached
+course data. The first frozen attempt failed closed because raw Chromium did
+not restore Moodle's session-only cookie after a clean process restart. The
+corrected runner uses Clapping Hands' production persistent-browser runtime,
+which restores first-party session cookies without exposing them. No compiler
+change was needed. The passing checkpoint is
+[`95b28cb`](https://github.com/yail259/clapping-hands/commit/95b28cb), and the
+sanitized samples are in
+[`bench/runs/2026-09-05/moodle-local-performance.json`](../bench/runs/2026-09-05/moodle-local-performance.json).
 
 ## Self-hosted nopCommerce capability and performance — 2026-09-04/05
 

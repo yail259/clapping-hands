@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-04T16:15:02.534Z",
+  "gitSha": "95b28cbfd4f99f01843ad07b3b60f805e2bf6851",
+  "runner": "scripts/benchmark-moodle-performance.ts",
+  "runClass": "self-hosted-application-performance",
+  "intervention": "guided form demonstrations plus an independent exact course-title oracle",
+  "application": "Self-hosted Moodle 5.2.2",
+  "origin": "http://127.0.0.1:18092",
+  "sources": {
+    "moodle": "8ad9354efae75c49a23ca63ec1c5e071f9fefc57",
+    "moodleDocker": "f4c2324d32fb74d7753264381f0a9b418b6034b2"
+  },
+  "containerImages": {
+    "application": "sha256:7fd5f3356a71889fc6eda2a7cca2b44ed1e3f90556f5c3bcd9f2091789739af2",
+    "database": "sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675"
+  },
+  "environment": {
+    "browserVersion": "151.0.7922.138",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "credentialHandling": "Read synthetic loopback-only fixture credentials from the process environment; persisted no credential, session key, plan, or response body",
+  "authSurvivedBrowserRestart": true,
+  "driverCorrections": [
+    {
+      "stage": "authenticated-profile-restart",
+      "result": "failed-closed-then-corrected",
+      "reason": "Moodle uses a session cookie, which raw Chromium did not restore after a clean process restart.",
+      "correction": "Use Clapping Hands' persistent browser runtime, which snapshots and restores first-party session cookies without exposing them.",
+      "compilerChanged": false
+    }
+  ],
+  "protocol": {
+    "warmups": 3,
+    "pairedSamples": 20,
+    "order": "interleaved; browser first on even samples and compiled first on odd samples",
+    "queryCycle": [
+      "Compiler",
+      "Reliability",
+      "Effect"
+    ]
+  },
+  "workflow": {
+    "id": "moodle-search-courses",
+    "engine": "html-form-v2",
+    "compileMs": 0.31,
+    "browser": {
+      "p50Ms": 11072.75,
+      "p95Ms": 11215.91,
+      "slowestMs": 11227.69,
+      "samplesMs": [
+        10993.46,
+        11203.16,
+        11215.91,
+        10850.36,
+        10829.64,
+        11091.54,
+        11227.69,
+        11087.89,
+        11050.64,
+        11117.39,
+        10824.49,
+        11126.37,
+        11035.31,
+        10767.51,
+        10840.62,
+        11113.89,
+        11194.02,
+        10903.13,
+        11072.75,
+        11107.08
+      ],
+      "correctness": "20/20",
+      "requestsPerRun": 2,
+      "navigationsPerRun": 2,
+      "modelCallsPerRun": 0
+    },
+    "compiled": {
+      "p50Ms": 890.41,
+      "p95Ms": 1034.66,
+      "slowestMs": 1041.93,
+      "samplesMs": [
+        950.67,
+        835.82,
+        901.26,
+        842.27,
+        898.78,
+        858.91,
+        833.22,
+        833.7,
+        870.11,
+        893.18,
+        948.82,
+        1034.66,
+        901.78,
+        890.41,
+        899.43,
+        868.56,
+        1041.93,
+        892.51,
+        862.14,
+        886.11
+      ],
+      "correctness": "20/20",
+      "requestsPerRun": 2,
+      "navigationsPerRun": 0,
+      "modelCallsPerRun": 0
+    },
+    "medianSpeedup": 12.44
+  },
+  "claimScope": "One pinned self-hosted Moodle version and one authenticated read workflow; not a general website speed claim"
+}
