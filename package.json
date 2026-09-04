@@ -19,6 +19,7 @@
     "benchmark:moodle": "tsx scripts/benchmark-moodle.ts",
     "benchmark:nextcloud": "tsx scripts/benchmark-nextcloud.ts",
     "benchmark:osticket": "tsx scripts/benchmark-osticket.ts",
+    "benchmark:osticket:performance": "tsx scripts/benchmark-osticket-performance.ts",
     "benchmark:saucedemo": "tsx scripts/benchmark-saucedemo.ts",
     "benchmark:the-internet": "tsx scripts/benchmark-the-internet.ts",
     "benchmark:wordpress-playground": "tsx scripts/benchmark-wordpress-playground.ts",
