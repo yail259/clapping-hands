@@ -16,6 +16,7 @@
     "benchmark:discourse": "tsx scripts/benchmark-discourse.ts",
     "benchmark:discourse:local": "tsx scripts/benchmark-discourse-local.ts",
     "benchmark:api-control": "tsx scripts/benchmark-api-control.ts",
+    "benchmark:ato": "tsx scripts/benchmark-ato-simulator.ts",
     "benchmark:marketplace": "tsx scripts/benchmark-marketplace.ts",
     "benchmark:moodle": "tsx scripts/benchmark-moodle.ts",
     "benchmark:moodle:local": "tsx scripts/benchmark-moodle-local.ts",
