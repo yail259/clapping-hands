@@ -320,9 +320,9 @@ async function demonstrateInvoice(page: Page, input: InvoiceInput): Promise<DomW
     act: async () => {
       step += 1;
       if (step === 1) {
-        await page.locator("a.create-invoice").click();
+        await page.locator("#headerbar a.create-invoice").click();
         await page.locator("#create-invoice").waitFor({ state: "visible", timeout: 15_000 });
-        return guidedClick("a.create-invoice", "Open the draft invoice dialog");
+        return guidedClick("#headerbar a.create-invoice", "Open the draft invoice dialog");
       }
       if (step === 2) {
         await page.locator(clientPicker).click();
