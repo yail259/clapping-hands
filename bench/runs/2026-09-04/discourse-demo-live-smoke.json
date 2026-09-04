@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "kind": "live-resettable-sandbox-smoke",
+  "generatedAt": "2026-09-04T10:16:58.090Z",
+  "compilerCommit": "2ed9448d19c0459fdf7fd43dd6063c62ca71895d",
+  "application": "Discourse Demo",
+  "origin": "https://try.discourse.org",
+  "policyBasis": "Discourse identifies try.discourse.org as its no-setup demo sandbox for testing and exploration",
+  "intervention": "guided",
+  "claimScope": "Corpus-v2 candidate capability smoke; one compiled replay, not a speed benchmark",
+  "traffic": {
+    "externalJourneysBeforeRun": 3,
+    "runnerJourneys": 3,
+    "dailyDomainCap": 10,
+    "sharedContentCreated": 0
+  },
+  "task": {
+    "id": "open-category",
+    "demonstrations": [
+      {
+        "categoryName": "general"
+      },
+      {
+        "categoryName": "tech"
+      }
+    ],
+    "replay": {
+      "categoryName": "support"
+    },
+    "mechanism": "ember-client-route",
+    "compiledModelCalls": 0,
+    "compiledDurationMs": 2826.9639580000003,
+    "navigations": 2,
+    "exactResult": true,
+    "finalPath": "/c/support/50"
+  },
+  "summary": {
+    "passed": 1,
+    "total": 1,
+    "falseSuccesses": 0
+  }
+}

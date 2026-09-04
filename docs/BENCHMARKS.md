@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 70 passing tests and the built MCP server
+cross-site speed claim. The current suite has 80 passing tests and the built MCP server
 advertises ten management/Marketplace tools before any generated workflow tools
 are loaded.
 
@@ -245,3 +245,30 @@ It retains the failed-stage history and the one Docker Desktop interruption.
 Because the holdout directly drove compiler changes, the 3/3 corrected run is
 regression evidence and is excluded from the untouched-holdout denominator. It
 is one compiled run per task and is not a latency distribution.
+
+## Discourse official-demo holdout — 2026-09-04
+
+Compiler checkpoint [`2ed9448`](https://github.com/yail259/clapping-hands/commit/2ed9448)
+was exercised against [Discourse's official demo](https://try.discourse.org/).
+[Discourse Meta](https://meta.discourse.org/t/new-to-discourse-start-here/1)
+describes it as a no-setup sandbox for testing and exploring the interface.
+The task and unseen input were fixed before compilation: demonstrate category
+navigation for `general` and `tech`, then replay `support`.
+
+| Workflow | Mechanism | Effect path | Compiled model calls | Exact result | Verdict |
+| --- | --- | --- | ---: | --- | --- |
+| Open unseen category | Ember client route + asynchronous outlet replacement | read DOM | 0 | `/c/support/50` plus rendered input evidence | pass |
+
+The three runner journeys and three preceding discovery journeys created no
+content. One discovery navigation timed out while waiting for `networkidle`;
+Discourse keeps live connections active, so the harness now waits for the
+specific rendered outlet instead. That was a discovery-driver correction, not
+a compiler failure or rerun. The compiled replay took 2,827 ms in this single
+observation and made two counted navigations; `n=1` is deliberately not
+reported as a speed ratio.
+
+The sanitized report is
+[`bench/runs/2026-09-04/discourse-demo-live-smoke.json`](../bench/runs/2026-09-04/discourse-demo-live-smoke.json).
+This is the first untouched corpus-v2 candidate pass, but one task on one
+application is far below the release gate for an 80–90% representative-corpus
+claim.

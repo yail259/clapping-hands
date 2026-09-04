@@ -183,6 +183,13 @@ form submission, rich-editor synchronization, role-separated profiles, and
 input-bound same-origin start URLs. This is regression evidence, not an
 untouched holdout or speed result.
 
+An untouched read-only smoke on Discourse's official demo then passed 1/1:
+after demonstrations on the `general` and `tech` categories, the compiled tool
+opened the unseen `support` category through Ember client routing, reached the
+exact `/c/support/50` path, and used zero model calls. No shared content was
+created. This is a corpus-v2 candidate capability result (`n=1`), not a speed
+or 80–90% coverage claim.
+
 Restart Codex after adding the server so these tools are discovered:
 
 - `clapping_hands_compile_dom`
