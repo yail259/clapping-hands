@@ -17,6 +17,7 @@
     "benchmark:api-control": "tsx scripts/benchmark-api-control.ts",
     "benchmark:marketplace": "tsx scripts/benchmark-marketplace.ts",
     "benchmark:moodle": "tsx scripts/benchmark-moodle.ts",
+    "benchmark:moodle:local": "tsx scripts/benchmark-moodle-local.ts",
     "benchmark:nextcloud": "tsx scripts/benchmark-nextcloud.ts",
     "benchmark:nextcloud:local": "tsx scripts/benchmark-nextcloud-local.ts",
     "benchmark:osticket": "tsx scripts/benchmark-osticket.ts",

@@ -393,6 +393,37 @@ row is evidence for browser fallback and effect safety—not a no-API product wi
 or a speed result. The sanitized report is
 [`bench/runs/2026-09-04/nextcloud-local-capability.json`](../bench/runs/2026-09-04/nextcloud-local-capability.json).
 
+## Self-hosted Moodle capability regression — 2026-09-04
+
+The official Moodle developer environment was installed on loopback from
+Moodle 5.2.2 commit `8ad9354e` and `moodle-docker` commit `f4c2324d`, with a
+synthetic teacher, student, three courses, and three manual grade items. The
+runner rotated the local credentials, persisted neither credentials nor Moodle
+session keys, and restarted the browser before both unseen replays.
+
+| Workflow | Mechanism | Effect path | Compiled model calls | Exact result | Verdict |
+| --- | --- | --- | ---: | --- | --- |
+| Open unseen course/tab combination | authenticated server navigation across course and role views | read DOM after clean restart | 0 | exact course, Participants route, and rendered evidence | pass |
+| Change unseen course grade | persistent edit-mode state plus form save | prepare/commit | 0 | prepare empty; commit grade 61; repeat rejected | pass |
+
+Moodle's Edit mode is a persistent toggle. A literal “click Edit mode” plan can
+silently do the opposite on a later run, so the demonstrated plan uses the
+runtime's idempotent `check` operation to ensure the mode is enabled. That was
+a workflow-encoding correction, not a new site-specific compiler branch. The
+first formal harness attempt also compared the entered string `72` with
+Moodle's formatted `72.00` and failed closed; the corrected assertion compares
+numbers and still requires Moodle's server-side gradebook API as the oracle.
+
+The two demonstrations set grades 72 and 83 on separate courses and were
+independently verified and cleared. The unseen commit set grade 61 exactly
+once, a second use of the receipt was rejected before another UI action, and
+the oracle verified all synthetic grades were empty after cleanup. This is
+development/regression evidence on one pinned application, not a speed result
+or untouched-holdout credit. The sanitized report is
+[`bench/runs/2026-09-04/moodle-local-capability.json`](../bench/runs/2026-09-04/moodle-local-capability.json),
+and the fixture sources and setup notes are in
+[`bench/fixtures/moodle`](../bench/fixtures/moodle/README.md).
+
 ## API-first negative control — 2026-09-04
 
 Public metadata for `yail259/clapping-hands` is fully covered by

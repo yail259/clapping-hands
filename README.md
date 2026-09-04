@@ -218,6 +218,16 @@ candidates still fail closed. Nextcloud's documented WebDAV remains the right
 integration for API-covered file tasks; this row is browser/effect-safety
 evidence, not an argument to ignore it.
 
+A pinned, loopback-only Moodle 5.2.2 regression also passed 2/2 after a clean
+browser restart. A compiled read opened an unseen course/tab combination; a
+compiled teacher workflow changed one synthetic student's grade through the
+prepare/commit boundary. Prepare left the grade empty, commit set it exactly
+once according to Moodle's server-side gradebook API, a repeated commit was
+rejected, and cleanup restored all three synthetic grades to empty. Moodle's
+persistent Edit mode exposed a state-machine pitfall: the plan uses an
+idempotent `check` operation rather than a literal toggle click. This is
+capability regression evidence, not an untouched holdout or speed result.
+
 The API-first negative control also passed: for public repository metadata on
 GitHub, the benchmark selected the documented REST endpoint and invoked the UI
 compiler zero times. Clapping Hands is the fallback for a missing or
