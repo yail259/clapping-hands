@@ -14,6 +14,7 @@
     "benchmark:corpus": "tsx scripts/validate-benchmark-corpus.ts",
     "benchmark:controlled": "tsx scripts/benchmark-controlled-general.ts",
     "benchmark:marketplace": "tsx scripts/benchmark-marketplace.ts",
+    "benchmark:moodle": "tsx scripts/benchmark-moodle.ts",
     "benchmark:osticket": "tsx scripts/benchmark-osticket.ts",
     "benchmark:saucedemo": "tsx scripts/benchmark-saucedemo.ts",
     "benchmark:the-internet": "tsx scripts/benchmark-the-internet.ts",
