@@ -85,6 +85,31 @@ const inputs: InvoiceInput[] = [
   },
 ];
 
+function containsLiteralInput(value: unknown, raw: string): boolean {
+  if (typeof value === "string") {
+    if (raw.length >= 3) return value.includes(raw);
+    const embeddedCharacter = /[A-Za-z0-9_]/;
+    let offset = 0;
+    while (offset < value.length) {
+      const index = value.indexOf(raw, offset);
+      if (index < 0) return false;
+      const before = index > 0 ? value[index - 1]! : "";
+      const afterIndex = index + raw.length;
+      const after = afterIndex < value.length ? value[afterIndex]! : "";
+      if ((!before || !embeddedCharacter.test(before)) && (!after || !embeddedCharacter.test(after))) {
+        return true;
+      }
+      offset = afterIndex;
+    }
+    return false;
+  }
+  if (Array.isArray(value)) return value.some((entry) => containsLiteralInput(entry, raw));
+  if (value && typeof value === "object") {
+    return Object.values(value).some((entry) => containsLiteralInput(entry, raw));
+  }
+  return false;
+}
+
 function containerEnvironment(container: string): string[] {
   const inspected = JSON.parse(execFileSync("docker", ["inspect", container], { encoding: "utf8" })) as Array<{
     Config?: { Env?: string[] };
@@ -422,7 +447,7 @@ try {
     confirmation: "Create one synthetic draft invoice in the loopback-only InvoicePlane fixture",
   });
   const demonstratedValues = inputs.slice(0, 2).flatMap((input) => Object.values(input));
-  if (demonstratedValues.some((value) => JSON.stringify(plan).includes(String(value)))) {
+  if (demonstratedValues.some((value) => containsLiteralInput(plan, String(value)))) {
     throw new Error("The compiled InvoicePlane plan retained a demonstrated input value.");
   }
   if (plan.actions.length !== 9 || plan.effect.commitActionIndex !== 2 ||

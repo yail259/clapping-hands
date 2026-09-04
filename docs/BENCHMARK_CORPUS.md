@@ -11,7 +11,7 @@ A benchmark label never grants permission to automate a site.
 | Purpose-built browser test apps | SauceDemo, The Internet, UI Testing Playground, DemoQA, Automation Exercise, TodoMVC | dynamic IDs, open Shadow DOM, SPA state, login, AJAX, dialogs, multiple windows, files, carts, forms | prefer SauceDemo + The Internet; keep UI Testing Playground and TodoMVC as drift reserves |
 | Real public information services | GOV.UK calculators, Get Information about Schools (GIAS), public library/catalogue search, weather and transport planners | server forms, pagination, slow production HTML, real drift | GIAS selected; no more GOV.UK until the daily budget resets; API-first services become controls |
 | User-owned hosted workflows | an owned Google Form, an owned WordPress site, an owned Shopify development store | hosted auth, multi-step forms, drafts, submissions | owned Google Form selected; no third-party data or users |
-| Isolated full applications | WordPress Playground, self-hosted osTicket, self-hosted InvoicePlane, self-hosted nopCommerce, self-hosted OrangeHRM, self-hosted OWASP Juice Shop | admin UI, iframes, CRUD, uploads, rich editors, effect lifecycle, modern Angular/Vue SPAs | WordPress Playground + osTicket selected; OrangeHRM and InvoicePlane are reserves; Juice Shop is local-only |
+| Isolated full applications | WordPress Playground, self-hosted osTicket, self-hosted InvoicePlane, self-hosted nopCommerce, self-hosted OrangeHRM, self-hosted OWASP Juice Shop | admin UI, iframes, CRUD, uploads, rich editors, effect lifecycle, modern Angular/Vue SPAs | WordPress Playground + osTicket selected; InvoicePlane reserve now exercised; OrangeHRM remains an API-routing control/reserve; Juice Shop is local-only |
 | API-first negative controls | Hacker News, MediaWiki/Wikipedia, Open Library, nopCommerce with its Web API plugin, GitHub | prove the product recognizes when an official API is the better answer | nopCommerce selected as the primary control; HN and Open Library are cheap secondary controls |
 | High-mindshare consumer sites | Facebook Marketplace, Craigslist, Airbnb, Amazon, LinkedIn, Yahoo, Gumtree | authenticated search, opaque APIs, anti-automation and policy constraints | Marketplace remains an operator-owned dogfood case; do not add the others without explicit permission and policy clearance |
 
@@ -120,6 +120,20 @@ Current execution ledger for those eight application rows:
 This ledger is roadmap evidence, not an 80–90% denominator. Completed rows that
 caused compiler changes remain regression results rather than untouched wins.
 
+One reserve row has also been exercised without changing the frozen eight-row
+denominator:
+
+| Reserve | Evidence completed | What it adds | Disposition |
+| --- | --- | --- | --- |
+| InvoicePlane 1.7.2 | unseen draft invoice with client lookup, line item, calculated totals, prepare/commit, restart, repeat rejection, and exact database cleanup: 1/1 | API-poor stateful finance UI; Select2 AJAX plus JSON save; short decimal and quantity bindings | retain as high-value regression; add a 20-pair read distribution only if a representative read task is selected in advance |
+
+OrangeHRM was also installed and inspected locally, but its current application
+exposes broad employee CRUD routes under `/api/v2`. It is therefore more useful
+as an API-routing control than as evidence for the no-usable-API wedge. Ghost,
+BookStack, Mattermost, GitLab, and many other popular self-hosted applications
+similarly remain useful controls when their first-party APIs cover the chosen
+task.
+
 The v2 headline denominator should therefore be application-workflow pairs from
 the first eight rows. The two controls are mandatory gates but do not inflate
 the site-coverage percentage. Facebook Marketplace remains an important private
@@ -169,6 +183,16 @@ runner waits for committed `DOMContentLoaded` and then requires the explicit
 simulator shell and requested service output. The conservative traffic
 reservation remains consumed, so there was no same-window rerun and there is
 no ATO capability result yet.
+
+The InvoicePlane reserve subsequently passed one nine-action write regression
+on official 1.7.2 source. Its two failed-closed compiler attempts produced
+boundary-aware short-input binding and immutable compiler placeholders, fixing
+cases where quantities such as `2` or `3` collided with `select2` or an earlier
+input sentinel. The unseen commit created one exact invoice and item with
+server-calculated totals, rejected receipt reuse, survived an authenticated
+browser restart, and was fully removed. Because the row caused compiler fixes,
+it is regression evidence rather than untouched coverage, and because it has
+only one replay it contributes no speed claim.
 
 ## Claim gates
 
@@ -226,6 +250,10 @@ effect boundaries, validation, and fallback behavior.
 - [OrangeHRM](https://github.com/orangehrm/orangehrm) is a self-hostable
   PHP/Vue HR application; use a local seeded instance, not security testing of
   its hosted demo.
+- [InvoicePlane](https://github.com/InvoicePlane/InvoicePlane) is a
+  self-hostable invoicing application whose official repository includes a
+  local development container path. The benchmark pins 1.7.2 and uses only
+  synthetic data on loopback.
 - [Sauce Labs' Selenium documentation](https://docs.saucelabs.com/web-apps/automated-testing/selenium/)
   automates login to its Swag Labs demo.
 - [GIAS acceptable use](https://www.get-information-schools.service.gov.uk/AcceptableUsePolicy)

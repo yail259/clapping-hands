@@ -373,6 +373,48 @@ was retained, so the task was not retried in the same daily window. The
 sanitized failure record is
 [`bench/runs/2026-09-05/ato-simulator-live-attempt.json`](../bench/runs/2026-09-05/ato-simulator-live-attempt.json).
 
+## Self-hosted InvoicePlane capability regression — 2026-09-05
+
+The first API-poor reserve application was exercised against official
+InvoicePlane 1.7.2 source at commit `aaeea1e` in a loopback-only container,
+with MariaDB 11.4 and synthetic administrator, client, invoice, and line-item
+data. The disposable administrator password was rotated in memory, browser
+state was restarted before replay, and no credential or session material was
+written to the plan or report.
+
+Two guided demonstrations created and then removed draft invoices for different
+clients, quantities, unit prices, and item names. Compiler checkpoint
+[`b919e74`](https://github.com/yail259/clapping-hands/commit/b919e74) then replayed
+the never-demonstrated third input:
+
+| Workflow | Mechanism | Effect path | Compiled model calls | Independent result | Verdict |
+| --- | --- | --- | ---: | --- | --- |
+| Create unseen draft invoice with one line item | CodeIgniter UI, Select2 AJAX client lookup, jQuery JSON line-item save | browser-idle prepare, then one-shot commit | 0 | one exact invoice/item; quantity 4 × 11.50 produced subtotal, total, and balance 46.00 | pass after compiler fixes |
+
+Prepare created no database row and did not change the page. Commit produced
+one draft and one item with the requested client, description, quantity, unit
+price, subtotal, total, and balance. The visible editor independently matched
+the item fields and rendered total. Reusing the receipt was rejected before a
+second site action and left the same invoice and item IDs in place. Cleanup
+then removed all synthetic invoices and clients and verified zero matching
+rows remained.
+
+The flow found two related but general compiler defects. A one-character input
+such as quantity `2` was initially mistaken for evidence inside the stable
+selector token `select2`. Boundary-aware replacement fixed that, after which a
+later quantity `3` could still rewrite the index inside a placeholder already
+created for the unit-price input. Existing compiler sentinels are now immutable
+during subsequent input binding, for both DOM strings and input-bound URLs. A
+focused regression plus the full 91-test suite covers the cases.
+
+This is a guided `n=1` capability regression, not an untouched holdout or speed
+result. No task-complete first-party external invoice CRUD API was identified
+in the pinned release documentation; the same-origin AJAX endpoints exercised
+here are authenticated UI internals. The sanitized report is
+[`bench/runs/2026-09-05/invoiceplane-local-capability.json`](../bench/runs/2026-09-05/invoiceplane-local-capability.json),
+and local fixture notes are in
+[`bench/fixtures/invoiceplane`](../bench/fixtures/invoiceplane/README.md).
+
 ## Discourse official-demo holdout — 2026-09-04
 
 Compiler checkpoint [`2ed9448`](https://github.com/yail259/clapping-hands/commit/2ed9448)

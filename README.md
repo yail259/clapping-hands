@@ -253,6 +253,19 @@ they cover; this row is browser/artifact/effect-safety evidence, not an argument
 to ignore them. The expanded compiler checkpoint is
 [`7edd55a`](https://github.com/yail259/clapping-hands/commit/7edd55a).
 
+A pinned, loopback-only InvoicePlane 1.7.2 regression passed 1/1 on a stateful
+finance workflow: create an unseen draft invoice for a selected client, add a
+line item, and let the application calculate the totals. Prepare left both the
+browser and database untouched; commit created one exact invoice and item,
+receipt reuse was rejected, authentication survived a clean browser restart,
+and cleanup removed every synthetic client and invoice. The nine-action flow
+crosses a Select2 AJAX lookup and a jQuery JSON save, yet compiled replay used
+zero model calls. It exposed two general short-input binding bugs: a quantity
+such as `2` must not bind inside a stable token such as `select2`, and a later
+input must not rewrite an earlier compiler placeholder. This is one capability
+regression, not a timing distribution or general coverage claim. Compiler
+checkpoint [`b919e74`](https://github.com/yail259/clapping-hands/commit/b919e74).
+
 A pinned, loopback-only Moodle 5.2.2 regression also passed 2/2 after a clean
 browser restart. A compiled read opened an unseen course/tab combination; a
 compiled teacher workflow changed one synthetic student's grade through the

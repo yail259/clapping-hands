@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "kind": "self-hosted-application-capability-regression",
+  "generatedAt": "2026-09-04T15:10:37.927Z",
+  "compilerCommit": "b919e741b89fe01a2bc724aa6a468e8a538e5f13",
+  "application": "Self-hosted InvoicePlane 1.7.2",
+  "origin": "http://127.0.0.1:18096",
+  "source": {
+    "repository": "https://github.com/InvoicePlane/InvoicePlane",
+    "tag": "v1.7.2",
+    "commit": "aaeea1e4825785c6138fa84be49ac373bac4f0af"
+  },
+  "containerImages": {
+    "application": "sha256:f9567a143b25da43c334a09ec31e6789614079f0702010b1c4eb0f9701b1abba",
+    "expectedApplication": "sha256:f9567a143b25da43c334a09ec31e6789614079f0702010b1c4eb0f9701b1abba",
+    "database": "sha256:611a2fcc5fa7c6ceb8644c6f74b25ede004ff6c3a6b38c8f8c23d3bbf6c26430"
+  },
+  "intervention": "guided",
+  "policyBasis": "Loopback-only official source/container recipe with one synthetic administrator, three synthetic clients, and synthetic drafts",
+  "credentialHandling": "Rotated the disposable administrator password in memory; persisted no credential, cookie, or session material in plans or reports",
+  "claimScope": "Capability regression on one pinned InvoicePlane workflow; not a speed or untouched-holdout result",
+  "apiDisposition": "No task-complete first-party external invoice CRUD API was identified in the pinned release documentation; the exercised AJAX controllers are authenticated UI internals",
+  "environment": {
+    "browserVersion": "151.0.7922.138",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "authSurvivedBrowserRestart": true,
+  "fixtureCleanupVerified": true,
+  "plan": {
+    "actionCount": 9,
+    "commitActionIndex": 2,
+    "outputMode": "present",
+    "inputEvidenceNames": [
+      "clientName"
+    ]
+  },
+  "rows": [
+    {
+      "task": "create-unseen-draft-invoice-with-line-item",
+      "effect": "write",
+      "architecture": "CodeIgniter server UI with Select2 AJAX lookup and jQuery JSON line-item save",
+      "path": "compiled-dom-prepare-commit",
+      "exactResult": true,
+      "preparedWithoutEffect": true,
+      "prepareLeftBrowserUntouched": true,
+      "receiptStatus": "committed",
+      "repeatedCommitRejected": true,
+      "oracle": {
+        "databaseRowsAfterCommit": 1,
+        "exactDatabaseRecordAndTotals": true,
+        "unchangedAfterRejectedRepeat": true,
+        "renderedClientMatched": true,
+        "renderedTotalMatched": true,
+        "visibleItemFieldsMatched": true
+      },
+      "outputEvidenceNames": [
+        "clientName"
+      ],
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 2481.28
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "total": 1,
+    "falseSuccesses": 0,
+    "duplicateCommits": 0
+  }
+}
