@@ -353,6 +353,26 @@ single replay duration is deliberately not promoted as a speed result. The
 sanitized report is
 [`bench/runs/2026-09-04/wordpress-redirection-local-capability.json`](../bench/runs/2026-09-04/wordpress-redirection-local-capability.json).
 
+## ATO educational simulator attempt — 2026-09-05
+
+The next distinct production operator was frozen against the ATO online
+services simulator. The task selected published mock scenario 1, demonstrated
+two read-only Super information destinations, and reserved an unseen third
+destination for zero-model replay. No taxpayer credentials or real records are
+involved in this simulator.
+
+The first attempt failed during scenario bootstrap, before either demonstration
+or compilation. Its Start navigation wait used Playwright's full-load readiness
+and timed out. This is a benchmark-harness failure, not a Clapping Hands pass or
+failure. The runner now waits for `DOMContentLoaded`, then independently
+requires the simulator shell; destination navigation uses the same bounded
+readiness rule plus exact path and visible-heading checks.
+
+The traffic ledger had reserved five journeys before launch. That reservation
+was retained, so the task was not retried in the same daily window. The
+sanitized failure record is
+[`bench/runs/2026-09-05/ato-simulator-live-attempt.json`](../bench/runs/2026-09-05/ato-simulator-live-attempt.json).
+
 ## Discourse official-demo holdout — 2026-09-04
 
 Compiler checkpoint [`2ed9448`](https://github.com/yail259/clapping-hands/commit/2ed9448)

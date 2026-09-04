@@ -114,7 +114,7 @@ Current execution ledger for those eight application rows:
 | Discourse | official-demo category read plus local search/create/edit: 3/3 local regression | a permission/role transition or allowlisted upload |
 | Nextcloud | local folder, upload, download artifact, and public share: 4/4 | a user-targeted share or permission transition distinct from public links |
 | nopCommerce | local product search and reversible cart write: 2/2; qualifying search distribution | an isolated admin edit, with API routing checked first |
-| GOV.UK decision tools | three guided production smokes retained | rate-limited revalidation on a fresh window and a distinct public-service operator |
+| GOV.UK decision tools | three guided production smokes retained | rate-limited revalidation on a fresh window; the ATO simulator is frozen as the distinct-operator candidate, but its first attempt failed in bootstrap before compilation |
 | Operator-owned Google Form | none yet | conditional multi-page submit with owner-side response oracle |
 
 This ledger is roadmap evidence, not an 80–90% denominator. Completed rows that
@@ -160,6 +160,15 @@ general validator gap: write outputs now retain demonstrated input evidence just
 as read outputs do, while write UIs that do not echo their inputs remain valid.
 Because this row caused that fix, it is regression evidence rather than an
 untouched holdout pass.
+
+The distinct public-service-operator candidate is now the ATO online services
+simulator, using only its published mock scenario and read-only service
+navigation. Its first frozen attempt on 2026-09-05 failed before compilation:
+the harness waited for full page `load` after Start and timed out. The corrected
+runner waits for committed `DOMContentLoaded` and then requires the explicit
+simulator shell and requested service output. The conservative traffic
+reservation remains consumed, so there was no same-window rerun and there is
+no ATO capability result yet.
 
 ## Claim gates
 

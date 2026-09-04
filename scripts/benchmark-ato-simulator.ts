@@ -89,7 +89,10 @@ async function bootstrapMockScenario(page: Page): Promise<void> {
   const start = page.getByRole("button", { name: "Start", exact: true });
   await start.waitFor({ state: "visible", timeout: 15_000 });
   await Promise.all([
-    page.waitForURL((url) => url.pathname.toLowerCase() === "/individual/home", { timeout: 30_000 }),
+    page.waitForURL((url) => url.pathname.toLowerCase() === "/individual/home", {
+      waitUntil: "domcontentloaded",
+      timeout: 30_000,
+    }),
     start.click(),
   ]);
   await page.locator(OUTPUT_SELECTOR).waitFor({ state: "visible", timeout: 30_000 });
@@ -129,7 +132,10 @@ async function demonstrateService(page: Page, input: ServiceInput): Promise<DomW
       const link = page.locator(selector);
       if (await link.count() !== 1) throw new Error(`Expected one menu link for ${input.serviceName}.`);
       await Promise.all([
-        page.waitForURL((url) => url.pathname === expectedPath, { timeout: 30_000 }),
+        page.waitForURL((url) => url.pathname === expectedPath, {
+          waitUntil: "domcontentloaded",
+          timeout: 30_000,
+        }),
         link.click(),
       ]);
       await page.locator(OUTPUT_SELECTOR).filter({ hasText: input.serviceName }).waitFor({

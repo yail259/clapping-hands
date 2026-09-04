@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "kind": "live-educational-simulator-attempt",
+  "generatedAt": "2026-09-04T14:46:23Z",
+  "compilerCommit": "02b7bbd51fc785d6c7a55eb4c8b93ef086ec5edc",
+  "application": "ATO online services simulator",
+  "origin": "https://onlineservicessimulator.ato.gov.au",
+  "intervention": "guided",
+  "claimScope": "Failed harness attempt; no compiler result and no capability or speed claim",
+  "traffic": {
+    "externalJourneysBeforeRun": 3,
+    "runnerJourneysReserved": 5,
+    "dailyDomainCap": 10,
+    "realRecordsRead": 0,
+    "realRecordsChanged": 0,
+    "submissions": 0
+  },
+  "outcome": {
+    "status": "harness_failed_before_compilation",
+    "stage": "mock-scenario-bootstrap",
+    "failureClass": "navigation-readiness-timeout",
+    "detail": "The Start navigation wait used full-load readiness and timed out. No demonstrations or compiled replay ran.",
+    "compilerInvoked": false,
+    "demonstrationsCompleted": 0,
+    "replaysCompleted": 0,
+    "rerunSameWindow": false
+  }
+}
