@@ -429,8 +429,9 @@ Add these once the generalized harness exists:
 
 ```text
 bench/
-  corpus-v1.yaml            # task contracts and eligibility metadata
-  result.schema.json        # stable machine-readable result format
+  corpus-v1.json            # original task contracts and eligibility metadata
+  corpus-v2.json            # prospective task-level generality holdout
+  result.schema.json        # v2 stable machine-readable result format
   fixtures/                 # owned protocol fixtures
   runs/<date>/<site>.json   # sanitized evidence rows
 docs/

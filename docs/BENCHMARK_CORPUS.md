@@ -104,6 +104,23 @@ sites that all exercise the same login-and-click loop:
 | Browser-mechanism control | repository fixture plus The Internet/SauceDemo | dialogs, windows, Shadow DOM, dynamic controls, downloads, SPA login/cart | deterministic fault injection and regression coverage; reported separately from production-app coverage |
 | API-first negative control | GitHub test repository, with nopCommerce/Nextcloud task checks | issue/listing operation already covered by official API | proves Clapping Hands declines unnecessary UI compilation and routes secrets through supported auth |
 
+This recommendation is now frozen prospectively as
+[`bench/corpus-v2.json`](../bench/corpus-v2.json), dated 2026-09-05 at compiler
+commit `3e3d2393df2015565fd5d5e350c17b510fb43d2f`. It contains exactly eight
+application rows and 24 previously unrun application-workflow pairs: one read,
+one reversible write, and one externally visible commit per self-hosted or
+owned row, with three read-only decision journeys on GOV.UK. Every task names
+its independent oracle and reset contract. Ten tasks require automatic
+authoring, including at least one on every row; the remaining effectful tasks
+use demonstrations so their commit boundaries can be reviewed explicitly.
+
+`npm run benchmark:corpus:v2` enforces the freeze, exact row count, minimum
+tasks per row, task-level denominator, effect mix, automatic-authoring coverage,
+and non-empty oracle/reset contracts. A task that causes a compiler change is a
+failed holdout for this frozen denominator even if its later regression passes.
+The next compiler freeze would require a new corpus version rather than silently
+reclassifying that rerun as unseen.
+
 Current execution ledger for those eight application rows:
 
 | Row | Evidence completed | Highest-value missing workflow |
@@ -117,8 +134,9 @@ Current execution ledger for those eight application rows:
 | GOV.UK decision tools | three guided production smokes retained | rate-limited revalidation on a fresh window; the ATO simulator is frozen as the distinct-operator candidate, but its first attempt failed in bootstrap before compilation |
 | Operator-owned Google Form | none yet | conditional multi-page submit with owner-side response oracle |
 
-This ledger is roadmap evidence, not an 80–90% denominator. Completed rows that
-caused compiler changes remain regression results rather than untouched wins.
+This ledger is roadmap evidence, not the frozen v2 denominator. Completed rows
+that caused compiler changes remain regression results rather than untouched
+wins.
 
 One reserve row has also been exercised without changing the frozen eight-row
 denominator:

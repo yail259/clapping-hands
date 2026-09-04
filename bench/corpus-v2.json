@@ -1,0 +1,281 @@
+{
+  "schemaVersion": 2,
+  "status": "frozen",
+  "compilerFreezeSha": "3e3d2393df2015565fd5d5e350c17b510fb43d2f",
+  "frozenAt": "2026-09-05",
+  "claimDenominator": "application-workflow-pairs",
+  "applications": [
+    {
+      "id": "osticket-local-v2",
+      "name": "Self-hosted osTicket",
+      "role": "holdout",
+      "architecture": ["legacy-server-ui", "session-auth", "csrf", "dependent-fields", "rich-editor"],
+      "policy": "repository-controlled installation with synthetic users and tickets",
+      "trafficBudget": "local installation; restore every mutation and remove all synthetic tickets",
+      "tasks": [
+        {
+          "id": "filter-open-ticket-by-requester-and-department",
+          "effect": "read",
+          "expectedPath": "network-or-dom",
+          "authoringMode": "automatic",
+          "oracle": "The result contains the one seeded ticket ID matching both requester and department and no seeded decoy ID.",
+          "reset": "Recreate the fixed synthetic ticket set before each demonstration and replay."
+        },
+        {
+          "id": "assign-ticket-to-synthetic-agent",
+          "effect": "write",
+          "expectedPath": "prepare-commit",
+          "authoringMode": "demonstrated",
+          "oracle": "The osTicket database and a fresh staff page both show the exact synthetic assignee after commit and the prior assignee before commit.",
+          "reset": "Restore the prior assignee and update timestamp after every replay."
+        },
+        {
+          "id": "close-synthetic-ticket-once",
+          "effect": "commit",
+          "expectedPath": "prepare-commit",
+          "authoringMode": "demonstrated",
+          "oracle": "The database and a fresh staff page show the exact ticket closed once; receipt reuse causes no second event.",
+          "reset": "Reopen the exact ticket, remove generated thread events, and restore timestamps."
+        }
+      ]
+    },
+    {
+      "id": "wordpress-local-v2",
+      "name": "Self-hosted WordPress",
+      "role": "holdout",
+      "architecture": ["admin-spa", "iframe-capable", "media-upload", "scheduled-state", "plugin-ui"],
+      "policy": "repository-controlled installation with synthetic posts and media only",
+      "trafficBudget": "local installation; delete synthetic content and restore settings after each run",
+      "tasks": [
+        {
+          "id": "filter-drafts-by-author-and-category",
+          "effect": "read",
+          "expectedPath": "network-or-dom",
+          "authoringMode": "automatic",
+          "oracle": "The returned IDs equal the database query for the frozen author, category, and draft status, including one decoy exclusion.",
+          "reset": "Recreate the fixed synthetic post, author, and category fixture before each run."
+        },
+        {
+          "id": "upload-allowlisted-image-and-set-alt-text",
+          "effect": "write",
+          "expectedPath": "prepare-commit",
+          "authoringMode": "demonstrated",
+          "oracle": "The media database row, attachment metadata, and fetched attachment page all contain the exact unseen alt text and file hash once.",
+          "reset": "Delete the attachment and generated thumbnails and remove the allowlisted source copy."
+        },
+        {
+          "id": "schedule-synthetic-post-once",
+          "effect": "commit",
+          "expectedPath": "prepare-commit",
+          "authoringMode": "demonstrated",
+          "oracle": "The database and fresh admin page show exactly one future post with the requested UTC instant; receipt reuse creates no duplicate.",
+          "reset": "Delete the exact synthetic post and associated metadata."
+        }
+      ]
+    },
+    {
+      "id": "moodle-local-v2",
+      "name": "Self-hosted Moodle",
+      "role": "holdout",
+      "architecture": ["server-rendered-js", "role-separated-auth", "branching-form", "file-upload", "background-state"],
+      "policy": "repository-controlled installation with synthetic courses, users, activities, and files",
+      "trafficBudget": "local installation; reset course state and remove synthetic files after each run",
+      "tasks": [
+        {
+          "id": "filter-course-participant-by-role-and-group",
+          "effect": "read",
+          "expectedPath": "network-or-dom",
+          "authoringMode": "automatic",
+          "oracle": "The exact returned user IDs equal a direct database query for the frozen course, group, and role; seeded decoys are absent.",
+          "reset": "Restore the fixed role and group memberships before each run."
+        },
+        {
+          "id": "upload-allowlisted-assignment-file",
+          "effect": "write",
+          "expectedPath": "prepare-commit",
+          "authoringMode": "demonstrated",
+          "oracle": "The submission row and Moodle file store contain one file with the unseen name, size, and SHA-256 only after commit.",
+          "reset": "Delete the submission, file records, and content-store object for the exact fixture user."
+        },
+        {
+          "id": "complete-branching-quiz-attempt-once",
+          "effect": "commit",
+          "expectedPath": "prepare-commit",
+          "authoringMode": "demonstrated",
+          "oracle": "A direct database query and teacher review page agree on one finished attempt, answer set, and deterministic score; receipt reuse changes nothing.",
+          "reset": "Delete the exact attempt and usage records and restore question state."
+        }
+      ]
+    },
+    {
+      "id": "discourse-local-v2",
+      "name": "Self-hosted Discourse",
+      "role": "holdout",
+      "architecture": ["ember-spa", "json", "rich-composer", "live-updates", "permission-state"],
+      "policy": "official source in a local installation with synthetic users, groups, categories, and uploads",
+      "trafficBudget": "local installation; remove synthetic records and uploads after every mutation",
+      "tasks": [
+        {
+          "id": "filter-topics-by-category-tag-and-author",
+          "effect": "read",
+          "expectedPath": "network",
+          "authoringMode": "automatic",
+          "oracle": "Returned topic IDs exactly match a direct database query for all three filters across more than one page with no duplicate IDs.",
+          "reset": "Recreate the fixed paginated topic and decoy fixture before each run."
+        },
+        {
+          "id": "save-draft-with-allowlisted-upload",
+          "effect": "write",
+          "expectedPath": "prepare-commit",
+          "authoringMode": "demonstrated",
+          "oracle": "The draft endpoint and upload record contain the unseen body token and exact file SHA-256 after commit and nothing at prepare.",
+          "reset": "Delete the draft, upload record, and stored file for the synthetic user."
+        },
+        {
+          "id": "change-private-category-group-permission",
+          "effect": "commit",
+          "expectedPath": "prepare-commit",
+          "authoringMode": "demonstrated",
+          "oracle": "A direct database query plus fresh sessions for an allowed and denied synthetic user agree on the new permission exactly once.",
+          "reset": "Restore the prior category-group permission and clear affected synthetic sessions."
+        }
+      ]
+    },
+    {
+      "id": "nextcloud-local-v2",
+      "name": "Self-hosted Nextcloud",
+      "role": "holdout",
+      "architecture": ["vue-spa", "authenticated-files", "webdav-control", "share-permissions", "artifact-boundary"],
+      "policy": "repository-controlled installation with synthetic users and allowlisted files",
+      "trafficBudget": "local installation; remove shares, users, and files created by the task",
+      "tasks": [
+        {
+          "id": "find-file-by-name-and-owner",
+          "effect": "read",
+          "expectedPath": "network-or-recommend-api",
+          "authoringMode": "automatic",
+          "oracle": "The returned file IDs and paths equal an independent WebDAV/OCS listing and exclude a same-name decoy owned by another fixture user.",
+          "reset": "Recreate the fixed two-user file fixture before each run."
+        },
+        {
+          "id": "share-file-with-user-and-edit-permission",
+          "effect": "write",
+          "expectedPath": "prepare-commit-or-recommend-api",
+          "authoringMode": "demonstrated",
+          "oracle": "The OCS share record and recipient session show one exact user share with edit permission only after commit.",
+          "reset": "Delete the exact share and restore the source file metadata."
+        },
+        {
+          "id": "revoke-exact-user-share-once",
+          "effect": "commit",
+          "expectedPath": "prepare-commit-or-recommend-api",
+          "authoringMode": "demonstrated",
+          "oracle": "The OCS share record is absent and the recipient loses access after one commit; receipt reuse does not affect any replacement share.",
+          "reset": "Recreate the frozen source share with its original ID-independent permissions."
+        }
+      ]
+    },
+    {
+      "id": "nopcommerce-local-v2",
+      "name": "Self-hosted nopCommerce",
+      "role": "holdout",
+      "architecture": ["aspnet-commerce", "server-admin", "variant-state", "inventory-state", "order-state-machine"],
+      "policy": "official source in a local installation with synthetic products, customers, and orders",
+      "trafficBudget": "local installation; restore inventory and delete synthetic orders after each run",
+      "tasks": [
+        {
+          "id": "find-variant-by-attributes-and-warehouse",
+          "effect": "read",
+          "expectedPath": "network-or-dom",
+          "authoringMode": "automatic",
+          "oracle": "The returned variant and stock values equal direct database queries for the frozen attribute combination and warehouse; decoys are absent.",
+          "reset": "Recreate the fixed products, combinations, warehouses, and stock quantities."
+        },
+        {
+          "id": "change-variant-inventory-quantity",
+          "effect": "write",
+          "expectedPath": "prepare-commit",
+          "authoringMode": "demonstrated",
+          "oracle": "The database and a fresh admin page show the unseen exact quantity only after commit without changing another warehouse.",
+          "reset": "Restore all prior stock quantities and update timestamps."
+        },
+        {
+          "id": "advance-synthetic-order-status-once",
+          "effect": "commit",
+          "expectedPath": "prepare-commit",
+          "authoringMode": "demonstrated",
+          "oracle": "The database, order-note history, and fresh admin page show exactly one allowed state transition; receipt reuse adds no note or transition.",
+          "reset": "Delete the synthetic order and its dependent records, then recreate it in the initial state."
+        }
+      ]
+    },
+    {
+      "id": "govuk-decision-tools-v2",
+      "name": "GOV.UK decision tools",
+      "role": "holdout",
+      "architecture": ["production-server-form", "multi-step-branching", "accessible-html", "policy-drift"],
+      "policy": "read-only, low-volume, human-scale journeys after a same-day terms and robots review; no crawling or mutation",
+      "trafficBudget": "one demonstration pair and one unseen replay per service in a separately approved window; no performance distribution",
+      "tasks": [
+        {
+          "id": "pension-credit-eligibility-branch",
+          "effect": "read",
+          "expectedPath": "dom",
+          "authoringMode": "automatic",
+          "oracle": "The final eligibility branch and displayed amount fields match a separately scripted browser journey for the frozen synthetic answers.",
+          "reset": "Start a clean anonymous browser context for each journey; the service creates no retained benchmark state."
+        },
+        {
+          "id": "student-finance-estimate-branch",
+          "effect": "read",
+          "expectedPath": "dom",
+          "authoringMode": "automatic",
+          "oracle": "The final loan components and eligibility branch match a separately scripted browser journey for the frozen synthetic answers.",
+          "reset": "Start a clean anonymous browser context for each journey; the service creates no retained benchmark state."
+        },
+        {
+          "id": "child-benefit-tax-estimate-branch",
+          "effect": "read",
+          "expectedPath": "dom",
+          "authoringMode": "automatic",
+          "oracle": "The displayed benefit and tax-charge estimates match an independent calculation and separately scripted browser journey for the frozen synthetic answers.",
+          "reset": "Start a clean anonymous browser context for each journey; the service creates no retained benchmark state."
+        }
+      ]
+    },
+    {
+      "id": "owned-google-form-v2",
+      "name": "Operator-owned Google Form",
+      "role": "holdout",
+      "architecture": ["hosted-saas", "conditional-multi-page-form", "session-state", "external-commit"],
+      "policy": "form and destination are owned by the benchmark operator; synthetic responses only; creation and deletion require explicit operator authorization",
+      "trafficBudget": "two varied demonstrations, one unseen commit, and one duplicate-receipt check; then delete responses and form when authorized",
+      "tasks": [
+        {
+          "id": "traverse-conditional-pages-without-submit",
+          "effect": "read",
+          "expectedPath": "dom",
+          "authoringMode": "automatic",
+          "oracle": "The visited section titles and final review fields equal the owner-authored branching definition for the unseen answer path, with zero responses recorded.",
+          "reset": "Use a clean respondent context and clear any draft response; never submit during this task."
+        },
+        {
+          "id": "prepare-mixed-field-response",
+          "effect": "write",
+          "expectedPath": "prepare-commit",
+          "authoringMode": "demonstrated",
+          "oracle": "The prepared preview contains the exact unseen text, date, choice, and scale values while the owner response count remains unchanged.",
+          "reset": "Discard the respondent draft and reopen the unchanged owned form."
+        },
+        {
+          "id": "submit-response-and-verify-once",
+          "effect": "commit",
+          "expectedPath": "prepare-commit",
+          "authoringMode": "demonstrated",
+          "oracle": "The owner response view or linked owned sheet contains exactly one row with the unseen nonce and field values; receipt reuse creates no second row.",
+          "reset": "Delete the exact synthetic response and confirm the owner-side count returned to baseline."
+        }
+      ]
+    }
+  ]
+}

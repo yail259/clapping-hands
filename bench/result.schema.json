@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yail259/clapping-hands/blob/main/bench/result.schema.json",
+  "title": "Clapping Hands benchmark result v2",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "compilerCommit",
+    "corpus",
+    "application",
+    "tasks",
+    "summary"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "compilerCommit": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+    "corpus": {
+      "type": "object",
+      "required": ["path", "freezeSha"],
+      "properties": {
+        "path": { "const": "bench/corpus-v2.json" },
+        "freezeSha": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" }
+      },
+      "additionalProperties": false
+    },
+    "application": {
+      "type": "object",
+      "required": ["id", "name", "environment", "policyReviewDate", "trafficBudget"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "environment": { "type": "string", "minLength": 1 },
+        "policyReviewDate": { "type": "string", "format": "date" },
+        "trafficBudget": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "effect",
+          "status",
+          "unseen",
+          "authoringMode",
+          "engine",
+          "exactResult",
+          "falseSuccess",
+          "duplicateCommits",
+          "cleanupVerified",
+          "requests",
+          "navigations",
+          "modelCalls"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "effect": { "enum": ["read", "write", "commit"] },
+          "status": { "enum": ["passed", "failed", "blocked", "unsupported"] },
+          "unseen": { "type": "boolean" },
+          "authoringMode": { "enum": ["automatic", "demonstrated"] },
+          "engine": { "type": "string", "minLength": 1 },
+          "exactResult": { "type": "boolean" },
+          "falseSuccess": { "type": "boolean" },
+          "duplicateCommits": { "type": "integer", "minimum": 0 },
+          "cleanupVerified": { "type": "boolean" },
+          "requests": { "type": "integer", "minimum": 0 },
+          "navigations": { "type": "integer", "minimum": 0 },
+          "modelCalls": { "type": "integer", "minimum": 0 },
+          "failureClassification": {
+            "enum": ["compiler-defect", "policy-auth-block", "unsupported-capability", "environment-harness"]
+          },
+          "oracleEvidence": { "type": "object" },
+          "resetEvidence": { "type": "object" },
+          "performance": {
+            "type": "object",
+            "required": ["sampleSize", "browserP50Ms", "browserP95Ms", "compiledP50Ms", "compiledP95Ms", "medianSpeedup", "browserCorrect", "compiledCorrect"],
+            "properties": {
+              "sampleSize": { "type": "integer", "minimum": 20 },
+              "browserP50Ms": { "type": "number", "minimum": 0 },
+              "browserP95Ms": { "type": "number", "minimum": 0 },
+              "compiledP50Ms": { "type": "number", "minimum": 0 },
+              "compiledP95Ms": { "type": "number", "minimum": 0 },
+              "medianSpeedup": { "type": "number", "exclusiveMinimum": 0 },
+              "browserCorrect": { "type": "integer", "minimum": 0 },
+              "compiledCorrect": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": true
+          }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "status": { "const": "passed" } }, "required": ["status"] },
+            "then": {
+              "properties": {
+                "unseen": { "const": true },
+                "exactResult": { "const": true },
+                "falseSuccess": { "const": false },
+                "duplicateCommits": { "const": 0 },
+                "cleanupVerified": { "const": true }
+              }
+            },
+            "else": { "required": ["failureClassification"] }
+          }
+        ],
+        "additionalProperties": true
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["passed", "total", "successRate", "falseSuccesses", "duplicateCommits"],
+      "properties": {
+        "passed": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 1 },
+        "successRate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "falseSuccesses": { "type": "integer", "minimum": 0 },
+        "duplicateCommits": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

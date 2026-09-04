@@ -123,6 +123,7 @@ mkdir -p .data/uploads .data/artifacts
 npm test
 npm run build
 npm run benchmark:corpus
+npm run benchmark:corpus:v2
 npm run benchmark:controlled
 npm run benchmark:wordpress-playground -- --live
 npm run smoke:general
@@ -161,6 +162,14 @@ npm run benchmark:live -- --live --external-journeys-today=0
 The external-journey count is mandatory and includes manual discovery in other
 browsers. The runner keeps a local scripted-traffic ledger and refuses a run
 that would exceed the public-site daily cap.
+
+The prospective v2 generality cohort is frozen in
+[`bench/corpus-v2.json`](bench/corpus-v2.json) at compiler commit `3e3d239`:
+24 previously unrun application-workflow pairs across eight application rows,
+with an independent oracle and reset contract for every task. Ten reads require
+automatic authoring. Existing successes are regressions and do not count toward
+this denominator. No 80–90% claim is made until at least 80% pass end to end
+with zero false successes and zero duplicate commits.
 
 The first public smoke covered three GOV.UK calculators with exact browser vs
 compiled result agreement after one recorded fix. These are `guided`, `n=1`
