@@ -525,31 +525,51 @@ function inputBindingOrder(demonstration: DomWorkflowDemonstration, inputNames: 
 }
 
 function replaceInputOccurrences(value: string, raw: string, sentinel: string): string {
-  if (raw.length >= 3) return value.split(raw).join(sentinel);
-  // Very short values are common for quantities, booleans, and small record
-  // ids. Treating every matching character as evidence can corrupt unrelated
-  // selector tokens (for example quantity "2" inside the stable class name
-  // "select2"). Exact values and delimiter-bounded occurrences remain valid
-  // bindings, including selectors such as #product-2 and arguments such as 2.
-  const embeddedCharacter = /[A-Za-z0-9_]/;
+  const replaceOrdinaryText = (text: string): string => {
+    if (raw.length >= 3) return text.split(raw).join(sentinel);
+    // Very short values are common for quantities, booleans, and small record
+    // ids. Treating every matching character as evidence can corrupt unrelated
+    // selector tokens (for example quantity "2" inside the stable class name
+    // "select2"). Exact values and delimiter-bounded occurrences remain valid
+    // bindings, including selectors such as #product-2 and arguments such as 2.
+    const embeddedCharacter = /[A-Za-z0-9_]/;
+    let result = "";
+    let offset = 0;
+    while (offset < text.length) {
+      const index = text.indexOf(raw, offset);
+      if (index < 0) {
+        result += text.slice(offset);
+        break;
+      }
+      const before = index > 0 ? text[index - 1]! : "";
+      const afterIndex = index + raw.length;
+      const after = afterIndex < text.length ? text[afterIndex]! : "";
+      result += text.slice(offset, index);
+      if ((before && embeddedCharacter.test(before)) || (after && embeddedCharacter.test(after))) {
+        result += raw;
+      } else {
+        result += sentinel;
+      }
+      offset = afterIndex;
+    }
+    return result;
+  };
+
+  // A later, shorter input must never rewrite a placeholder created for an
+  // earlier input (for example quantity "3" inside "input:3"). Transform only
+  // ordinary spans and copy existing compiler sentinels verbatim.
+  const existingSentinel = /\u0000(?:input|url):\d+\u0000/g;
   let result = "";
   let offset = 0;
-  while (offset < value.length) {
-    const index = value.indexOf(raw, offset);
-    if (index < 0) {
-      result += value.slice(offset);
-      break;
-    }
-    const before = index > 0 ? value[index - 1]! : "";
-    const afterIndex = index + raw.length;
-    const after = afterIndex < value.length ? value[afterIndex]! : "";
-    result += value.slice(offset, index);
-    if ((before && embeddedCharacter.test(before)) || (after && embeddedCharacter.test(after))) {
-      result += raw;
-    } else {
-      result += sentinel;
-    }
-    offset = afterIndex;
+  for (const match of value.matchAll(existingSentinel)) {
+    result += replaceOrdinaryText(value.slice(offset, match.index));
+    result += match[0];
+    offset = match.index! + match[0].length;
+  }
+  if (offset < value.length) {
+    result += replaceOrdinaryText(value.slice(offset));
+  } else if (value.length === 0) {
+    return value;
   }
   return result;
 }
@@ -619,7 +639,7 @@ function splitUrlByInputs(
       if (!candidate) continue;
       const sentinel = `\u0000url:${inputIndex}\u0000`;
       sentinels.set(sentinel, { $clappingHandsInput: inputName, encoding: candidate.encoding });
-      skeleton = skeleton.split(candidate.text).join(sentinel);
+      skeleton = replaceInputOccurrences(skeleton, candidate.text, sentinel);
     }
     return skeleton;
   });
