@@ -98,14 +98,19 @@ function parseLastJson<T>(output: string): T {
 
 function phpFixture(script: string, arguments_: string[] = [], environment: Record<string, string> = {}): string {
   const environmentArguments = Object.entries(environment).flatMap(([name, value]) => ["-e", `${name}=${value}`]);
-  return execFileSync(compose, [
-    "exec", "-T", ...environmentArguments, "webserver", "php", script, ...arguments_,
-  ], {
-    cwd: process.cwd(),
-    env: composeEnvironment,
-    encoding: "utf8",
-    maxBuffer: 5 * 1024 * 1024,
-  });
+  try {
+    return execFileSync(compose, [
+      "exec", "-T", ...environmentArguments, "webserver", "php", script, ...arguments_,
+    ], {
+      cwd: process.cwd(),
+      env: composeEnvironment,
+      encoding: "utf8",
+      maxBuffer: 5 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch {
+    throw new Error("The Moodle fixture command failed; secret-bearing process arguments were suppressed.");
+  }
 }
 
 function seedFixture(): SeedResult {

@@ -138,6 +138,10 @@ codex mcp add clapping-hands \
   -- "$(command -v node)" "$PWD/dist/src/server.js"
 ```
 
+The result validator accepts both frozen, claim-eligible outcomes and explicitly
+excluded post-fix regressions. Excluded results must set `claimEligible: false`
+and explain the exclusion; they never enter the frozen success denominator.
+
 `smoke:general` is an opt-in local Stagehand smoke. First-time semantic
 compilation needs an LLM provider key. The default is
 `openai/gpt-5.4-mini` via `OPENAI_API_KEY`; select another Stagehand-supported

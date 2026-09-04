@@ -16,6 +16,8 @@
     "schemaVersion": { "const": 2 },
     "generatedAt": { "type": "string", "format": "date-time" },
     "compilerCommit": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+    "claimEligible": { "type": "boolean" },
+    "reasonExcluded": { "type": "string", "minLength": 1 },
     "corpus": {
       "type": "object",
       "required": ["path", "freezeSha"],
@@ -123,5 +125,14 @@
       "additionalProperties": false
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "claimEligible": { "const": false } },
+        "required": ["claimEligible"]
+      },
+      "then": { "required": ["reasonExcluded"] }
+    }
+  ],
   "additionalProperties": true
 }

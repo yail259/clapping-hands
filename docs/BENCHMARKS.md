@@ -292,6 +292,16 @@ Because the holdout directly drove compiler changes, the 3/3 corrected run is
 regression evidence and is excluded from the untouched-holdout denominator. It
 is one compiled run per task and is not a latency distribution.
 
+A later post-v2-freeze regression added a distinct staff-side assignment. Two
+ticket IDs compiled into a three-action dropdown/modal workflow; after a clean
+browser restart, prepare left both the browser and database untouched, while
+commit assigned one unseen synthetic ticket to the benchmark agent and added
+exactly one thread event. Receipt reuse was rejected, and the original ticket,
+event, timestamp, and synthetic-password state was restored. This ran after
+v2 compiler changes and is therefore `claimEligible: false`, not an untouched
+holdout pass. The sanitized report is
+[`bench/runs/2026-09-05/osticket-v2-assignment-regression.json`](../bench/runs/2026-09-05/osticket-v2-assignment-regression.json).
+
 ### osTicket warm performance distribution
 
 The same pinned container images were then used for a 20-pair interleaved

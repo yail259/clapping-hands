@@ -36,6 +36,8 @@ type BenchmarkResult = {
   schemaVersion: 2;
   generatedAt: string;
   compilerCommit: string;
+  claimEligible?: boolean;
+  reasonExcluded?: string;
   corpus: { path: string; freezeSha: string };
   application: { id: string; name: string; environment: string; policyReviewDate: string; trafficBudget: string };
   tasks: ResultTask[];
@@ -63,7 +65,14 @@ const corpusPath = resolve(process.cwd(), result.corpus.path);
 const corpus = JSON.parse(await readFile(corpusPath, "utf8")) as Corpus;
 requireCondition(corpus.schemaVersion === 2 && corpus.status === "frozen", "Result must reference a frozen v2 corpus.");
 requireCondition(result.corpus.freezeSha === corpus.compilerFreezeSha, "Result freeze SHA does not match its corpus.");
-requireCondition(result.compilerCommit === corpus.compilerFreezeSha, "Frozen task outcomes must identify the corpus compiler commit.");
+const claimEligible = result.claimEligible !== false;
+if (claimEligible) {
+  requireCondition(result.compilerCommit === corpus.compilerFreezeSha,
+    "Claim-eligible frozen task outcomes must identify the corpus compiler commit.");
+} else {
+  requireCondition(typeof result.reasonExcluded === "string" && result.reasonExcluded.trim().length > 0,
+    "A claim-ineligible result must explain why it is excluded.");
+}
 
 const application = corpus.applications.find((candidate) => candidate.id === result.application?.id);
 requireCondition(application, `Result application is not declared in the corpus: ${result.application?.id ?? "missing"}`);
@@ -117,6 +126,7 @@ console.log(JSON.stringify({
   application: application.id,
   tasks: result.tasks.length,
   passed,
+  claimEligible,
   successRate: result.summary.successRate,
   falseSuccesses,
   duplicateCommits,

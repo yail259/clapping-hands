@@ -54,17 +54,23 @@ const composeEnvironment = {
 };
 
 function seedFixture(): SeedResult {
-  const output = execFileSync(compose, [
-    "exec", "-T",
-    "-e", `CH_MOODLE_TEACHER_PASS=${teacherPassword}`,
-    "-e", `CH_MOODLE_STUDENT_PASS=${studentPassword}`,
-    "webserver", "php", "clapping_hands_seed.php",
-  ], {
-    cwd: process.cwd(),
-    env: composeEnvironment,
-    encoding: "utf8",
-    maxBuffer: 5 * 1024 * 1024,
-  });
+  let output: string;
+  try {
+    output = execFileSync(compose, [
+      "exec", "-T",
+      "-e", `CH_MOODLE_TEACHER_PASS=${teacherPassword}`,
+      "-e", `CH_MOODLE_STUDENT_PASS=${studentPassword}`,
+      "webserver", "php", "clapping_hands_seed.php",
+    ], {
+      cwd: process.cwd(),
+      env: composeEnvironment,
+      encoding: "utf8",
+      maxBuffer: 5 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch {
+    throw new Error("The Moodle fixture command failed; secret-bearing process arguments were suppressed.");
+  }
   const line = output.trim().split(/\r?\n/).reverse().find((candidate) => candidate.trim().startsWith("{"));
   if (!line) throw new Error("The Moodle fixture did not return its course manifest.");
   const parsed = JSON.parse(line) as SeedResult;

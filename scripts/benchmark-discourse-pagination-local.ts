@@ -37,10 +37,19 @@ function parseFixtureJson<T>(output: string): T {
 
 function fixture<T>(command: string, environment: Record<string, string> = {}): T {
   const environmentArguments = Object.entries(environment).flatMap(([name, value]) => ["-e", `${name}=${value}`]);
-  const output = execFileSync("docker", [
-    "exec", "-u", "discourse:discourse", "-w", "/src", "-e", `CH_DISCOURSE_COMMAND=${command}`,
-    ...environmentArguments, container, "bin/rails", "runner", "/tmp/clapping_hands_fixture.rb",
-  ], { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
+  let output: string;
+  try {
+    output = execFileSync("docker", [
+      "exec", "-u", "discourse:discourse", "-w", "/src", "-e", `CH_DISCOURSE_COMMAND=${command}`,
+      ...environmentArguments, container, "bin/rails", "runner", "/tmp/clapping_hands_fixture.rb",
+    ], {
+      encoding: "utf8",
+      maxBuffer: 10 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch {
+    throw new Error("The Discourse fixture command failed; process arguments were suppressed.");
+  }
   return parseFixtureJson<T>(output);
 }
 

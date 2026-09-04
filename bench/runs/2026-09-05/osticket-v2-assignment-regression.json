@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 2,
+  "kind": "post-v2-freeze-capability-regression",
+  "generatedAt": "2026-09-04T17:53:06.176Z",
+  "compilerCommit": "5d1673cba6efea5b0438804f34a33743a386362a",
+  "corpus": {
+    "path": "bench/corpus-v2.json",
+    "freezeSha": "3e3d2393df2015565fd5d5e350c17b510fb43d2f"
+  },
+  "claimEligible": false,
+  "reasonExcluded": "Executed after v2 compiler fixes; retained as cross-application regression evidence rather than an untouched v2 pass",
+  "application": {
+    "id": "osticket-local-v2",
+    "name": "Self-hosted osTicket",
+    "environment": "Loopback pinned containers; darwin/arm64; Chrome 151.0.7922.138",
+    "policyReviewDate": "2026-09-05",
+    "trafficBudget": "Local installation; restore ticket assignments, events, timestamps, and synthetic staff password state"
+  },
+  "origin": "http://127.0.0.1:18089",
+  "containerImages": {
+    "application": "sha256:2900dc6d032b13548e9f15194c298f464d5a0ee70441c0c592fcb7f87e009400",
+    "database": "sha256:611a2fcc5fa7c6ceb8644c6f74b25ede004ff6c3a6b38c8f8c23d3bbf6c26430"
+  },
+  "environment": {
+    "browserVersion": "151.0.7922.138",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "intervention": "guided demonstrations",
+  "policyBasis": "Disposable loopback-only deployment with synthetic tickets and one synthetic staff account",
+  "credentialHandling": "Rotated the synthetic staff password in memory and restored the prior hash and timestamps; no credential or session value was persisted",
+  "compileMs": 4.28,
+  "authSurvivedBrowserRestart": true,
+  "demonstrationOracles": [
+    {
+      "ticketId": 24,
+      "exactAssignee": true,
+      "oneEventAdded": true,
+      "restored": true
+    },
+    {
+      "ticketId": 25,
+      "exactAssignee": true,
+      "oneEventAdded": true,
+      "restored": true
+    }
+  ],
+  "tasks": [
+    {
+      "id": "assign-ticket-to-synthetic-agent",
+      "effect": "write",
+      "status": "passed",
+      "unseen": true,
+      "authoringMode": "demonstrated",
+      "engine": "stagehand-action-v1",
+      "exactResult": true,
+      "falseSuccess": false,
+      "duplicateCommits": 0,
+      "cleanupVerified": true,
+      "requests": 108,
+      "navigations": 1,
+      "modelCalls": 0,
+      "timing": {
+        "compiledDurationMs": 1588.26
+      },
+      "oracleEvidence": {
+        "ticketId": 26,
+        "exactStaffId": true,
+        "teamUnchanged": true,
+        "oneEventAdded": true,
+        "freshUiExact": true,
+        "preparedWithoutEffect": true,
+        "repeatedCommitRejected": true,
+        "afterRejectedRepeatUnchanged": true
+      },
+      "resetEvidence": {
+        "ticketsRestored": true,
+        "syntheticStaffPasswordRestored": true
+      }
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "total": 1,
+    "successRate": 1,
+    "falseSuccesses": 0,
+    "duplicateCommits": 0
+  }
+}
