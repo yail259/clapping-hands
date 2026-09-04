@@ -86,7 +86,7 @@ declared during compilation; this does not broaden top-level navigation. Both
 JSON request bodies and form/query parameters containing JSON-encoded GraphQL
 variables can be parameterized. Repeated network traces can also infer opaque
 cursor pagination or positive numeric page/offset progression. Replay preserves
-an omitted first page parameter, validates every response against the combined
+an omitted first cursor or page parameter, validates every response against the combined
 demonstrated shape, applies the demonstrated terminal signal, rejects repeated
 cursors, and enforces page-count and aggregate-response-size limits.
 

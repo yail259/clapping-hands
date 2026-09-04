@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 93 passing tests and the built MCP
+cross-site speed claim. The current suite has 95 passing tests and the built MCP
 server advertises ten management/Marketplace tools before any generated
 workflow tools are loaded.
 
@@ -82,8 +82,9 @@ New regression coverage includes:
   open Shadow DOM, and zero-argument DOM and JSON workflows;
 - nested input inference and replay for form-encoded GraphQL variables;
 - bounded multi-page JSON replay inferred from repeated traces: opaque cursors,
-  omitted-first numeric page/offset parameters, demonstrated terminal signals,
-  repeated-cursor rejection, and aggregate response-size limits;
+  omitted-first query or nested-GraphQL cursors, numeric page/offset parameters,
+  boolean, next-value, or short-page terminal signals, repeated-cursor
+  rejection, and aggregate response-size limits;
 - rejection of input-bound telemetry/config requests unless response values are
   also evidenced in the rendered task output;
 - compilation of learned Stagehand actions into redacted selector/argument

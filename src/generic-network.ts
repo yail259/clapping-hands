@@ -81,7 +81,7 @@ const READ_NETWORK_METHODS = new Set(["GET", "POST"]);
 const PAGINATION_FIELD_NAME = /(?:after|cursor|continuation|next|page.?token)/i;
 const HAS_NEXT_FIELD_NAME = /(?:has.?next|more)/i;
 const NEXT_VALUE_FIELD_NAME = /(?:next|more)/i;
-const INCREMENT_FIELD_NAME = /(?:^|[_-])(?:page|offset|start|skip)(?:$|[_-])/i;
+const INCREMENT_FIELD_NAME = /^(?:page(?:[_-]?(?:number|index|no))?|offset|start(?:[_-]?(?:at|index))?|skip(?:[_-]?count)?|from)$/i;
 const PAGE_ITEMS_FIELD_NAME = /(?:items|results|topics|posts|edges|records|entries)/i;
 
 function hash(value: unknown): string {
@@ -202,6 +202,17 @@ function leafEntries(value: unknown, path: Path = []): Array<{ path: Path; value
   return [{ path, value }];
 }
 
+function nestedEntries(value: unknown, path: Path = []): Array<{ path: Path; value: unknown }> {
+  const current = [{ path, value }];
+  if (Array.isArray(value)) {
+    return current.concat(value.flatMap((item, index) => nestedEntries(item, [...path, index])));
+  }
+  if (value && typeof value === "object") {
+    return current.concat(Object.entries(value).flatMap(([key, child]) => nestedEntries(child, [...path, key])));
+  }
+  return current;
+}
+
 function valueAt(value: unknown, path: Path): unknown {
   let current = value;
   for (const segment of path) {
@@ -231,12 +242,28 @@ function setPaginationValue(
     setAt(value, path, replacement);
     return;
   }
+  try {
+    setAt(value, path, replacement);
+    return;
+  } catch {
+    // A missing leaf can be added when its parent was demonstrated. A wholly
+    // omitted top-level query parameter needs the explicit array wrapper below.
+  }
   if (allowOmittedTopLevelQueryParameter && value && typeof value === "object" && !Array.isArray(value) &&
     path.length === 2 && typeof path[0] === "string" && path[1] === 0 && !(path[0] in value)) {
     (value as Record<string, TemplateValue[]>)[path[0]] = [replacement];
     return;
   }
   throw new Error("Invalid pagination request template path.");
+}
+
+function canSetPaginationValue(value: unknown, path: Path): boolean {
+  try {
+    setAt(structuredClone(value), path, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function pathKey(source: "query" | "body", path: Path): string {
@@ -366,12 +393,12 @@ export function assertGenericJsonPlanSafety(plan: GenericJsonPlan): void {
     const requestRoot = pagination.requestSource === "query"
       ? plan.request.queryTemplate
       : plan.request.bodyTemplate;
-    const omittedTopLevelQueryParameter = pagination.strategy === "increment" &&
-      pagination.requestSource === "query" && pagination.requestPath.length === 2 &&
+    const omittedTopLevelQueryParameter = pagination.requestSource === "query" && pagination.requestPath.length === 2 &&
       typeof pagination.requestPath[0] === "string" && pagination.requestPath[1] === 0 &&
       requestRoot !== null && valueAt(requestRoot, pagination.requestPath) === undefined;
     if (requestRoot === null ||
-      (valueAt(requestRoot, pagination.requestPath) === undefined && !omittedTopLevelQueryParameter)) {
+      (valueAt(requestRoot, pagination.requestPath) === undefined &&
+        !omittedTopLevelQueryParameter && !canSetPaginationValue(requestRoot, pagination.requestPath))) {
       throw new Error("Compiled pagination request path does not exist in its request template.");
     }
   }
@@ -512,21 +539,25 @@ function inferCursorPagination(
     .map((binding) => pathKey(binding.source, binding.path)));
   const requestCandidates: Array<{ source: "query" | "body"; path: Path }> = [];
   for (const source of ["query", "body"] as const) {
-    const root = requestRoot(sequences[0]![0]!.request, source);
-    if (root === null) continue;
-    for (const entry of leafEntries(root)) {
-      if (!PAGINATION_FIELD_NAME.test(lastNamedSegment(entry.path)) ||
-        boundPaths.has(pathKey(source, entry.path))) continue;
+    const uniquePaths = new Map<string, Path>();
+    for (const page of sequences[0]!.slice(1)) {
+      const root = requestRoot(page.request, source);
+      if (root === null) continue;
+      for (const entry of leafEntries(root)) uniquePaths.set(JSON.stringify(entry.path), entry.path);
+    }
+    for (const path of uniquePaths.values()) {
+      if (!PAGINATION_FIELD_NAME.test(lastNamedSegment(path)) ||
+        boundPaths.has(pathKey(source, path))) continue;
       const initialValues = sequences.map((sequence) =>
-        valueAt(requestRoot(sequence[0]!.request, source), entry.path));
-      if (!initialValues.every((value) => value === null || value === "") ||
+        valueAt(requestRoot(sequence[0]!.request, source), path));
+      if (!initialValues.every((value) => value === undefined || value === null || value === "") ||
         new Set(initialValues.map((value) => JSON.stringify(value))).size !== 1) continue;
       const everyTransitionChanges = sequences.every((sequence) => sequence.slice(0, -1).every((page, index) => {
-        const current = valueAt(requestRoot(page.request, source), entry.path);
-        const next = valueAt(requestRoot(sequence[index + 1]!.request, source), entry.path);
+        const current = valueAt(requestRoot(page.request, source), path);
+        const next = valueAt(requestRoot(sequence[index + 1]!.request, source), path);
         return next !== undefined && !sameScalar(current, next);
       }));
-      if (everyTransitionChanges) requestCandidates.push({ source, path: entry.path });
+      if (everyTransitionChanges) requestCandidates.push({ source, path });
     }
   }
 
@@ -665,7 +696,7 @@ function inferIncrementPagination(
         sequence.slice(0, -1).every((page) => continuingNextValue(valueAt(page.response, path))) &&
         terminalNextValue(valueAt(sequence.at(-1)!.response, path))));
 
-    const shortPage = firstResponseEntries
+    const shortPage = nestedEntries(sequences[0]![0]!.response)
       .filter((entry) => Array.isArray(entry.value) && entry.value.length > 0 &&
         PAGE_ITEMS_FIELD_NAME.test(lastNamedSegment(entry.path)))
       .map((entry) => ({ path: entry.path, pageSize: (entry.value as unknown[]).length }))
@@ -956,7 +987,7 @@ export async function replayGenericJsonPlan(
         target,
         pagination.requestPath,
         requestPaginationValue,
-        pagination.strategy === "increment" && pagination.requestSource === "query",
+        pagination.requestSource === "query",
       );
     }
 

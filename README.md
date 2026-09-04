@@ -33,7 +33,7 @@ form-encoded GraphQL request accelerators on the workflow origin or an exact
 additional origin declared by the operator when that response is evidenced in
 the rendered result. Multi-page JSON reads can infer opaque cursors or numeric
 page/offset increments from repeated traces, including an omitted first `page`
-parameter, and stop only on a demonstrated terminal signal within strict page
+parameter or initial cursor, and stop only on a demonstrated terminal signal within strict page
 and aggregate-size limits. Experimental write workflows use a separate prepare/commit
 lifecycle. Preparation validates and journals an expiring intent without
 navigating or touching the browser; after confirmation, the receipt enters its

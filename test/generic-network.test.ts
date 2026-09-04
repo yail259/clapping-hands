@@ -86,6 +86,49 @@ async function apiFixture(): Promise<{ server: Server; origin: string }> {
       }));
       return;
     }
+    if (url.pathname === "/api/offset") {
+      const query = url.searchParams.get("q") ?? "";
+      const offset = Number(url.searchParams.get("offset") ?? "0");
+      const remaining = Math.max(0, 5 - offset);
+      const count = Math.min(2, remaining);
+      response.end(JSON.stringify({
+        results: Array.from({ length: count }, (_, index) => ({
+          id: `${query}-${offset + index}`,
+          title: `${query} result ${offset + index + 1}`,
+        })),
+      }));
+      return;
+    }
+    if (url.pathname === "/api/page-bool") {
+      const query = url.searchParams.get("q") ?? "";
+      const page = Number(url.searchParams.get("pageNumber") ?? "1");
+      response.end(JSON.stringify({
+        items: [{ id: `${query}-${page}`, title: `${query} page ${page}` }],
+        hasMore: page < 3,
+      }));
+      return;
+    }
+    if (url.pathname === "/api/graphql-paged" && request.method === "POST") {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
+        variables?: { query?: string; after?: string };
+      };
+      const query = body.variables?.query ?? "";
+      const cursor = body.variables?.after ?? "";
+      const page = cursor ? Number.parseInt(cursor.split("-").at(-1) ?? "0", 10) : 0;
+      const terminal = query === "lamp" ? page >= 2 : page >= 1;
+      response.end(JSON.stringify({
+        data: {
+          items: [{ id: `${query}-${page}`, title: `${query} page ${page + 1}` }],
+          pageInfo: {
+            hasNextPage: !terminal,
+            endCursor: terminal ? null : `${query}-${page + 1}`,
+          },
+        },
+      }));
+      return;
+    }
     if (url.pathname === "/api/html-json") {
       response.setHeader("content-type", "text/html");
       response.end(JSON.stringify({ items: [{ title: "looks structured" }] }));
@@ -127,13 +170,13 @@ function searchDemonstrations(origin: string): GenericNetworkDemonstration[] {
   ));
 }
 
-function cursorTrace(origin: string, query: string) {
+function cursorTrace(origin: string, query: string, omitInitialCursor = false) {
   return {
     input: { query },
     outputText: `${query} page 1 ${query} page 2`,
     exchanges: [
       exchange(
-        `${origin}/api/paged?q=${query}&cursor=`,
+        `${origin}/api/paged?q=${query}${omitInitialCursor ? "" : "&cursor="}`,
         { query },
         {
           items: [{ id: `${query}-0`, title: `${query} page 1` }],
@@ -147,6 +190,36 @@ function cursorTrace(origin: string, query: string) {
           items: [{ id: `${query}-1`, title: `${query} page 2` }],
           pageInfo: { hasNextPage: false, endCursor: null },
         },
+      ).exchange,
+    ],
+  };
+}
+
+function graphqlCursorTrace(origin: string, query: string) {
+  return {
+    input: { query },
+    exchanges: [
+      exchange(
+        `${origin}/api/graphql-paged`,
+        { query },
+        {
+          data: {
+            items: [{ id: `${query}-0`, title: `${query} page 1` }],
+            pageInfo: { hasNextPage: true, endCursor: `${query}-1` },
+          },
+        },
+        { method: "POST", requestBody: { variables: { query } } },
+      ).exchange,
+      exchange(
+        `${origin}/api/graphql-paged`,
+        { query },
+        {
+          data: {
+            items: [{ id: `${query}-1`, title: `${query} page 2` }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+        { method: "POST", requestBody: { variables: { query, after: `${query}-1` } } },
       ).exchange,
     ],
   };
@@ -179,6 +252,37 @@ function incrementTrace(origin: string, query: string) {
         { items: [] },
       ).exchange,
     ],
+  };
+}
+
+function offsetTrace(origin: string, query: string) {
+  const response = (offset: number, count: number) => ({
+    results: Array.from({ length: count }, (_, index) => ({
+      id: `${query}-${offset + index}`,
+      title: `${query} result ${offset + index + 1}`,
+    })),
+  });
+  return {
+    input: { query },
+    exchanges: [
+      exchange(`${origin}/api/offset?q=${query}`, { query }, response(0, 2)).exchange,
+      exchange(`${origin}/api/offset?q=${query}&offset=2`, { query }, response(2, 2)).exchange,
+      exchange(`${origin}/api/offset?q=${query}&offset=4`, { query }, response(4, 1)).exchange,
+    ],
+  };
+}
+
+function booleanPageTrace(origin: string, query: string) {
+  return {
+    input: { query },
+    exchanges: [1, 2, 3].map((page) => exchange(
+      `${origin}/api/page-bool?q=${query}&pageNumber=${page}`,
+      { query },
+      {
+        items: [{ id: `${query}-${page}`, title: `${query} page ${page}` }],
+        hasMore: page < 3,
+      },
+    ).exchange),
   };
 }
 
@@ -270,6 +374,53 @@ test("infers terminal cursor pagination from traces and replays every unseen pag
   }
 });
 
+test("infers an omitted initial cursor in query and nested JSON request bodies", async () => {
+  const { server, origin } = await apiFixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-omitted-cursor-"));
+  let context: BrowserContext | null = null;
+  try {
+    const queryPlan = compileGenericJsonFromTraces("omitted_query_cursor", [
+      cursorTrace(origin, "sofa", true),
+      cursorTrace(origin, "chair", true),
+    ]).plan;
+    assert.equal("cursor" in queryPlan.request.queryTemplate, false);
+    assert.deepEqual(queryPlan.request.pagination, {
+      strategy: "cursor",
+      requestSource: "query",
+      requestPath: ["cursor", 0],
+      responseCursorPath: ["pageInfo", "endCursor"],
+      responseHasNextPath: ["pageInfo", "hasNextPage"],
+      maximumPages: 40,
+    });
+
+    const bodyPlan = compileGenericJsonFromTraces("omitted_body_cursor", [
+      graphqlCursorTrace(origin, "sofa"),
+      graphqlCursorTrace(origin, "chair"),
+    ]).plan;
+    assert.deepEqual(bodyPlan.request.pagination, {
+      strategy: "cursor",
+      requestSource: "body",
+      requestPath: ["variables", "after"],
+      responseCursorPath: ["data", "pageInfo", "endCursor"],
+      responseHasNextPath: ["data", "pageInfo", "hasNextPage"],
+      maximumPages: 40,
+    });
+    assert.equal("after" in ((bodyPlan.request.bodyTemplate as { variables: object }).variables), false);
+
+    context = await chromium.launchPersistentContext(directory, { executablePath: CHROME, headless: true });
+    const queryReplay = await replayGenericJsonPlan(context, queryPlan, { query: "lamp" });
+    const bodyReplay = await replayGenericJsonPlan(context, bodyPlan, { query: "lamp" });
+    assert.equal(queryReplay.requests, 3);
+    assert.equal(bodyReplay.requests, 3);
+    assert.equal((queryReplay.data as Array<{ items: Array<{ id: string }> }>)[2]!.items[0]!.id, "lamp-2");
+    assert.equal((bodyReplay.data as Array<{ data: { items: Array<{ id: string }> } }>)[2]!.data.items[0]!.id, "lamp-2");
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("infers omitted-first numbered pagination and replays to the terminal page", async () => {
   const { server, origin } = await apiFixture();
   const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-increment-pagination-"));
@@ -313,6 +464,52 @@ test("infers omitted-first numbered pagination and replays to the terminal page"
       () => replayGenericJsonPlan(context!, bounded, { query: "endless-numbered" }),
       /page limit before a terminal response/,
     );
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("infers offset short-page and camel-case boolean termination strategies", async () => {
+  const { server, origin } = await apiFixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-increment-termination-"));
+  let context: BrowserContext | null = null;
+  try {
+    const offsetPlan = compileGenericJsonFromTraces("offset_search", [
+      offsetTrace(origin, "sofa"),
+      offsetTrace(origin, "chair"),
+    ]).plan;
+    assert.deepEqual(offsetPlan.request.pagination, {
+      strategy: "increment",
+      requestSource: "query",
+      requestPath: ["offset", 0],
+      firstContinuationValue: 2,
+      increment: 2,
+      termination: { type: "short-page", responsePath: ["results"], pageSize: 2 },
+      maximumPages: 40,
+    });
+
+    const booleanPlan = compileGenericJsonFromTraces("boolean_page_search", [
+      booleanPageTrace(origin, "sofa"),
+      booleanPageTrace(origin, "chair"),
+    ]).plan;
+    assert.deepEqual(booleanPlan.request.pagination, {
+      strategy: "increment",
+      requestSource: "query",
+      requestPath: ["pageNumber", 0],
+      firstContinuationValue: 2,
+      increment: 1,
+      termination: { type: "has-next", responsePath: ["hasMore"] },
+      maximumPages: 40,
+    });
+
+    context = await chromium.launchPersistentContext(directory, { executablePath: CHROME, headless: true });
+    const offsetReplay = await replayGenericJsonPlan(context, offsetPlan, { query: "lamp" });
+    const booleanReplay = await replayGenericJsonPlan(context, booleanPlan, { query: "lamp" });
+    assert.equal(offsetReplay.requests, 3);
+    assert.equal(booleanReplay.requests, 3);
+    assert.equal((offsetReplay.data as Array<{ results: unknown[] }>).flatMap((page) => page.results).length, 5);
   } finally {
     await context?.close();
     await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
