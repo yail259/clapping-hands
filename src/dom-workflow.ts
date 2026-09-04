@@ -773,7 +773,6 @@ export function compileDomWorkflow(
     throw new Error("DOM demonstrations used different output regions.");
   }
   const outputTextHashes = [...new Set(demonstrations.map((demo) => demo.output.textHash))];
-  const outputMode = outputTextHashes.length === 1 ? "one-of" : "present";
   const effectLevel = options.effect ?? "read";
   const minimumOutputCharacters = Math.max(1, Math.floor(Math.min(
     ...demonstrations.map((demo) => normalizedText(demo.output.text).length),
@@ -784,6 +783,11 @@ export function compileDomWorkflow(
       return evidence.length > 0 && normalizedText(demo.output.text).toLowerCase().includes(evidence);
     }))
     : [];
+  // Aggregate views can contain every demonstrated item, producing identical
+  // full-page hashes even though the requested input is safely evidenced in
+  // the output. In that case the evidence is the reusable contract; freezing
+  // unrelated surrounding content would reject a valid unseen item.
+  const outputMode = outputTextHashes.length === 1 && inputEvidenceNames.length === 0 ? "one-of" : "present";
   const confirmation = options.confirmation?.trim() || null;
   const demonstratedInstructions = demonstrations.flatMap((demo) => demo.instructions ?? []);
   const demonstratedControls = demonstrations.flatMap((demo) => demo.actions.map((candidate) => candidate.description.trim()));

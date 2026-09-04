@@ -395,6 +395,50 @@ test("compiles semantic DOM actions into redacted zero-model Playwright replay",
   }
 });
 
+test("uses input evidence when varied demonstrations share one aggregate output snapshot", () => {
+  const origin = "https://fixture.invalid";
+  const aggregateText = "alpha.txt beta.txt";
+  const demonstrate = (filename: string): DomWorkflowDemonstration => ({
+    input: { filename },
+    actions: [{
+      selector: `[data-file=${JSON.stringify(filename)}] button`,
+      description: `Open ${filename}`,
+      method: "click",
+      arguments: [],
+    }],
+    output: {
+      selector: "#files",
+      tagName: "main",
+      text: aggregateText,
+      textHash: createHash("sha256").update(aggregateText).digest("hex"),
+      url: `${origin}/files`,
+    },
+    modelCalls: 1,
+  });
+  const plan = compileDomWorkflow("open_file", `${origin}/files`, [
+    demonstrate("alpha.txt"),
+    demonstrate("beta.txt"),
+  ]);
+
+  assert.equal(plan.validation.outputMode, "present");
+  assert.deepEqual(plan.validation.inputEvidenceNames, ["filename"]);
+  assert.deepEqual(plan.validation.outputTextHashes, []);
+  assert.doesNotThrow(() => validateDomOutput(plan, {
+    selector: "#files",
+    tagName: "main",
+    text: "alpha.txt beta.txt gamma.txt",
+    textHash: createHash("sha256").update("alpha.txt beta.txt gamma.txt").digest("hex"),
+    url: `${origin}/files`,
+  }, { filename: "gamma.txt" }));
+  assert.throws(() => validateDomOutput(plan, {
+    selector: "#files",
+    tagName: "main",
+    text: "alpha.txt beta.txt",
+    textHash: createHash("sha256").update(aggregateText).digest("hex"),
+    url: `${origin}/files`,
+  }, { filename: "gamma.txt" }), /required evidence for input filename/);
+});
+
 test("waits for an asynchronously mounted compiled iframe", async () => {
   const { server, origin } = await fixture();
   let browser: Browser | null = null;

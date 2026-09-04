@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, resolve } from "node:path";
 import type { Page } from "playwright-core";
@@ -40,6 +41,15 @@ if (!password) throw new Error("Set CLAPPING_HANDS_NEXTCLOUD_PASSWORD for the lo
 
 type FolderInput = DomInput & { folderName: string };
 type UploadInput = DomInput & { file: string };
+type StoredFileInput = DomInput & { filename: string };
+type PublicShare = { id: string; shareType: number; path: string };
+
+type OcsResponse<T> = {
+  ocs?: {
+    meta?: { statuscode?: number };
+    data?: T;
+  };
+};
 
 function basicAuthorization(): string {
   return `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
@@ -80,6 +90,62 @@ async function waitForFile(filename: string): Promise<{ exists: boolean; etag: s
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
   }
   throw new Error(`The synthetic Nextcloud upload ${filename} did not become observable.`);
+}
+
+function ocsHeaders(): Record<string, string> {
+  return {
+    authorization: basicAuthorization(),
+    "ocs-apirequest": "true",
+    accept: "application/json",
+  };
+}
+
+async function publicShares(filename: string): Promise<PublicShare[]> {
+  const endpoint = new URL(`${ORIGIN}/ocs/v2.php/apps/files_sharing/api/v1/shares`);
+  endpoint.searchParams.set("path", `/${filename}`);
+  endpoint.searchParams.set("reshares", "true");
+  endpoint.searchParams.set("format", "json");
+  const response = await fetch(endpoint, { headers: ocsHeaders(), redirect: "manual" });
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error(`Nextcloud OCS share oracle returned HTTP ${response.status}.`);
+  const payload = await response.json() as OcsResponse<Array<{
+    id: string | number;
+    share_type: string | number;
+    path: string;
+  }>>;
+  if (![100, 200].includes(Number(payload.ocs?.meta?.statuscode)) || !Array.isArray(payload.ocs?.data)) {
+    throw new Error("Nextcloud OCS share oracle returned an invalid response.");
+  }
+  return payload.ocs.data
+    .map((share) => ({ id: String(share.id), shareType: Number(share.share_type), path: share.path }))
+    .filter((share) => share.shareType === 3 && share.path === `/${filename}`);
+}
+
+async function removePublicShares(filename: string): Promise<void> {
+  for (const share of await publicShares(filename)) {
+    const endpoint = new URL(`${ORIGIN}/ocs/v2.php/apps/files_sharing/api/v1/shares/${encodeURIComponent(share.id)}`);
+    endpoint.searchParams.set("format", "json");
+    const response = await fetch(endpoint, {
+      method: "DELETE",
+      headers: ocsHeaders(),
+      redirect: "manual",
+    });
+    if (!response.ok) throw new Error(`Could not reset synthetic Nextcloud share: HTTP ${response.status}.`);
+    const payload = await response.json() as OcsResponse<unknown>;
+    if (![100, 200].includes(Number(payload.ocs?.meta?.statuscode))) {
+      throw new Error("Nextcloud OCS share cleanup failed.");
+    }
+  }
+}
+
+async function waitForPublicShare(filename: string): Promise<PublicShare[]> {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    const shares = await publicShares(filename);
+    if (shares.length > 0) return shares;
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
+  }
+  throw new Error(`The synthetic Nextcloud public share for ${filename} did not become observable.`);
 }
 
 async function login(page: Page): Promise<void> {
@@ -153,12 +219,54 @@ async function demonstrateUpload(page: Page, input: UploadInput): Promise<DomWor
   return demonstration;
 }
 
+async function demonstrateDownload(page: Page, input: StoredFileInput): Promise<DomWorkflowDemonstration> {
+  return demonstrateDomWorkflow({
+    act: async () => {
+      const actionsSelector = `tr[data-cy-files-list-row-name=${JSON.stringify(input.filename)}] button[aria-label="Actions"]`;
+      const downloadSelector = '[role="menu"]:visible button:has-text("Download")';
+      await page.locator(actionsSelector).click();
+      await page.locator(downloadSelector).waitFor({ state: "visible", timeout: 15_000 });
+      await page.locator(downloadSelector).click();
+      return guidedClick([
+        { selector: actionsSelector, description: `Open actions for ${input.filename}`, method: "click" },
+        { selector: downloadSelector, description: `Download ${input.filename}`, method: "click" },
+      ]);
+    },
+  }, page, START_URL, input, [`Download ${input.filename}`], OUTPUT_SELECTOR);
+}
+
+async function demonstratePublicShare(page: Page, input: StoredFileInput): Promise<DomWorkflowDemonstration> {
+  const demonstration = await demonstrateDomWorkflow({
+    act: async () => {
+      const sharingSelector = `tr[data-cy-files-list-row-name=${JSON.stringify(input.filename)}] button[aria-label="Sharing options"]`;
+      const createSelector = '#app-sidebar-vue button[aria-label="Create a new share link"]';
+      await page.locator(sharingSelector).click();
+      await page.locator("#app-sidebar-vue").filter({ hasText: input.filename })
+        .waitFor({ state: "visible", timeout: 15_000 });
+      await page.locator(createSelector).click();
+      await waitForPublicShare(input.filename);
+      return guidedClick([
+        { selector: sharingSelector, description: `Open sharing options for ${input.filename}`, method: "click" },
+        { selector: createSelector, description: `Create a public link for ${input.filename}`, method: "click" },
+      ]);
+    },
+  }, page, START_URL, input, [`Create a public link for ${input.filename}`], "#app-sidebar-vue");
+  const shares = await publicShares(input.filename);
+  if (shares.length !== 1) throw new Error("A guided Nextcloud public-share demonstration failed its OCS oracle.");
+  return demonstration;
+}
+
 const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-nextcloud-local-"));
 const journal = new EffectJournal(resolve(directory, "effect-journal.json"));
+const previousArtifactRoot = process.env.CLAPPING_HANDS_ARTIFACT_ROOT;
+process.env.CLAPPING_HANDS_ARTIFACT_ROOT = resolve(directory, "artifacts");
 let browser: PersistentWorkflowBrowser | null = null;
 let cleanupVerified = false;
 try {
-  for (const file of uploadFiles) await removeFixture(basename(file));
+  for (const file of uploadFiles) {
+    await removePublicShares(basename(file));
+    await removeFixture(basename(file));
+  }
   browser = new PersistentWorkflowBrowser({
     allowedOrigins: [ORIGIN],
     profileDirectory: resolve(directory, "profile"),
@@ -186,6 +294,33 @@ try {
   const serializedUploadPlan = JSON.stringify(uploadPlan);
   if (serializedUploadPlan.includes(basename(uploadFiles[0]!)) || serializedUploadPlan.includes(basename(uploadFiles[1]!))) {
     throw new Error("The compiled Nextcloud plan retained a demonstrated local filename.");
+  }
+
+  const storedFiles = uploadFiles.map((file) => basename(file));
+  const downloadDemonstrations = [
+    await demonstrateDownload(page, { filename: storedFiles[0]! }),
+    await demonstrateDownload(page, { filename: storedFiles[1]! }),
+  ];
+  const downloadPlan = compileDomWorkflow("nextcloud_download_synthetic_file", START_URL, downloadDemonstrations);
+
+  const shareDemonstrations: DomWorkflowDemonstration[] = [];
+  for (const filename of storedFiles.slice(0, 2)) {
+    await removePublicShares(filename);
+    shareDemonstrations.push(await demonstratePublicShare(page, { filename }));
+    await removePublicShares(filename);
+  }
+  const sharePlan = compileDomWorkflow("nextcloud_create_public_share", START_URL, shareDemonstrations, {
+    effect: "write",
+    confirmation: "Create one public link for a synthetic file in the loopback-only Nextcloud fixture",
+  });
+  if (sharePlan.effect.commitActionIndex !== 1 || sharePlan.actions[1]?.method !== "click") {
+    throw new Error("The Nextcloud share plan did not identify the public-link creation control as its effect boundary.");
+  }
+  for (const [name, plan] of [["download", downloadPlan], ["share", sharePlan]] as const) {
+    const serialized = JSON.stringify(plan);
+    if (storedFiles.slice(0, 2).some((filename) => serialized.includes(filename))) {
+      throw new Error(`The compiled Nextcloud ${name} plan retained a demonstrated filename.`);
+    }
   }
 
   await browser.close();
@@ -216,9 +351,39 @@ try {
     committed.receipt.status === "committed" && committed.result.modelCalls === 0 &&
     repeatedCommitRejected && afterRejectedRepeat.etag === afterCommit.etag && afterRejectedRepeat.size === afterCommit.size;
 
+  const storedFileInput: StoredFileInput = { filename: basename(replayInput.file) };
+  const downloadReplay = await replayDomWorkflow(page, downloadPlan, storedFileInput);
+  const downloadedArtifact = downloadReplay.downloads?.[0];
+  const expectedDownload = await readFile(replayInput.file);
+  const expectedDownloadHash = createHash("sha256").update(expectedDownload).digest("hex");
+  const downloadExact = downloadReplay.modelCalls === 0 && downloadReplay.downloads?.length === 1 &&
+    downloadedArtifact?.suggestedFilename === storedFileInput.filename &&
+    downloadedArtifact.size === expectedDownload.byteLength && downloadedArtifact.sha256 === expectedDownloadHash;
+
+  await removePublicShares(storedFileInput.filename);
+  const sharesBeforePrepare = await publicShares(storedFileInput.filename);
+  const sharePrepareUrl = page.url();
+  const shareReceipt = await prepareDomWorkflowWrite(page, journal, sharePlan, storedFileInput);
+  const sharesAfterPrepare = await publicShares(storedFileInput.filename);
+  const sharePrepareLeftBrowserUntouched = page.url() === sharePrepareUrl;
+  const shared = await commitPreparedDomWorkflowWrite(page, journal, shareReceipt.id, sharePlan, storedFileInput);
+  const sharesAfterCommit = await waitForPublicShare(storedFileInput.filename);
+  const repeatedShareRejected = await commitPreparedDomWorkflowWrite(page, journal, shareReceipt.id, sharePlan, storedFileInput)
+    .then(() => false, () => true);
+  const sharesAfterRejectedRepeat = await publicShares(storedFileInput.filename);
+  const shareExact = sharesBeforePrepare.length === 0 && sharesAfterPrepare.length === 0 &&
+    sharePrepareLeftBrowserUntouched && sharesAfterCommit.length === 1 &&
+    sharesAfterCommit[0]?.shareType === 3 && sharesAfterCommit[0]?.path === `/${storedFileInput.filename}` &&
+    sharesAfterRejectedRepeat.length === 1 && sharesAfterRejectedRepeat[0]?.id === sharesAfterCommit[0]?.id &&
+    shared.receipt.status === "committed" && shared.result.modelCalls === 0 && repeatedShareRejected;
+
+  for (const filename of storedFiles) await removePublicShares(filename);
   for (const file of uploadFiles) await removeFixture(basename(file));
-  cleanupVerified = (await Promise.all(uploadFiles.map((file) => fileMetadata(basename(file)))))
+  const filesRemoved = (await Promise.all(uploadFiles.map((file) => fileMetadata(basename(file)))))
     .every((metadata) => !metadata.exists);
+  const sharesRemoved = (await Promise.all(storedFiles.map((filename) => publicShares(filename))))
+    .every((shares) => shares.length === 0);
+  cleanupVerified = filesRemoved && sharesRemoved;
 
   const rows = [
     {
@@ -247,6 +412,37 @@ try {
       compiledModelCalls: committed.result.modelCalls,
       compiledDurationMs: committed.result.durationMs,
     },
+    {
+      task: "download-unseen-file",
+      effect: "read",
+      path: "compiled-dom-download",
+      exactResult: downloadExact,
+      compiledModelCalls: downloadReplay.modelCalls,
+      compiledDurationMs: downloadReplay.durationMs,
+      artifact: {
+        count: downloadReplay.downloads?.length ?? 0,
+        suggestedFilenameMatched: downloadedArtifact?.suggestedFilename === storedFileInput.filename,
+        sizeMatched: downloadedArtifact?.size === expectedDownload.byteLength,
+        sha256Matched: downloadedArtifact?.sha256 === expectedDownloadHash,
+      },
+    },
+    {
+      task: "create-unseen-public-share",
+      effect: "write",
+      path: "prepare-commit",
+      exactResult: shareExact,
+      preparedWithoutEffect: sharesAfterPrepare.length === 0,
+      prepareLeftBrowserUntouched: sharePrepareLeftBrowserUntouched,
+      receiptStatus: shared.receipt.status,
+      repeatedCommitRejected: repeatedShareRejected,
+      oracle: {
+        publicShareCountAfterCommit: sharesAfterCommit.length,
+        publicShareType: sharesAfterCommit[0]?.shareType,
+        unchangedAfterRejectedRepeat: sharesAfterRejectedRepeat[0]?.id === sharesAfterCommit[0]?.id,
+      },
+      compiledModelCalls: shared.result.modelCalls,
+      compiledDurationMs: shared.result.durationMs,
+    },
   ];
   const report = {
     schemaVersion: 1,
@@ -258,15 +454,23 @@ try {
     containerImages: { application: APP_IMAGE_DIGEST },
     intervention: "guided",
     policyBasis: "Loopback-only official container with one synthetic user and synthetic files",
-    credentialHandling: "Read a rotated synthetic credential from the process environment; persisted no credential in plans or reports",
+    credentialHandling: "Read a rotated synthetic credential from the process environment; persisted no credential or file contents in plans or reports",
     claimScope: "Capability regression on one pinned self-hosted application; not a speed or untouched-holdout result",
-    apiDisposition: "WebDAV is the preferred integration for API-covered file operations; it was used only as the independent oracle and cleanup path here",
-    developmentHistory: [{
-      stage: "file-input-selection",
-      result: "failed-closed",
-      reason: "The file page exposed both a primary uploader and an editor attachment input.",
-      fix: "Select only a uniquely scored semantic upload/attachment input and continue to reject anonymous or tied candidates.",
-    }],
+    apiDisposition: "WebDAV and OCS are preferred for API-covered file/share operations; they were used only as independent oracles and cleanup paths for the UI fallback rows",
+    developmentHistory: [
+      {
+        stage: "file-input-selection",
+        result: "failed-closed",
+        reason: "The file page exposed both a primary uploader and an editor attachment input.",
+        fix: "Select only a uniquely scored semantic upload/attachment input and continue to reject anonymous or tied candidates.",
+      },
+      {
+        stage: "artifact-and-permission-expansion",
+        result: "four-workflow-regression",
+        reason: "The original local row covered folder navigation and upload but not a returned artifact or independently verified share state.",
+        fix: "Add input-bound download and public-share plans with SHA-256 and OCS oracles, receipt reuse rejection, and verified cleanup.",
+      },
+    ],
     runnerCorrections: [
       "Accept Nextcloud 33's numeric file-view route plus its explicit dir query instead of assuming the older path shape.",
       "Match split filename/extension row text rather than assuming a filename-specific accessible label.",
@@ -285,7 +489,7 @@ try {
       passed: rows.filter((row) => row.exactResult && row.compiledModelCalls === 0).length,
       total: rows.length,
       falseSuccesses: rows.filter((row) => !row.exactResult).length,
-      duplicateCommits: repeatedCommitRejected ? 0 : 1,
+      duplicateCommits: repeatedCommitRejected && repeatedShareRejected ? 0 : 1,
     },
   };
   if (report.summary.passed !== report.summary.total || report.summary.duplicateCommits !== 0 ||
@@ -300,7 +504,10 @@ try {
 } finally {
   await browser?.close().catch(() => {});
   if (!cleanupVerified) {
+    await Promise.all(uploadFiles.map((file) => removePublicShares(basename(file)).catch(() => {})));
     await Promise.all(uploadFiles.map((file) => removeFixture(basename(file)).catch(() => {})));
   }
+  if (previousArtifactRoot === undefined) delete process.env.CLAPPING_HANDS_ARTIFACT_ROOT;
+  else process.env.CLAPPING_HANDS_ARTIFACT_ROOT = previousArtifactRoot;
   await rm(directory, { recursive: true, force: true });
 }
