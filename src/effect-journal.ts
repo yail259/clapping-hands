@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { Page } from "playwright-core";
+import type { Page, Request } from "playwright-core";
 import {
   captureDomOutput,
   assertDomWorkflowPlanSafety,
@@ -106,6 +106,124 @@ function assertWritePlan(plan: DomWorkflowPlan): number {
     throw new Error("A file selection cannot occur before the externally effectful action boundary.");
   }
   return plan.effect.commitActionIndex;
+}
+
+function observeAllowedMutationRequests(page: Page, origins: Set<string>): {
+  beginAcknowledgementWindow(): void;
+  waitForQuiescence(timeoutMs: number): Promise<void>;
+  stop(): void;
+} {
+  const pending = new Set<Request>();
+  const startedAt = new Map<Request, number>();
+  const signatures = new Map<Request, string>();
+  const acknowledgementRequests = new Set<Request>();
+  const completedAtBySignature = new Map<string, number>();
+  let acknowledgementWindow = false;
+  let completedAcknowledgementMutations = 0;
+  let lastActivityAt = Date.now();
+  const context = page.context();
+  const isMutation = (request: Request): boolean => {
+    if (new Set(["GET", "HEAD", "OPTIONS", "TRACE"]).has(request.method().toUpperCase())) return false;
+    try {
+      return origins.has(new URL(request.url()).origin);
+    } catch {
+      return false;
+    }
+  };
+  const requestSignature = (request: Request): string | null => {
+    try {
+      const url = new URL(request.url());
+      return `${request.method().toUpperCase()} ${url.origin}${url.pathname}`;
+    } catch {
+      return null;
+    }
+  };
+  const onRequest = (request: Request): void => {
+    if (!isMutation(request)) return;
+    const signature = requestSignature(request);
+    const pathname = (() => {
+      try { return new URL(request.url()).pathname; } catch { return ""; }
+    })();
+    const lastCompletedAt = signature ? completedAtBySignature.get(signature) : undefined;
+    const matchingRequestStillFinishing = signature !== null && [...signatures.values()].includes(signature);
+    // Long-poll transports commonly complete one POST and immediately open
+    // another at an endpoint ending in `/poll`. Once that recurrent shape is
+    // observed, the successor is background subscription traffic rather than
+    // an acknowledgement for the compiled action.
+    if ((matchingRequestStillFinishing || (lastCompletedAt !== undefined && Date.now() - lastCompletedAt <= 500)) &&
+      /(?:^|\/)poll\/?$/i.test(pathname)) {
+      return;
+    }
+    pending.add(request);
+    startedAt.set(request, Date.now());
+    if (signature) signatures.set(request, signature);
+    if (acknowledgementWindow) acknowledgementRequests.add(request);
+    lastActivityAt = Date.now();
+  };
+  const onRequestDone = (request: Request, networkFinished: boolean): void => {
+    if (!pending.delete(request)) return;
+    startedAt.delete(request);
+    const signature = signatures.get(request);
+    signatures.delete(request);
+    if (signature) completedAtBySignature.set(signature, Date.now());
+    if (acknowledgementRequests.delete(request) && networkFinished) {
+      const pathname = (() => {
+        try { return new URL(request.url()).pathname; } catch { return ""; }
+      })();
+      if (!/(?:^|\/)poll\/?$/i.test(pathname)) {
+        void request.response().then((response) => {
+          if (response && response.status() < 400) {
+            completedAcknowledgementMutations += 1;
+            lastActivityAt = Date.now();
+          }
+        });
+      }
+    }
+    lastActivityAt = Date.now();
+  };
+  const onRequestFinished = (request: Request): void => onRequestDone(request, true);
+  const onRequestFailed = (request: Request): void => onRequestDone(request, false);
+  context.on("request", onRequest);
+  context.on("requestfinished", onRequestFinished);
+  context.on("requestfailed", onRequestFailed);
+  return {
+    beginAcknowledgementWindow(): void {
+      acknowledgementWindow = true;
+    },
+    async waitForQuiescence(timeoutMs: number): Promise<void> {
+      const quietWindowMs = 500;
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const now = Date.now();
+        const blockingRequests = [...pending].filter((request) => {
+          let pathname = "";
+          try { pathname = new URL(request.url()).pathname; } catch { return true; }
+          const pendingMs = now - (startedAt.get(request) ?? now);
+          const recurrentPollAfterAcknowledgement = completedAcknowledgementMutations > 0 &&
+            /(?:^|\/)poll\/?$/i.test(pathname) && pendingMs >= 1_000;
+          return !recurrentPollAfterAcknowledgement;
+        });
+        if (blockingRequests.length === 0 && now - lastActivityAt >= quietWindowMs) return;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      const diagnostics = [...pending].slice(0, 5).map((request) => {
+        let pathname = "invalid-url";
+        try { pathname = new URL(request.url()).pathname; } catch { /* keep the redacted marker */ }
+        return {
+          method: request.method(),
+          pathname,
+          resourceType: request.resourceType(),
+          pendingMs: Date.now() - (startedAt.get(request) ?? Date.now()),
+        };
+      });
+      throw new Error(`The write workflow did not reach mutation-network quiescence before its acknowledgement deadline: ${JSON.stringify(diagnostics)}.`);
+    },
+    stop(): void {
+      context.off("request", onRequest);
+      context.off("requestfinished", onRequestFinished);
+      context.off("requestfailed", onRequestFailed);
+    },
+  };
 }
 
 export class EffectJournal {
@@ -244,8 +362,15 @@ export async function commitPreparedDomWorkflowWrite(
 
   const startedAt = performance.now();
   await journal.transition(receipt.id, "prepared", "committing");
+  let mutationRequests: ReturnType<typeof observeAllowedMutationRequests> | null = null;
   try {
     await navigateForCompiledDomWorkflow(page, materializeDomStartUrl(plan, input));
+    // Start after the declared route has settled so pre-existing long polls
+    // are not mistaken for mutations caused by the compiled interaction.
+    mutationRequests = observeAllowedMutationRequests(
+      page,
+      new Set([plan.origin, ...(plan.allowedNetworkOrigins ?? [])]),
+    );
     let activePage = page;
     const downloads: DomWorkflowResult["downloads"] = [];
     const beforeOutput = await readDomOutputTextIfPresent(
@@ -254,7 +379,8 @@ export async function commitPreparedDomWorkflowWrite(
       plan.validation.outputFramePath,
     );
     const allActions = plan.actions.map((_action, index) => materializeAction(plan, index, input));
-    for (const action of allActions) {
+    for (const [index, action] of allActions.entries()) {
+      if (index === allActions.length - 1) mutationRequests.beginAcknowledgementWindow();
       activePage = await executeCompiledDomAction(activePage, action, {
         onDownload: (artifact) => downloads.push(artifact),
       });
@@ -269,6 +395,10 @@ export async function commitPreparedDomWorkflowWrite(
       plan.validation.outputChangeTimeoutMs,
       plan.validation.outputFramePath,
     );
+    // Many SPAs render success optimistically while their POST/PATCH is still
+    // in flight. Do not turn the durable receipt into `committed` until every
+    // observed mutation to an allowed origin has finished and stayed quiet.
+    await mutationRequests.waitForQuiescence(plan.validation.outputChangeTimeoutMs ?? 10_000);
     const output = await captureDomOutput(activePage, plan.validation.outputSelector, plan.validation.outputFramePath);
     validateDomOutput(plan, output, input);
     const committed = await journal.transition(receipt.id, "committing", "committed");
@@ -286,5 +416,7 @@ export async function commitPreparedDomWorkflowWrite(
   } catch (error) {
     await journal.transition(receipt.id, "committing", "uncertain").catch(() => {});
     throw error;
+  } finally {
+    mutationRequests?.stop();
   }
 }

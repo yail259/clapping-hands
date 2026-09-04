@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -17,6 +18,7 @@ const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 async function fixture(): Promise<{ server: Server; origin: string; commits: () => number; drafts: () => number }> {
   let commitCount = 0;
   let draftCount = 0;
+  let pollCount = 0;
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://fixture.invalid");
     if (url.pathname === "/commit" && request.method === "POST") {
@@ -24,6 +26,20 @@ async function fixture(): Promise<{ server: Server; origin: string; commits: () 
       commitCount += 1;
       response.setHeader("content-type", "application/json");
       response.end(JSON.stringify({ commitCount }));
+      return;
+    }
+    if (url.pathname === "/delayed-commit" && request.method === "POST") {
+      for await (const _chunk of request) { /* consume request */ }
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      commitCount += 1;
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ commitCount }));
+      return;
+    }
+    if (url.pathname === "/background/poll" && request.method === "POST") {
+      for await (const _chunk of request) { /* consume request */ }
+      pollCount += 1;
+      if (pollCount === 1) response.end("poll again");
       return;
     }
     if (url.pathname === "/draft" && request.method === "POST") {
@@ -83,6 +99,18 @@ async function fixture(): Promise<{ server: Server; origin: string; commits: () 
             document.querySelector('#result').textContent = 'Published ' + value.commitCount;
           };
         </script>
+      </main>`);
+      return;
+    }
+    if (url.pathname === "/optimistic") {
+      response.end(`<!doctype html><main>
+        <button id="commit">Publish optimistically</button><output id="result">Ready</output>
+        <script>document.querySelector('#commit').onclick = () => {
+          fetch('/background/poll', { method: 'POST' })
+            .then(() => fetch('/background/poll', { method: 'POST' }));
+          fetch('/delayed-commit', { method: 'POST', body: 'optimistic' });
+          document.querySelector('#result').textContent = 'Published optimistically';
+        };</script>
       </main>`);
       return;
     }
@@ -181,6 +209,23 @@ function autosaveDemonstration(origin: string, title: string): DomWorkflowDemons
   };
 }
 
+function optimisticDemonstration(origin: string): DomWorkflowDemonstration {
+  return {
+    input: {},
+    actions: [
+      { selector: "#commit", description: "Publish optimistically", method: "click", arguments: [] },
+    ],
+    output: {
+      selector: "#result",
+      tagName: "output",
+      text: "Published optimistically",
+      textHash: createHash("sha256").update("Published optimistically").digest("hex"),
+      url: `${origin}/optimistic`,
+    },
+    modelCalls: 1,
+  };
+}
+
 test("prepare performs no browser actions and hidden autosaves stay inside the one-shot commit", async () => {
   const { server, origin, commits, drafts } = await fixture();
   const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-effects-autosave-"));
@@ -211,6 +256,32 @@ test("prepare performs no browser actions and hidden autosaves stay inside the o
       /will not be repeated/,
     );
     assert.equal(drafts(), 1);
+    assert.equal(commits(), 1);
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("write acknowledgement waits for an optimistic SPA mutation to finish", async () => {
+  const { server, origin, commits } = await fixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-effects-optimistic-"));
+  let browser: Browser | null = null;
+  try {
+    const plan = compileDomWorkflow("publish-optimistically", `${origin}/optimistic`, [
+      optimisticDemonstration(origin),
+      optimisticDemonstration(origin),
+    ], { effect: "write", confirmation: "Publish this synthetic optimistic record" });
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const journal = new EffectJournal(resolve(directory, "journal.json"));
+    const receipt = await prepareDomWorkflowWrite(page, journal, plan, {});
+
+    const committed = await commitPreparedDomWorkflowWrite(page, journal, receipt.id, plan, {});
+    assert.equal(committed.result.text, "Published optimistically");
+    assert.equal(committed.receipt.status, "committed");
     assert.equal(commits(), 1);
     await page.close();
   } finally {

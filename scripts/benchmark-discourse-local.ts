@@ -406,13 +406,20 @@ try {
   const repeatedEditRejected = await commitPreparedDomWorkflowWrite(page, journal, editReceipt.id, editPlan, editInput)
     .then(() => false, () => true);
   const afterRejectedEdit = topic(editFixture.title);
-  const editExact = beforeEdit.topics[0]?.raw === editFixture.raw &&
-    afterEditPrepare.topics[0]?.raw === editFixture.raw &&
-    draftsBeforeEdit.count === 0 && draftsAfterEditPrepare.count === 0 && editPrepareLeftBrowserUntouched &&
-    afterEditCommit.topics[0]?.raw === editInput.body &&
-    afterRejectedEdit.topics[0]?.raw === editInput.body &&
-    afterRejectedEdit.topics[0]?.postVersion === afterEditCommit.topics[0]?.postVersion &&
-    edited.receipt.status === "committed" && edited.result.modelCalls === 0 && repeatedEditRejected;
+  const editChecks = {
+    originalBodyBeforePrepare: beforeEdit.topics[0]?.raw === editFixture.raw,
+    originalBodyAfterPrepare: afterEditPrepare.topics[0]?.raw === editFixture.raw,
+    noDraftBeforePrepare: draftsBeforeEdit.count === 0,
+    noDraftAfterPrepare: draftsAfterEditPrepare.count === 0,
+    prepareLeftBrowserUntouched: editPrepareLeftBrowserUntouched,
+    expectedBodyAfterCommit: afterEditCommit.topics[0]?.raw === editInput.body,
+    expectedBodyAfterRejectedRepeat: afterRejectedEdit.topics[0]?.raw === editInput.body,
+    versionUnchangedAfterRejectedRepeat: afterRejectedEdit.topics[0]?.postVersion === afterEditCommit.topics[0]?.postVersion,
+    receiptCommitted: edited.receipt.status === "committed",
+    noCompiledModelCalls: edited.result.modelCalls === 0,
+    repeatedCommitRejected: repeatedEditRejected,
+  };
+  const editExact = Object.values(editChecks).every(Boolean);
 
   removeTopic(createInput.title);
   resetTopic(editFixture.title, editFixture.raw);
@@ -461,6 +468,7 @@ try {
       oracle: {
         postVersionAfterCommit: afterEditCommit.topics[0]?.postVersion,
         unchangedAfterRejectedRepeat: afterRejectedEdit.topics[0]?.postVersion === afterEditCommit.topics[0]?.postVersion,
+        checks: editChecks,
       },
     },
   ];
