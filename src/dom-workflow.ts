@@ -1,6 +1,8 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, realpath, rmdir, stat, unlink } from "node:fs/promises";
+import { basename, isAbsolute, relative, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import type { Frame, FrameLocator, Locator, Page } from "playwright-core";
+import type { Dialog, Download, Frame, FrameLocator, Locator, Page } from "playwright-core";
 import type {
   BrowserAction,
   BrowserActResult,
@@ -18,6 +20,14 @@ export type DomActionTemplate = {
   arguments: TemplatePart[][];
   opensNewPage?: boolean;
   framePath?: TemplatePart[][];
+  dialog?: {
+    action: "accept" | "dismiss";
+    type: "alert" | "confirm";
+    message: TemplatePart[];
+  };
+  download?: {
+    suggestedFilename: TemplatePart[];
+  };
 };
 
 export type DomActionMethod =
@@ -29,7 +39,8 @@ export type DomActionMethod =
   | "check"
   | "uncheck"
   | "hover"
-  | "scrollIntoViewIfNeeded";
+  | "scrollIntoViewIfNeeded"
+  | "setInputFiles";
 
 export type DomOutputSnapshot = {
   selector: string;
@@ -90,6 +101,14 @@ export type DomWorkflowResult = DomOutputSnapshot & {
   navigations: number;
   modelCalls: number;
   durationMs: number;
+  downloads?: DomDownloadArtifact[];
+};
+
+export type DomDownloadArtifact = {
+  path: string;
+  suggestedFilename: string;
+  size: number;
+  sha256: string;
 };
 
 const SUPPORTED_METHODS = new Set<DomActionMethod>([
@@ -102,12 +121,182 @@ const SUPPORTED_METHODS = new Set<DomActionMethod>([
   "uncheck",
   "hover",
   "scrollIntoViewIfNeeded",
+  "setInputFiles",
 ]);
 const SENSITIVE_INPUT_NAME = /(?:password|passwd|secret|token|csrf|xsrf|session|cookie|authorization|api[_-]?key)/i;
 const EFFECTFUL_INTENT_LANGUAGE = /\b(?:publish|send|purchase|buy|checkout|place (?:an )?order|delete|post (?:a |the |this )?(?:comment|message|reply|update|review|listing|content)|save|create|approve|transfer|pay|book (?:an? |the )?(?:appointment|room|ticket|table|flight|hotel)|reserve|subscribe|unsubscribe|upload|register|sign up|invite (?:a |the )?(?:user|member|person|collaborator)|follow (?:a |the )?(?:user|person|account|page)|like (?:a |the |this )?(?:post|comment|page|item)|connect with|bid (?:on|for)|make (?:an )?offer|apply (?:for|to)|submit (?:an? |the |this )?(?:application|order|request|claim|registration|response|review|comment|message)|cancel (?:an? |the |this )?(?:booking|reservation|order|subscription|appointment)|remove (?:an? |the |this )?(?:item|record|account|user|member|file|listing|post|comment)|(?:edit|update|change) (?:an? |the |this |my )?(?:profile|address|email|password|booking|reservation|order|listing|record|status|settings|subscription|quantity)|add (?:an? |the |this )?(?:item )?to (?:cart|basket|wishlist))\b/i;
 const EFFECTFUL_CONTROL_LANGUAGE = /^(?:click|press|choose|select)?\s*(?:the\s+)?(?:publish|send|purchase|buy|checkout|delete|post|save|create|approve|transfer|pay|book|reserve|subscribe|unsubscribe|follow|like|upload|register|sign up|invite|add to (?:cart|basket|wishlist)|submit (?:application|order|request|claim|registration|response|review|comment|message))(?:\s+(?:button|link|item|post|user|member))?\s*$/i;
 const MAX_ACTIONS = 30;
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
 const DEFAULT_OUTPUT_CHANGE_TIMEOUT_MS = 10_000;
+const PLAN_STATUSES = new Set(["candidate", "provisional", "stable", "degraded"]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function assertCanonicalOrigin(value: string, label: string): URL {
+  const url = new URL(value);
+  if (!new Set(["http:", "https:"]).has(url.protocol) || url.origin !== value || url.pathname !== "/" || url.search || url.hash) {
+    throw new Error(`${label} must be a canonical HTTP(S) origin.`);
+  }
+  return url;
+}
+
+function assertStoredPath(value: string, origin: string, label: string): void {
+  const resolved = new URL(value, origin);
+  if (!value.startsWith("/") || resolved.origin !== origin || resolved.hash || value !== normalizedPath(resolved)) {
+    throw new Error(`${label} must be a same-origin absolute path without a fragment.`);
+  }
+}
+
+function assertTemplateParts(
+  value: unknown,
+  inputNames: Set<string>,
+  label: string,
+  options: { maximumParts?: number; rejectHighEntropy?: boolean } = {},
+): asserts value is TemplatePart[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > (options.maximumParts ?? 50)) {
+    throw new Error(`${label} has an invalid template shape.`);
+  }
+  for (const part of value) {
+    if (typeof part === "string") {
+      if (part.length > 2_000 || part.includes("\0") || (options.rejectHighEntropy && looksHighEntropy(part))) {
+        throw new Error(`${label} contains an unsafe persisted constant.`);
+      }
+      continue;
+    }
+    if (!isRecord(part) || Object.keys(part).length !== 1 || typeof part.$clappingHandsInput !== "string" ||
+      !inputNames.has(part.$clappingHandsInput)) {
+      throw new Error(`${label} contains an invalid input reference.`);
+    }
+  }
+}
+
+export function assertDomWorkflowPlanSafety(plan: DomWorkflowPlan): void {
+  if (!isRecord(plan) || plan.formatVersion !== "clapping-hands.dev/v1alpha2" || plan.engine !== "stagehand-action-v1") {
+    throw new Error("Invalid compiled DOM workflow identity.");
+  }
+  if (!Number.isSafeInteger(plan.version) || plan.version < 1 || !PLAN_STATUSES.has(plan.status)) {
+    throw new Error("Compiled DOM workflow version or status is invalid.");
+  }
+  const origin = assertCanonicalOrigin(plan.origin, "Compiled DOM workflow origin");
+  assertStoredPath(plan.startPath, plan.origin, "Compiled DOM start path");
+  const allowedOrigins = plan.allowedNetworkOrigins ?? [];
+  if (!Array.isArray(allowedOrigins) || allowedOrigins.length > 5 || new Set(allowedOrigins).size !== allowedOrigins.length) {
+    throw new Error("Compiled DOM network-origin allowlist is invalid.");
+  }
+  for (const allowed of allowedOrigins) {
+    const parsed = assertCanonicalOrigin(allowed, "Compiled DOM allowed network origin");
+    if (allowed === plan.origin || (origin.protocol === "https:" && parsed.protocol !== "https:")) {
+      throw new Error("Compiled DOM network-origin allowlist contains an invalid origin.");
+    }
+  }
+  if (!Array.isArray(plan.inputNames) || plan.inputNames.length > 50 || new Set(plan.inputNames).size !== plan.inputNames.length ||
+    plan.inputNames.some((name) => typeof name !== "string" || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(name) || SENSITIVE_INPUT_NAME.test(name))) {
+    throw new Error("Compiled DOM input names are invalid or sensitive.");
+  }
+  const inputNames = new Set(plan.inputNames);
+  if (!Array.isArray(plan.actions) || plan.actions.length < 1 || plan.actions.length > MAX_ACTIONS) {
+    throw new Error("Compiled DOM action list is invalid.");
+  }
+  for (const [index, action] of plan.actions.entries()) {
+    if (!isRecord(action) || !SUPPORTED_METHODS.has(action.method as DomActionMethod) || !Array.isArray(action.arguments) || action.arguments.length > 20) {
+      throw new Error(`Compiled DOM action ${index + 1} is invalid.`);
+    }
+    assertTemplateParts(action.selector, inputNames, `Compiled DOM selector ${index + 1}`);
+    action.arguments.forEach((argument, argumentIndex) => assertTemplateParts(
+      argument,
+      inputNames,
+      `Compiled DOM argument ${index + 1}.${argumentIndex + 1}`,
+      { rejectHighEntropy: true },
+    ));
+    if (action.opensNewPage !== undefined && (typeof action.opensNewPage !== "boolean" || (action.opensNewPage && action.method !== "click"))) {
+      throw new Error("Only a compiled click action may open a new page.");
+    }
+    if (action.framePath !== undefined) {
+      if (!Array.isArray(action.framePath) || action.framePath.length > 8) throw new Error("Compiled DOM frame path is invalid.");
+      action.framePath.forEach((part, frameIndex) => assertTemplateParts(part, inputNames, `Compiled DOM frame selector ${index + 1}.${frameIndex + 1}`));
+    }
+    if (action.method === "setInputFiles" && (action.arguments.length === 0 ||
+      action.arguments.some((argument) => argument.length !== 1 || typeof argument[0] === "string"))) {
+      throw new Error("Compiled file paths must be direct tool inputs.");
+    }
+    if (action.dialog !== undefined) {
+      if (!isRecord(action.dialog) || !new Set(["accept", "dismiss"]).has(action.dialog.action) ||
+        !new Set(["alert", "confirm"]).has(action.dialog.type)) {
+        throw new Error("Compiled browser-dialog behavior is invalid.");
+      }
+      assertTemplateParts(action.dialog.message, inputNames, `Compiled browser-dialog message ${index + 1}`, { rejectHighEntropy: true });
+    }
+    if (action.download !== undefined) {
+      if (!isRecord(action.download)) throw new Error("Compiled download behavior is invalid.");
+      assertTemplateParts(action.download.suggestedFilename, inputNames, `Compiled download filename ${index + 1}`, { rejectHighEntropy: true });
+      if (action.download.suggestedFilename.some((part) => typeof part === "string" && /[\\/]/.test(part))) {
+        throw new Error("Compiled download filenames cannot contain path separators.");
+      }
+    }
+  }
+  if (!isRecord(plan.effect) || !new Set(["read", "write"]).has(plan.effect.level)) {
+    throw new Error("Compiled DOM effect declaration is invalid.");
+  }
+  if (plan.effect.level === "read") {
+    if (plan.effect.commitActionIndex !== null || plan.effect.confirmation !== null ||
+      plan.actions.some((action) => action.method === "setInputFiles" || action.dialog?.action === "accept")) {
+      throw new Error("A read DOM workflow cannot contain an effect boundary, file selection, or accepted dialog.");
+    }
+  } else {
+    if (!Number.isSafeInteger(plan.effect.commitActionIndex) || plan.effect.commitActionIndex! < 0 ||
+      plan.effect.commitActionIndex! >= plan.actions.length || typeof plan.effect.confirmation !== "string" ||
+      plan.effect.confirmation.trim().length === 0 || plan.effect.confirmation.length > 240) {
+      throw new Error("Compiled DOM write effect boundary is invalid.");
+    }
+    const firstUpload = plan.actions.findIndex((action) => action.method === "setInputFiles");
+    if (firstUpload >= 0 && firstUpload < plan.effect.commitActionIndex!) {
+      throw new Error("A file selection cannot occur before the compiled effect boundary.");
+    }
+    const firstAcceptedDialog = plan.actions.findIndex((action) => action.dialog?.action === "accept");
+    if (firstAcceptedDialog >= 0 && firstAcceptedDialog < plan.effect.commitActionIndex!) {
+      throw new Error("An accepted dialog cannot occur before the compiled effect boundary.");
+    }
+  }
+  if (!Array.isArray(plan.repairInstructions) || plan.repairInstructions.length > 20) {
+    throw new Error("Compiled DOM repair instructions are invalid.");
+  }
+  plan.repairInstructions.forEach((instruction, index) => assertTemplateParts(
+    instruction,
+    inputNames,
+    `Compiled DOM repair instruction ${index + 1}`,
+    { maximumParts: 100, rejectHighEntropy: true },
+  ));
+  if (!isRecord(plan.validation) || !Number.isSafeInteger(plan.validation.maximumActions) ||
+    plan.validation.maximumActions < plan.actions.length || plan.validation.maximumActions > MAX_ACTIONS ||
+    typeof plan.validation.outputSelector !== "string" || plan.validation.outputSelector.length < 1 || plan.validation.outputSelector.length > 2_000 ||
+    typeof plan.validation.outputTagName !== "string" || !/^[a-z][a-z0-9-]{0,63}$/.test(plan.validation.outputTagName) ||
+    !new Set(["one-of", "present"]).has(plan.validation.outputMode) || !Array.isArray(plan.validation.outputTextHashes) ||
+    (plan.validation.outputMode === "one-of" && plan.validation.outputTextHashes.length === 0) ||
+    !Number.isSafeInteger(plan.validation.minimumOutputCharacters ?? 1) || (plan.validation.minimumOutputCharacters ?? 1) < 1) {
+    throw new Error("Compiled DOM output validation is invalid.");
+  }
+  if (plan.validation.outputFramePath !== undefined && (!Array.isArray(plan.validation.outputFramePath) ||
+    plan.validation.outputFramePath.some((part) => typeof part !== "string" || part.length < 1 || part.length > 2_000))) {
+    throw new Error("Compiled DOM output frame path is invalid.");
+  }
+  if (plan.validation.outputChangeTimeoutMs !== undefined && (!Number.isSafeInteger(plan.validation.outputChangeTimeoutMs) ||
+    plan.validation.outputChangeTimeoutMs < 50 || plan.validation.outputChangeTimeoutMs > 60_000)) {
+    throw new Error("Compiled DOM output-change timeout is invalid.");
+  }
+  if (plan.validation.inputEvidenceNames !== undefined && (!Array.isArray(plan.validation.inputEvidenceNames) ||
+    plan.validation.inputEvidenceNames.some((name) => !inputNames.has(name)))) {
+    throw new Error("Compiled DOM output evidence names are invalid.");
+  }
+  if (!isRecord(plan.evidence) || !Array.isArray(plan.evidence.demonstrationInputHashes) ||
+    !Array.isArray(plan.evidence.successfulShadowInputHashes) || !Number.isSafeInteger(plan.evidence.failedShadowCount) ||
+    plan.evidence.failedShadowCount < 0) {
+    throw new Error("Compiled DOM evidence is invalid.");
+  }
+}
 
 function hash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -222,6 +411,21 @@ function normalizeMethod(action: BrowserAction): DomActionMethod {
     throw new Error(`Unsupported learned DOM method ${method}.`);
   }
   return method as DomActionMethod;
+}
+
+function potentiallyEffectfulAction(action: BrowserAction): boolean {
+  const method = normalizeMethod(action);
+  if (method === "setInputFiles") return true;
+  if (action.dialog?.action === "accept") return true;
+  if (method !== "click") return false;
+  return EFFECTFUL_INTENT_LANGUAGE.test(action.description) || EFFECTFUL_CONTROL_LANGUAGE.test(action.description);
+}
+
+function requestedDialogAction(instruction: string): "accept" | "dismiss" | null {
+  const dismiss = /\b(?:dismiss|cancel|decline)\s+(?:the\s+)?(?:dialog|confirmation|alert)\b|\b(?:choose|click|press)\s+(?:no|cancel)\b/i.test(instruction);
+  const accept = /\b(?:accept|confirm|approve)\s+(?:the\s+)?(?:dialog|confirmation|alert)\b|\b(?:choose|click|press)\s+(?:ok|yes)\b/i.test(instruction);
+  if (accept && dismiss) throw new Error("A browser-dialog instruction cannot request both accept and dismiss.");
+  return accept ? "accept" : dismiss ? "dismiss" : null;
 }
 
 function looksHighEntropy(value: string): boolean {
@@ -344,18 +548,59 @@ export function compileDomWorkflow(
       bound,
       false,
     ));
+    const dialogPresence = actions.map((candidate) => Boolean(candidate.dialog));
+    if (new Set(dialogPresence).size !== 1) throw new Error(`Learned browser-dialog drift at action ${index + 1}.`);
+    let dialog: DomActionTemplate["dialog"];
+    if (dialogPresence[0]) {
+      const dialogs = actions.map((candidate) => candidate.dialog!);
+      if (new Set(dialogs.map((candidate) => candidate.action)).size !== 1 ||
+        new Set(dialogs.map((candidate) => candidate.type)).size !== 1) {
+        throw new Error(`Learned browser-dialog behavior drift at action ${index + 1}.`);
+      }
+      dialog = {
+        action: dialogs[0]!.action,
+        type: dialogs[0]!.type,
+        message: splitByInputs(dialogs.map((candidate) => candidate.message), demonstrations, inputNames, bound, true),
+      };
+    }
+    const downloadPresence = actions.map((candidate) => Boolean(candidate.download));
+    if (new Set(downloadPresence).size !== 1) throw new Error(`Learned download drift at action ${index + 1}.`);
+    let download: DomActionTemplate["download"];
+    if (downloadPresence[0]) {
+      download = {
+        suggestedFilename: splitByInputs(
+          actions.map((candidate) => candidate.download!.suggestedFilename),
+          demonstrations,
+          inputNames,
+          bound,
+          true,
+        ),
+      };
+      if (download.suggestedFilename.some((part) => typeof part === "string" && /[\\/]/.test(part))) {
+        throw new Error("Learned download filenames cannot contain path separators.");
+      }
+    }
+    const argumentTemplates = Array.from({ length: argumentCounts[0]! }, (_unused, argumentIndex) => splitByInputs(
+      actions.map((candidate) => candidate.arguments![argumentIndex]!),
+      demonstrations,
+      inputNames,
+      bound,
+      true,
+    ));
+    if (methods[0] === "setInputFiles") {
+      if (argumentTemplates.length === 0) throw new Error("A compiled file selection requires at least one file input.");
+      if (argumentTemplates.some((argument) => argument.length !== 1 || typeof argument[0] === "string")) {
+        throw new Error("Compiled file paths must be direct tool inputs rather than persisted constants.");
+      }
+    }
     templates.push({
       selector: splitByInputs(actions.map((candidate) => candidate.selector), demonstrations, inputNames, bound),
       method: methods[0]!,
-      arguments: Array.from({ length: argumentCounts[0]! }, (_unused, argumentIndex) => splitByInputs(
-        actions.map((candidate) => candidate.arguments![argumentIndex]!),
-        demonstrations,
-        inputNames,
-        bound,
-        true,
-      )),
+      arguments: argumentTemplates,
       ...(pageTransitions[0] ? { opensNewPage: true } : {}),
       ...(framePath.length > 0 ? { framePath } : {}),
+      ...(dialog ? { dialog } : {}),
+      ...(download ? { download } : {}),
     });
   }
   const unbound = inputNames.filter((name) => !bound.has(name));
@@ -400,6 +645,7 @@ export function compileDomWorkflow(
     .filter((candidate) => (candidate.method ?? "click") === "click")
     .map((candidate) => candidate.description.trim()));
   if (effectLevel === "read" && (
+    templates.some((template) => template.method === "setInputFiles" || template.dialog?.action === "accept") ||
     demonstratedInstructions.some((instruction) => EFFECTFUL_INTENT_LANGUAGE.test(instruction)) ||
     demonstratedControls.some((description) => EFFECTFUL_INTENT_LANGUAGE.test(description) || EFFECTFUL_CONTROL_LANGUAGE.test(description))
   )) {
@@ -411,6 +657,10 @@ export function compileDomWorkflow(
   if (confirmation && confirmation.length > 240) {
     throw new Error("Write confirmation descriptions are limited to 240 characters.");
   }
+  const firstPotentialEffect = effectLevel === "write"
+    ? Array.from({ length: actionCount }, (_unused, index) => index)
+      .find((index) => demonstrations.some((demo) => potentiallyEffectfulAction(actionAt(demo, index))))
+    : undefined;
   return {
     formatVersion: "clapping-hands.dev/v1alpha2",
     engine: "stagehand-action-v1",
@@ -418,7 +668,7 @@ export function compileDomWorkflow(
     version: 1,
     effect: {
       level: effectLevel,
-      commitActionIndex: effectLevel === "write" ? templates.length - 1 : null,
+      commitActionIndex: effectLevel === "write" ? firstPotentialEffect ?? templates.length - 1 : null,
       confirmation: effectLevel === "write" ? confirmation : null,
     },
     origin: start.origin,
@@ -466,6 +716,8 @@ function materializeAction(template: DomActionTemplate, input: DomInput): Browse
     arguments: template.arguments.map((argument) => materialize(argument, input)),
     ...(template.opensNewPage ? { opensNewPage: true } : {}),
     ...(template.framePath ? { framePath: template.framePath.map((segment) => materialize(segment, input)) } : {}),
+    ...(template.dialog ? { dialog: { ...template.dialog, message: materialize(template.dialog.message, input) } } : {}),
+    ...(template.download ? { download: { suggestedFilename: materialize(template.download.suggestedFilename, input) } } : {}),
   };
 }
 
@@ -530,9 +782,76 @@ export async function demonstrateDomWorkflow(
   for (const instruction of instructions) {
     const actionPage = activePage;
     const pagesBefore = new Set(page.context().pages());
-    const result = await lease.act(instruction);
+    const dialogAction = requestedDialogAction(instruction);
+    const expectsDownload = /\bdownload\b|\b(?:save|export)\b.{0,40}\b(?:file|document|report|pdf|csv|archive)\b/i.test(instruction);
+    const observedDialogs: Array<{ action: "accept" | "dismiss"; type: string; message: string }> = [];
+    const dialogTasks: Array<Promise<Error | null>> = [];
+    const observedDownloads: Download[] = [];
+    const onDialog = (dialog: Dialog): void => {
+      const action = observedDialogs.length === 0 ? dialogAction : null;
+      observedDialogs.push({ action: action ?? "dismiss", type: dialog.type(), message: dialog.message() });
+      dialogTasks.push((async (): Promise<Error | null> => {
+        try {
+          if (!action || !new Set(["alert", "confirm"]).has(dialog.type())) {
+            await dialog.dismiss().catch(() => {});
+            return null;
+          }
+          if (action === "accept") await dialog.accept();
+          else await dialog.dismiss();
+          return null;
+        } catch (error) {
+          return error instanceof Error ? error : new Error(String(error));
+        }
+      })());
+    };
+    actionPage.on("dialog", onDialog);
+    const onDownload = (download: Download): void => { observedDownloads.push(download); };
+    actionPage.on("download", onDownload);
+    const expectedDownload = expectsDownload
+      ? actionPage.waitForEvent("download", { timeout: 5_000 }).catch(() => null)
+      : null;
+    let result: BrowserActResult;
+    try {
+      result = await lease.act(instruction);
+      const dialogErrors = await Promise.all(dialogTasks);
+      if (dialogErrors.some(Boolean)) throw dialogErrors.find(Boolean);
+      const awaitedDownload = await expectedDownload;
+      if (awaitedDownload && !observedDownloads.includes(awaitedDownload)) observedDownloads.push(awaitedDownload);
+    } finally {
+      actionPage.off("dialog", onDialog);
+      actionPage.off("download", onDownload);
+    }
+    if (observedDialogs.length > 1) throw new Error("A single semantic instruction opened more than one browser dialog.");
+    if (observedDialogs.length === 1 && !dialogAction) {
+      throw new Error("A browser dialog was dismissed; the instruction must explicitly request accept or dismiss.");
+    }
+    if (observedDialogs[0] && !new Set(["alert", "confirm"]).has(observedDialogs[0].type)) {
+      throw new Error(`Unsupported browser dialog type ${observedDialogs[0].type}.`);
+    }
     if (!result.success) throw new Error(`Browser learner failed: ${result.message}`);
     const learnedActions = result.actions.map((action) => ({ ...action }));
+    if (observedDialogs[0]) {
+      if (learnedActions.length === 0) throw new Error("The browser learner opened a dialog without returning its triggering action.");
+      learnedActions[learnedActions.length - 1]!.dialog = {
+        action: observedDialogs[0].action,
+        type: observedDialogs[0].type as "alert" | "confirm",
+        message: observedDialogs[0].message,
+      };
+    }
+    if (observedDownloads.length > 1) throw new Error("A single semantic instruction started more than one download.");
+    if (expectsDownload && observedDownloads.length === 0) {
+      throw new Error("The browser instruction requested a download but no download started.");
+    }
+    if (observedDownloads[0]) {
+      if (learnedActions.length === 0) throw new Error("The browser learner started a download without returning its triggering action.");
+      if (new URL(observedDownloads[0].url()).origin !== origin) {
+        await observedDownloads[0].cancel().catch(() => {});
+        throw new Error("A demonstrated download left the workflow origin.");
+      }
+      learnedActions[learnedActions.length - 1]!.download = {
+        suggestedFilename: observedDownloads[0].suggestedFilename(),
+      };
+    }
     for (const action of learnedActions) {
       try {
         const framePath = await discoverFramePath(actionPage, action.selector, origin);
@@ -568,7 +887,91 @@ export async function demonstrateDomWorkflow(
   };
 }
 
-async function executePlaywrightAction(page: Page, action: BrowserAction): Promise<Page> {
+async function resolveUploadFiles(arguments_: string[], environment: NodeJS.ProcessEnv = process.env): Promise<string[]> {
+  if (arguments_.length === 0) throw new Error("A compiled file selection requires at least one file input.");
+  const configuredRoot = environment.CLAPPING_HANDS_UPLOAD_ROOT?.trim();
+  const uploadRoot = await realpath(resolve(configuredRoot || resolve(process.cwd(), ".data/uploads"))).catch(() => {
+    throw new Error("The Clapping Hands upload directory does not exist.");
+  });
+  if (!(await stat(uploadRoot)).isDirectory()) throw new Error("The Clapping Hands upload root must be a directory.");
+  const files: string[] = [];
+  for (const argument of arguments_) {
+    if (!argument || argument.includes("\0")) throw new Error("A compiled upload file path was invalid.");
+    const candidate = isAbsolute(argument) ? argument : resolve(uploadRoot, argument);
+    const file = await realpath(candidate).catch(() => {
+      throw new Error("A compiled upload file does not exist.");
+    });
+    const relativePath = relative(uploadRoot, file);
+    if (relativePath === "" || relativePath.startsWith("..") || isAbsolute(relativePath)) {
+      throw new Error("A compiled upload file was outside the allowed upload root.");
+    }
+    const metadata = await stat(file);
+    if (!metadata.isFile()) throw new Error("A compiled upload target was not a regular file.");
+    if (metadata.size > MAX_UPLOAD_BYTES) {
+      throw new Error(`A compiled upload file exceeded ${MAX_UPLOAD_BYTES} bytes.`);
+    }
+    files.push(file);
+  }
+  return files;
+}
+
+export async function fingerprintCompiledDomActions(actions: BrowserAction[]): Promise<string | null> {
+  const uploads: Array<{ action: number; file: number; size: number; sha256: string }> = [];
+  for (const [actionIndex, action] of actions.entries()) {
+    if (normalizeMethod(action) !== "setInputFiles") continue;
+    const files = await resolveUploadFiles(action.arguments ?? []);
+    for (const [fileIndex, file] of files.entries()) {
+      const contents = await readFile(file);
+      uploads.push({
+        action: actionIndex,
+        file: fileIndex,
+        size: contents.byteLength,
+        sha256: createHash("sha256").update(contents).digest("hex"),
+      });
+    }
+  }
+  return uploads.length > 0 ? hash(uploads) : null;
+}
+
+async function persistDownloadArtifact(download: Download, environment: NodeJS.ProcessEnv = process.env): Promise<DomDownloadArtifact> {
+  const suggestedFilename = download.suggestedFilename();
+  if (!suggestedFilename || basename(suggestedFilename) !== suggestedFilename || suggestedFilename.includes("\0")) {
+    await download.cancel().catch(() => {});
+    throw new Error("The downloaded file had an unsafe suggested filename.");
+  }
+  const configuredRoot = environment.CLAPPING_HANDS_ARTIFACT_ROOT?.trim();
+  const requestedRoot = resolve(configuredRoot || resolve(process.cwd(), ".data/artifacts"));
+  await mkdir(requestedRoot, { recursive: true, mode: 0o700 });
+  const artifactRoot = await realpath(requestedRoot);
+  const artifactDirectory = resolve(artifactRoot, randomUUID());
+  await mkdir(artifactDirectory, { mode: 0o700 });
+  const safeFilename = suggestedFilename.normalize("NFKC").replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 180) || "download";
+  const path = resolve(artifactDirectory, safeFilename);
+  try {
+    await download.saveAs(path);
+    const metadata = await stat(path);
+    if (!metadata.isFile()) throw new Error("The downloaded artifact was not a regular file.");
+    if (metadata.size === 0) throw new Error("The downloaded artifact was empty.");
+    if (metadata.size > MAX_DOWNLOAD_BYTES) throw new Error(`The downloaded artifact exceeded ${MAX_DOWNLOAD_BYTES} bytes.`);
+    const contents = await readFile(path);
+    return {
+      path,
+      suggestedFilename,
+      size: metadata.size,
+      sha256: createHash("sha256").update(contents).digest("hex"),
+    };
+  } catch (error) {
+    await unlink(path).catch(() => {});
+    await rmdir(artifactDirectory).catch(() => {});
+    throw error;
+  }
+}
+
+export async function executeCompiledDomAction(
+  page: Page,
+  action: BrowserAction,
+  options: { onDownload?: (artifact: DomDownloadArtifact) => void } = {},
+): Promise<Page> {
   const locator = locatorInFramePath(page, action.framePath ?? [], action.selector);
   if (await locator.count() !== 1) {
     throw new Error(`Compiled selector matched ${await locator.count()} elements: ${action.selector}`);
@@ -579,16 +982,79 @@ async function executePlaywrightAction(page: Page, action: BrowserAction): Promi
   const openedPage = action.opensNewPage
     ? page.context().waitForEvent("page", { timeout: 10_000 })
     : null;
-  switch (method) {
-    case "click": await locator.click(); break;
-    case "fill": await locator.fill(args[0] ?? ""); break;
-    case "type": await locator.pressSequentially(args[0] ?? ""); break;
-    case "press": await locator.press(args[0] ?? "Enter"); break;
-    case "selectOption": await locator.selectOption(args); break;
-    case "check": await locator.check(); break;
-    case "uncheck": await locator.uncheck(); break;
-    case "hover": await locator.hover(); break;
-    case "scrollIntoViewIfNeeded": await locator.scrollIntoViewIfNeeded(); break;
+  let dialogTask: Promise<Error | null> | null = null;
+  let dialogCount = 0;
+  const onDialog = (dialog: Dialog): void => {
+    dialogCount += 1;
+    dialogTask = (async (): Promise<Error | null> => {
+      try {
+        if (dialogCount > 1 || !action.dialog || dialog.type() !== action.dialog.type || dialog.message() !== action.dialog.message) {
+          await dialog.dismiss().catch(() => {});
+          return new Error("Compiled DOM action opened an unexpected or changed browser dialog.");
+        }
+        if (action.dialog.action === "accept") await dialog.accept();
+        else await dialog.dismiss();
+        return null;
+      } catch (error) {
+        return error instanceof Error ? error : new Error(String(error));
+      }
+    })();
+  };
+  page.on("dialog", onDialog);
+  let downloadCount = 0;
+  let downloadTask: Promise<{ artifact: DomDownloadArtifact | null; error: Error | null }> | null = null;
+  const onDownload = (download: Download): void => {
+    downloadCount += 1;
+    downloadTask = (async () => {
+      try {
+        if (downloadCount > 1 || !action.download || download.suggestedFilename() !== action.download.suggestedFilename ||
+          new URL(download.url()).origin !== new URL(page.url()).origin) {
+          await download.cancel().catch(() => {});
+          return { artifact: null, error: new Error("Compiled DOM action started an unexpected or changed download.") };
+        }
+        return { artifact: await persistDownloadArtifact(download), error: null };
+      } catch (error) {
+        return { artifact: null, error: error instanceof Error ? error : new Error(String(error)) };
+      }
+    })();
+  };
+  page.on("download", onDownload);
+  const expectedDownload = action.download
+    ? page.waitForEvent("download", { timeout: 10_000 }).catch(() => null)
+    : null;
+  try {
+    switch (method) {
+      case "click": await locator.click(); break;
+      case "fill": await locator.fill(args[0] ?? ""); break;
+      case "type": await locator.pressSequentially(args[0] ?? ""); break;
+      case "press": await locator.press(args[0] ?? "Enter"); break;
+      case "selectOption": await locator.selectOption(args); break;
+      case "check": await locator.check(); break;
+      case "uncheck": await locator.uncheck(); break;
+      case "hover": await locator.hover(); break;
+      case "scrollIntoViewIfNeeded": await locator.scrollIntoViewIfNeeded(); break;
+      case "setInputFiles": await locator.setInputFiles(await resolveUploadFiles(args)); break;
+    }
+    if (dialogTask) {
+      const dialogError = await dialogTask;
+      if (dialogError) throw dialogError;
+    }
+    if (action.dialog && dialogCount === 0) throw new Error("Compiled DOM action did not open its expected browser dialog.");
+    const awaitedDownload = await expectedDownload;
+    if (awaitedDownload && downloadCount === 0) onDownload(awaitedDownload);
+    const pendingDownload = downloadTask as Promise<{ artifact: DomDownloadArtifact | null; error: Error | null }> | null;
+    if (pendingDownload) {
+      const downloadResult = await pendingDownload;
+      if (downloadResult.error) throw downloadResult.error;
+      if (downloadResult.artifact) options.onDownload?.(downloadResult.artifact);
+    }
+    if (action.download && downloadCount === 0) throw new Error("Compiled DOM action did not start its expected download.");
+  } catch (error) {
+    void openedPage?.catch(() => {});
+    throw error;
+  } finally {
+    page.off("dialog", onDialog);
+    page.off("download", onDownload);
   }
   if (!openedPage) {
     const unexpectedPages = page.context().pages().filter((candidate) => !pagesBefore.has(candidate));
@@ -630,8 +1096,12 @@ export async function replayDomWorkflow(
   plan: DomWorkflowPlan,
   input: DomInput,
 ): Promise<DomWorkflowResult> {
+  assertDomWorkflowPlanSafety(plan);
   if (plan.effect.level !== "read") {
     throw new Error("Write workflows require prepareDomWorkflowWrite and commitPreparedDomWorkflowWrite.");
+  }
+  if (plan.actions.some((action) => action.method === "setInputFiles")) {
+    throw new Error("File selection is effectful and cannot run as a read workflow.");
   }
   if (JSON.stringify(Object.keys(input).sort()) !== JSON.stringify(plan.inputNames)) {
     throw new Error(`Compiled input keys must be exactly: ${plan.inputNames.join(", ")}.`);
@@ -641,14 +1111,17 @@ export async function replayDomWorkflow(
   await page.goto(new URL(plan.startPath, plan.origin).href, { waitUntil: "domcontentloaded", timeout: 30_000 });
   let activePage = page;
   let navigations = 1;
+  const downloads: DomDownloadArtifact[] = [];
   for (const [index, template] of plan.actions.entries()) {
     const beforeUrl = activePage.url();
     const beforeOutput = index === plan.actions.length - 1
       ? await readDomOutputTextIfPresent(activePage, plan.validation.outputSelector, plan.validation.outputFramePath)
       : null;
-    activePage = await executePlaywrightAction(activePage, materializeAction(template, input));
+    activePage = await executeCompiledDomAction(activePage, materializeAction(template, input), {
+      onDownload: (artifact) => downloads.push(artifact),
+    });
     await settle(activePage);
-    if (index === plan.actions.length - 1) {
+    if (index === plan.actions.length - 1 && !template.download) {
       await waitForDomOutputChange(
         activePage,
         plan.validation.outputSelector,
@@ -668,6 +1141,7 @@ export async function replayDomWorkflow(
     navigations,
     modelCalls: 0,
     durationMs: performance.now() - startedAt,
+    ...(downloads.length > 0 ? { downloads } : {}),
   };
 }
 
@@ -677,6 +1151,10 @@ export async function replayDomWorkflowWithStagehand(
   plan: DomWorkflowPlan,
   input: DomInput,
 ): Promise<DomWorkflowResult> {
+  assertDomWorkflowPlanSafety(plan);
+  if (plan.actions.some((action) => action.download)) {
+    throw new Error("Compiled download workflows require direct deterministic replay.");
+  }
   if (plan.effect.level !== "read") {
     throw new Error("Write workflows require an explicit prepare/commit lifecycle.");
   }
@@ -727,6 +1205,10 @@ export async function repairDomWorkflow(
   plan: DomWorkflowPlan,
   input: DomInput,
 ): Promise<DomWorkflowResult> {
+  assertDomWorkflowPlanSafety(plan);
+  if (plan.actions.some((action) => action.download)) {
+    throw new Error("Semantic repair of download workflows is separately gated.");
+  }
   if (plan.effect.level !== "read") throw new Error("Semantic repair cannot cross a write effect boundary.");
   if (plan.repairInstructions.length === 0) throw new Error("This workflow has no redacted semantic repair recipe.");
   if (JSON.stringify(Object.keys(input).sort()) !== JSON.stringify(plan.inputNames)) {

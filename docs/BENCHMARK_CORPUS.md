@@ -83,8 +83,11 @@ representative workflow corpus” only after:
 
 Current known unsupported or separately gated cases include CAPTCHA solving,
 anti-bot bypass, cross-origin workflows not declared in advance, arbitrary file
-uploads, canvas-only controls, downloads, WebAuthn automation, and workflows
-whose only success signal cannot be independently observed.
+access outside an operator-allowlisted upload directory, canvas-only controls,
+cross-origin downloads, WebAuthn automation, and workflows whose only success
+signal cannot be independently observed. Controlled upload replay now exists
+behind prepare/commit; same-origin downloads are returned as quarantined,
+size-bounded, hashed artifacts.
 
 ## Competitive baseline
 

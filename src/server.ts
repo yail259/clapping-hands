@@ -80,7 +80,7 @@ function registerCompiledTool(workflow: StoredWorkflow): void {
     {
       title: workflow.action.replaceAll("_", " "),
       description: write
-        ? `Prepare ${workflow.action}. This does not execute the final external effect; it returns a receipt for clapping_hands_commit.`
+        ? `Prepare ${workflow.action}. This does not execute its effectful suffix; it returns a receipt for clapping_hands_commit.`
         : `Run the compiled ${workflow.action} workflow using its validated accelerator or deterministic browser fallback.`,
       inputSchema: compiledInputSchema(workflow),
       annotations: {
@@ -210,7 +210,7 @@ server.registerTool(
   "clapping_hands_commit",
   {
     title: "Commit a prepared site action",
-    description: "Execute the final external effect for an unexpired one-time receipt. A committed or uncertain receipt is never retried.",
+    description: "Execute the effectful suffix for an unexpired one-time receipt. A committed or uncertain receipt is never retried.",
     inputSchema: {
       action: z.string().regex(/^[a-z][a-z0-9_]{1,62}$/),
       receiptId: z.string().uuid(),

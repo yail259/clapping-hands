@@ -77,6 +77,80 @@ export type FormWorkflowDemonstration = {
 
 const EFFECTFUL_FORM_LANGUAGE = /^(?:publish|send|purchase|buy|checkout|place (?:an )?order|delete|post|save|create|approve|transfer|pay|book|reserve|subscribe|unsubscribe|follow|like|upload|add to (?:cart|basket|wishlist)|register|sign up|invite|submit (?:application|order|request|claim|registration|response|review|comment|message))(?:\b|$)/i;
 const EFFECTFUL_POST_ACTION_PATH = /(?:^|\/)(?:checkout|orders?|purchases?|payments?|applications?|registrations?|subscriptions?|bookings?|reservations?|messages?|comments?|invites?|uploads?)(?:\/|$)|(?:^|\/)(?:create|update|edit|delete|remove|publish|send|submit|approve|pay|subscribe|unsubscribe)(?:\/|$)/i;
+const PLAN_STATUSES = new Set(["candidate", "provisional", "stable", "degraded"]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function assertStoredFormPath(value: string, origin: string, label: string): void {
+  const resolved = new URL(value, origin);
+  if (!value.startsWith("/") || resolved.origin !== origin || resolved.hash || value !== normalizedPath(resolved)) {
+    throw new Error(`${label} must be a same-origin absolute path without a fragment.`);
+  }
+}
+
+export function assertFormWorkflowPlanSafety(plan: FormWorkflowPlan): void {
+  if (!isRecord(plan) || plan.formatVersion !== "clapping-hands.dev/v1alpha2" || plan.engine !== "html-form-v2" || plan.effect !== "read") {
+    throw new Error("Invalid read-only form workflow identity.");
+  }
+  if (!Number.isSafeInteger(plan.version) || plan.version < 1 || !PLAN_STATUSES.has(plan.status)) {
+    throw new Error("Compiled form workflow version or status is invalid.");
+  }
+  const origin = new URL(plan.origin);
+  if (!new Set(["http:", "https:"]).has(origin.protocol) || origin.origin !== plan.origin || origin.pathname !== "/" || origin.search || origin.hash) {
+    throw new Error("Compiled form workflow origin must be a canonical HTTP(S) origin.");
+  }
+  assertStoredFormPath(plan.startPath, plan.origin, "Compiled form start path");
+  if (!isRecord(plan.validation) || !Number.isSafeInteger(plan.validation.maximumSteps) ||
+    plan.validation.maximumSteps < 1 || plan.validation.maximumSteps > 10 ||
+    typeof plan.validation.finalContentSelector !== "string" || plan.validation.finalContentSelector.length < 1 ||
+    plan.validation.finalContentSelector.length > 2_000 || !new Set(["one-of", "present"]).has(plan.validation.finalHeadingMode) ||
+    !Array.isArray(plan.validation.finalHeadingHashes) ||
+    (plan.validation.finalHeadingMode === "one-of" && plan.validation.finalHeadingHashes.length === 0)) {
+    throw new Error("Compiled form validation contract is invalid.");
+  }
+  if (!Array.isArray(plan.steps) || plan.steps.length < 1 || plan.steps.length > plan.validation.maximumSteps) {
+    throw new Error("Compiled form step list is invalid.");
+  }
+  const questionKeys = new Set<string>();
+  for (const [index, step] of plan.steps.entries()) {
+    if (!isRecord(step) || typeof step.questionKey !== "string" || !/^[a-z0-9][a-z0-9-]{0,127}$/.test(step.questionKey) ||
+      questionKeys.has(step.questionKey) || !Number.isSafeInteger(step.formIndex) || step.formIndex < 0 || step.formIndex > 100 ||
+      typeof step.formSignature !== "string" || step.formSignature.length < 1 || step.formSignature.length > 128 ||
+      !new Set(["GET", "POST"]).has(step.method) || step.encoding !== "application/x-www-form-urlencoded" ||
+      !new Set(["unknown", "navigation", "same-document"]).has(step.transition)) {
+      throw new Error(`Compiled form step ${index + 1} is invalid.`);
+    }
+    questionKeys.add(step.questionKey);
+    assertStoredFormPath(step.pagePath, plan.origin, `Compiled form page path ${index + 1}`);
+    assertStoredFormPath(step.actionPath, plan.origin, `Compiled form action path ${index + 1}`);
+    if (step.method === "POST" && EFFECTFUL_POST_ACTION_PATH.test(new URL(step.actionPath, plan.origin).pathname)) {
+      throw new Error("A read-only compiled form cannot submit to a mutation-shaped path.");
+    }
+    if (!isRecord(step.submitter) || !Number.isSafeInteger(step.submitter.index) || step.submitter.index < 0 || step.submitter.index > 100 ||
+      (step.submitter.name !== null && (typeof step.submitter.name !== "string" || step.submitter.name.length > 256)) ||
+      (step.submitter.value !== null && (typeof step.submitter.value !== "string" || step.submitter.value.length > 2_000))) {
+      throw new Error("Compiled form submitter is invalid.");
+    }
+    if (!Array.isArray(step.controls) || step.controls.length > 500) throw new Error("Compiled form controls are invalid.");
+    const controlNames = new Set<string>();
+    for (const control of step.controls) {
+      if (!isRecord(control) || typeof control.name !== "string" || control.name.length < 1 || control.name.length > 256 ||
+        controlNames.has(control.name) || !new Set(["hidden", "text", "radio", "checkbox", "select", "textarea"]).has(control.kind) ||
+        typeof control.required !== "boolean" || typeof control.multiple !== "boolean" || !Array.isArray(control.optionValues) ||
+        control.optionValues.length > 1_000 || control.optionValues.some((value) => typeof value !== "string" || value.length > 2_000)) {
+        throw new Error("Compiled form control is invalid.");
+      }
+      controlNames.add(control.name);
+    }
+  }
+  if (!isRecord(plan.evidence) || !Array.isArray(plan.evidence.demonstrationInputHashes) ||
+    !Array.isArray(plan.evidence.successfulShadowInputHashes) || !Number.isSafeInteger(plan.evidence.failedShadowCount) ||
+    plan.evidence.failedShadowCount < 0) {
+    throw new Error("Compiled form evidence is invalid.");
+  }
+}
 
 function assertSameOrigin(url: URL, origin: string, label: string): void {
   if (url.origin !== origin) throw new Error(`${label} left the allowed origin: ${url.origin}`);
@@ -530,6 +604,7 @@ export async function replayFormWorkflow(
   plan: FormWorkflowPlan,
   answers: FormWorkflowAnswers,
 ): Promise<FormWorkflowResult> {
+  assertFormWorkflowPlanSafety(plan);
   const nonNavigating = plan.steps.find((step) => step.transition !== "navigation");
   if (nonNavigating) {
     throw new Error(`Step ${nonNavigating.questionKey} requires deterministic browser replay, not direct form requests.`);
@@ -592,6 +667,7 @@ export async function replayFormWorkflowInBrowser(
   plan: FormWorkflowPlan,
   answers: FormWorkflowAnswers,
 ): Promise<FormWorkflowResult> {
+  assertFormWorkflowPlanSafety(plan);
   const startedAt = performance.now();
   const start = new URL(plan.startPath, plan.origin);
   await page.goto(start.href, { waitUntil: "domcontentloaded", timeout: 30_000 });

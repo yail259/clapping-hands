@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import type { DomWorkflowPlan } from "./dom-workflow.js";
-import type { FormWorkflowPlan } from "./form-workflow.js";
+import { assertDomWorkflowPlanSafety, type DomWorkflowPlan } from "./dom-workflow.js";
+import { assertFormWorkflowPlanSafety, type FormWorkflowPlan } from "./form-workflow.js";
 import { assertGenericJsonPlanSafety, type GenericJsonPlan } from "./generic-network.js";
 
 export type BaselineWorkflowPlan = DomWorkflowPlan | FormWorkflowPlan;
@@ -60,6 +60,8 @@ function parseWorkflow(serialized: string): StoredWorkflow {
     throw new Error("Stored workflow accelerator identity does not match its baseline plan.");
   }
   if (value.accelerator) assertGenericJsonPlanSafety(value.accelerator);
+  if (value.baseline.engine === "stagehand-action-v1") assertDomWorkflowPlanSafety(value.baseline);
+  else assertFormWorkflowPlanSafety(value.baseline);
   return value as StoredWorkflow;
 }
 
@@ -119,6 +121,9 @@ export class WorkflowStore {
     accelerator: GenericJsonPlan | null = null,
   ): Promise<StoredWorkflow> {
     assertActionName(baseline.action);
+    if (baseline.engine === "stagehand-action-v1") assertDomWorkflowPlanSafety(baseline);
+    else assertFormWorkflowPlanSafety(baseline);
+    if (accelerator) assertGenericJsonPlanSafety(accelerator);
     if (accelerator && (accelerator.action !== baseline.action || accelerator.origin !== baseline.origin)) {
       throw new Error("Workflow accelerator does not match the baseline identity.");
     }
@@ -148,6 +153,9 @@ export class WorkflowStore {
   }
 
   async update(workflow: StoredWorkflow): Promise<void> {
+    if (workflow.baseline.engine === "stagehand-action-v1") assertDomWorkflowPlanSafety(workflow.baseline);
+    else assertFormWorkflowPlanSafety(workflow.baseline);
+    if (workflow.accelerator) assertGenericJsonPlanSafety(workflow.accelerator);
     await this.withActionLock(workflow.action, async () => {
       const existing = await this.loadUnlocked(workflow.action);
       if (!existing || existing.version !== workflow.version || existing.revision !== workflow.revision) {

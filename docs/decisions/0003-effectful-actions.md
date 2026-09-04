@@ -33,7 +33,8 @@ Effectful execution uses a prepare/commit protocol:
 3. Append a durable effect record before asking for confirmation.
 4. Require confirmation according to policy: at least first-run confirmation
    for `write`, and confirmation for every `commit` by default.
-5. Execute the final effect at most once.
+5. Execute the effectful suffix at most once, beginning at the earliest known
+   effect boundary.
 6. Collect independent postcondition evidence and any remote identifier.
 7. Mark success only when the intended effect is proven.
 
@@ -70,20 +71,27 @@ Never shadow a consequential action by performing it twice.
 The controlled DOM compiler now supports a conservative subset of this ADR:
 
 - every compiled DOM plan is explicitly declared `read` or `write`;
-- a write requires a plain-language confirmation description and treats its
-  final learned action as the effect boundary;
+- a write requires a plain-language confirmation description and treats the
+  first file selection or effect-labeled control (falling back to the final
+  action) as the effect boundary;
 - prepare executes only the deterministic prefix and creates an expiring
   receipt containing plan/input hashes, not raw inputs;
-- commit atomically moves the receipt to `committing` before the final action;
+- commit atomically moves the receipt to `committing` before executing every
+  action from that boundary through postcondition proof;
+- uploads accept only regular files of at most 25 MiB beneath an explicit local
+  root, persist no path or contents, and require the prepared content hash to
+  match at commit;
+- same-origin downloads are quarantined beneath an artifact root, capped at 50
+  MiB, hashed, and returned without being opened;
 - a successful postcondition marks it `committed`; any error after the boundary
   marks it `uncertain`; and
 - committed, expired, and uncertain receipts cannot be replayed.
 
 The production gate remains closed. Independent remote-ID reconciliation,
 target/account rendering, explicit `write` versus `commit` policy classes,
-verified reset for reversible writes, uploads, and target-native idempotency
-keys are not implemented yet. Until those exist, effect tests stay on controlled
-fixtures, operator-owned forms, and isolated sandboxes.
+verified reset for reversible writes, cross-origin artifact policy, and
+target-native idempotency keys are not implemented yet. Until those exist, effect tests stay
+on controlled fixtures, operator-owned forms, and isolated sandboxes.
 
 ## Consequences
 
@@ -92,6 +100,6 @@ fixtures, operator-owned forms, and isolated sandboxes.
 - Commit throughput is not the primary metric; correctness, at-most-once
   execution, and proof dominate latency.
 - Some workflows will remain browser-only or require confirmation forever.
-- The current prototype can demonstrate an at-most-once final UI action on
+- The current prototype can demonstrate an at-most-once UI effect suffix on
   controlled targets, but cannot yet support an unqualified public claim that
   arbitrary consequential actions are production-ready.

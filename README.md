@@ -32,9 +32,14 @@ tabs, and same-origin HTML forms. It can learn authenticated JSON and
 form-encoded GraphQL request accelerators on the workflow origin or an exact
 additional origin declared by the operator when that response is evidenced in
 the rendered result. Experimental write workflows use a separate prepare/commit
-lifecycle: the final action is withheld behind an expiring receipt, journaled
-before execution, and never retried after an ambiguous outcome. File uploads
-and cross-origin frames or commits remain separately gated.
+lifecycle: the first potentially effectful action and every action after it are
+withheld behind an expiring receipt, journaled before execution, and never
+retried after an ambiguous outcome. File selection is supported only for
+regular files of at most 25 MiB beneath `CLAPPING_HANDS_UPLOAD_ROOT`; file
+contents are fingerprinted during prepare and must be unchanged at commit.
+Same-origin downloads are quarantined beneath `CLAPPING_HANDS_ARTIFACT_ROOT`,
+size-bounded to 50 MiB, hashed, and never auto-opened. Cross-origin file
+transfers, frames, and commits remain separately gated.
 
 ## Responsible use
 
@@ -101,6 +106,7 @@ context requires. No trademark or domain clearance has been completed.
 
 ```sh
 npm install
+mkdir -p .data/uploads .data/artifacts
 npm test
 npm run build
 npm run benchmark:corpus
@@ -110,6 +116,8 @@ npm run auth:marketplace
 npm run dogfood:marketplace
 codex mcp add clapping-hands \
   --env CLAPPING_HANDS_PROFILE_DIR="$PWD/.data/browser-profile" \
+  --env CLAPPING_HANDS_UPLOAD_ROOT="$PWD/.data/uploads" \
+  --env CLAPPING_HANDS_ARTIFACT_ROOT="$PWD/.data/artifacts" \
   --env CLAPPING_HANDS_HEADLESS=false \
   -- "$(command -v node)" "$PWD/dist/src/server.js"
 ```

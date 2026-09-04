@@ -27,6 +27,14 @@ export type BrowserAction = {
   arguments?: string[];
   opensNewPage?: boolean;
   framePath?: string[];
+  dialog?: {
+    action: "accept" | "dismiss";
+    type: "alert" | "confirm";
+    message: string;
+  };
+  download?: {
+    suggestedFilename: string;
+  };
 };
 
 export type BrowserActResult = {

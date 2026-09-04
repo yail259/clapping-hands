@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 58 passing tests and the built MCP server
+cross-site speed claim. The current suite has 66 passing tests and the built MCP server
 advertises ten management/Marketplace tools before any generated workflow tools
 are loaded.
 
@@ -92,7 +92,13 @@ New regression coverage includes:
   browser fallback;
 - atomic workflow versioning and stale-evidence rejection; and
 - prepared writes, one-time effect receipts, at-most-once commit, and an
-  `uncertain` terminal state after any post-click ambiguity; and
+  `uncertain` terminal state after any post-boundary ambiguity;
+- allowlisted, size-bounded file selection with prepare-time content
+  fingerprints, plus one-shot execution of the complete effect suffix; and
+- same-origin downloads quarantined into unique directories with filename,
+  non-empty/size, and SHA-256 evidence, while changed downloads fail closed;
+- full persisted-plan safety validation for DOM, form, and network engines on
+  save, load, update, and replay; and
 - fail-closed output freshness: a cached DOM path cannot report unchanged,
   pre-action content as a successful fresh result.
 

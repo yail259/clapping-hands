@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
+import { tmpdir } from "node:os";
+import { relative, resolve } from "node:path";
 import test from "node:test";
 import { chromium, type Browser } from "playwright-core";
 import {
@@ -75,6 +78,23 @@ async function fixture(): Promise<{ server: Server; origin: string }> {
         <script>document.querySelector('#check').onclick = () => setTimeout(() => {
           document.querySelector('#status').textContent = 'Service healthy';
         }, 25)</script></main>`);
+      return;
+    }
+    if (url.pathname === "/dialog") {
+      response.end(`<!doctype html><main><button id="confirm">Open confirmation</button><output id="result">Ready</output>
+        <script>document.querySelector('#confirm').onclick = () => {
+          document.querySelector('#result').textContent = confirm('Use the compiled path?') ? 'Accepted' : 'Dismissed';
+        };</script></main>`);
+      return;
+    }
+    if (url.pathname === "/download") {
+      response.end(`<!doctype html><main><a id="download" href="/report.txt" download>Download report</a></main>`);
+      return;
+    }
+    if (url.pathname === "/report.txt") {
+      response.setHeader("content-type", "text/plain");
+      response.setHeader("content-disposition", 'attachment; filename="report.txt"');
+      response.end("controlled artifact contents\n");
       return;
     }
     response.end(`<!doctype html><main>
@@ -424,6 +444,140 @@ test("effectful language cannot be understated as a read workflow", () => {
     assert.doesNotThrow(
       () => compileDomWorkflow(name, "https://example.test", [readDemo("one"), readDemo("two")]),
     );
+  }
+});
+
+test("file selection is write-only and establishes the earliest effect boundary", () => {
+  const uploadDemo = (file: string): DomWorkflowDemonstration => ({
+    input: { file },
+    actions: [
+      { selector: "#file", description: "Choose file", method: "setInputFiles", arguments: [file] },
+      { selector: "#finish", description: "Finish", method: "click", arguments: [] },
+    ],
+    output: {
+      selector: "#result",
+      tagName: "output",
+      text: `Uploaded ${file}`,
+      textHash: `hash-${file}`,
+      url: "https://example.com/upload",
+    },
+    modelCalls: 1,
+  });
+  const demonstrations = [uploadDemo("first.txt"), uploadDemo("second.txt")];
+  assert.throws(
+    () => compileDomWorkflow("upload", "https://example.com/upload", demonstrations),
+    /appears effectful/,
+  );
+  const plan = compileDomWorkflow("upload", "https://example.com/upload", demonstrations, {
+    effect: "write",
+    confirmation: "Upload the selected file",
+  });
+  assert.equal(plan.effect.commitActionIndex, 0);
+  assert.doesNotMatch(JSON.stringify(plan), /first\.txt|second\.txt/);
+});
+
+test("an effectful click before a later result step starts the commit suffix", () => {
+  const demo = (product: string): DomWorkflowDemonstration => ({
+    input: { product },
+    actions: [
+      { selector: "#query", description: "Fill product", method: "fill", arguments: [product] },
+      { selector: "#add", description: "Add to cart", method: "click", arguments: [] },
+      { selector: "#view", description: "View cart", method: "click", arguments: [] },
+    ],
+    output: {
+      selector: "#cart",
+      tagName: "output",
+      text: `Cart contains ${product}`,
+      textHash: `hash-${product}`,
+      url: "https://example.com/shop",
+    },
+    modelCalls: 1,
+  });
+  const plan = compileDomWorkflow("add-product", "https://example.com/shop", [demo("lamp"), demo("desk")], {
+    effect: "write",
+    confirmation: "Add this product to the cart",
+  });
+  assert.equal(plan.effect.commitActionIndex, 1);
+});
+
+test("demonstration records an explicitly handled browser confirmation", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const demonstration = await demonstrateDomWorkflow({
+      act: async () => {
+        await page.locator("#confirm").click();
+        return {
+          success: true,
+          message: "confirmed",
+          actions: [{ selector: "#confirm", description: "Open confirmation", method: "click", arguments: [] }],
+          modelCalls: 1,
+          inputTokens: 10,
+          outputTokens: 2,
+        };
+      },
+    }, page, `${origin}/dialog`, {}, ["Open the confirmation and accept the dialog"], "#result");
+    assert.deepEqual(demonstration.actions[0]!.dialog, {
+      action: "accept",
+      type: "confirm",
+      message: "Use the compiled path?",
+    });
+    assert.equal(demonstration.output.text, "Accepted");
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("learns a download and returns a size-bounded hashed artifact", async () => {
+  const { server, origin } = await fixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-download-"));
+  const previousArtifactRoot = process.env.CLAPPING_HANDS_ARTIFACT_ROOT;
+  let browser: Browser | null = null;
+  try {
+    process.env.CLAPPING_HANDS_ARTIFACT_ROOT = directory;
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    let page = await browser.newPage({ acceptDownloads: true });
+    const demonstrate = () => demonstrateDomWorkflow({
+      act: async () => {
+        await page.locator("#download").click();
+        return {
+          success: true,
+          message: "downloaded",
+          actions: [{ selector: "#download", description: "Download report", method: "click", arguments: [] }],
+          modelCalls: 1,
+          inputTokens: 10,
+          outputTokens: 2,
+        };
+      },
+    }, page, `${origin}/download`, {}, ["Download the report"], "#download");
+    const plan = compileDomWorkflow("download_report", `${origin}/download`, [await demonstrate(), await demonstrate()]);
+    assert.deepEqual(plan.actions[0]!.download, { suggestedFilename: ["report.txt"] });
+    await page.close();
+    page = await browser.newPage({ acceptDownloads: true });
+    const result = await replayDomWorkflow(page, plan, {});
+    assert.equal(result.text, "Download report");
+    assert.equal(result.downloads?.length, 1);
+    const artifact = result.downloads![0]!;
+    assert.equal(artifact.suggestedFilename, "report.txt");
+    assert.equal(await readFile(artifact.path, "utf8"), "controlled artifact contents\n");
+    assert.equal(artifact.sha256, createHash("sha256").update("controlled artifact contents\n").digest("hex"));
+    const canonicalDirectory = await realpath(directory);
+    assert.ok(!relative(canonicalDirectory, artifact.path).startsWith(".."));
+
+    const changed = structuredClone(plan);
+    changed.actions[0]!.download!.suggestedFilename = ["changed.txt"];
+    await assert.rejects(() => replayDomWorkflow(page, changed, {}), /unexpected or changed download/);
+    await page.close();
+  } finally {
+    if (previousArtifactRoot === undefined) delete process.env.CLAPPING_HANDS_ARTIFACT_ROOT;
+    else process.env.CLAPPING_HANDS_ARTIFACT_ROOT = previousArtifactRoot;
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await rm(directory, { recursive: true, force: true });
   }
 });
 

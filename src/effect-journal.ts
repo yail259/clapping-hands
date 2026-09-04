@@ -1,9 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { FrameLocator, Page } from "playwright-core";
+import type { Page } from "playwright-core";
 import {
   captureDomOutput,
+  assertDomWorkflowPlanSafety,
+  executeCompiledDomAction,
+  fingerprintCompiledDomActions,
   readDomOutputTextIfPresent,
   validateDomOutput,
   waitForDomOutputChange,
@@ -30,6 +33,7 @@ export type EffectReceipt = {
     method: string;
     selectorHash: string;
   };
+  effectPayloadHash?: string;
 };
 
 type JournalFile = {
@@ -75,6 +79,8 @@ function materializeAction(plan: DomWorkflowPlan, index: number, input: DomInput
     arguments: template.arguments.map((argument) => materialize(argument, input)),
     ...(template.opensNewPage ? { opensNewPage: true } : {}),
     ...(template.framePath ? { framePath: template.framePath.map((segment) => materialize(segment, input)) } : {}),
+    ...(template.dialog ? { dialog: { ...template.dialog, message: materialize(template.dialog.message, input) } } : {}),
+    ...(template.download ? { download: { suggestedFilename: materialize(template.download.suggestedFilename, input) } } : {}),
   };
 }
 
@@ -85,46 +91,18 @@ function assertInput(plan: DomWorkflowPlan, input: DomInput): void {
 }
 
 function assertWritePlan(plan: DomWorkflowPlan): number {
+  assertDomWorkflowPlanSafety(plan);
   if (plan.effect.level !== "write" || plan.effect.commitActionIndex === null || !plan.effect.confirmation) {
     throw new Error("This plan is not an explicitly declared write workflow.");
   }
-  if (plan.effect.commitActionIndex !== plan.actions.length - 1) {
-    throw new Error("The externally effectful action must be the final compiled action.");
+  if (plan.effect.commitActionIndex < 0 || plan.effect.commitActionIndex >= plan.actions.length) {
+    throw new Error("The externally effectful action boundary was invalid.");
+  }
+  const earlierUpload = plan.actions.findIndex((action) => action.method === "setInputFiles");
+  if (earlierUpload >= 0 && earlierUpload < plan.effect.commitActionIndex) {
+    throw new Error("A file selection cannot occur before the externally effectful action boundary.");
   }
   return plan.effect.commitActionIndex;
-}
-
-async function executeAction(page: Page, action: BrowserAction): Promise<Page> {
-  let scope: Page | FrameLocator = page;
-  for (const frameSelector of action.framePath ?? []) scope = scope.frameLocator(frameSelector);
-  const locator = scope.locator(action.selector);
-  const count = await locator.count();
-  if (count !== 1) throw new Error(`Compiled selector matched ${count} elements: ${action.selector}`);
-  const args = action.arguments ?? [];
-  const pagesBefore = new Set(page.context().pages());
-  const openedPage = action.opensNewPage
-    ? page.context().waitForEvent("page", { timeout: 10_000 })
-    : null;
-  switch (action.method ?? "click") {
-    case "click": await locator.click(); break;
-    case "fill": await locator.fill(args[0] ?? ""); break;
-    case "type": await locator.pressSequentially(args[0] ?? ""); break;
-    case "press": await locator.press(args[0] ?? "Enter"); break;
-    case "selectOption": await locator.selectOption(args); break;
-    case "check": await locator.check(); break;
-    case "uncheck": await locator.uncheck(); break;
-    case "hover": await locator.hover(); break;
-    case "scrollIntoViewIfNeeded": await locator.scrollIntoViewIfNeeded(); break;
-    default: throw new Error(`Unsupported compiled write method ${action.method}.`);
-  }
-  if (!openedPage) {
-    const unexpectedPages = page.context().pages().filter((candidate) => !pagesBefore.has(candidate));
-    if (unexpectedPages.length > 0) throw new Error("Compiled write action opened an undeclared page.");
-    return page;
-  }
-  const nextPage = await openedPage;
-  await nextPage.waitForLoadState("domcontentloaded", { timeout: 10_000 }).catch(() => {});
-  return nextPage;
 }
 
 async function settle(page: Page): Promise<void> {
@@ -135,7 +113,7 @@ async function executePrefix(page: Page, plan: DomWorkflowPlan, input: DomInput,
   await page.goto(new URL(plan.startPath, plan.origin).href, { waitUntil: "domcontentloaded", timeout: 30_000 });
   let activePage = page;
   for (let index = 0; index < finalIndex; index += 1) {
-    activePage = await executeAction(activePage, materializeAction(plan, index, input));
+    activePage = await executeCompiledDomAction(activePage, materializeAction(plan, index, input));
     await settle(activePage);
     if (new URL(activePage.url()).origin !== plan.origin) throw new Error("Prepared write workflow left its allowed origin.");
   }
@@ -222,9 +200,11 @@ export async function prepareDomWorkflowWrite(
   ttlMs = 10 * 60_000,
 ): Promise<EffectReceipt> {
   assertInput(plan, input);
-  const finalIndex = assertWritePlan(plan);
-  const activePage = await executePrefix(page, plan, input, finalIndex);
-  const finalAction = materializeAction(plan, finalIndex, input);
+  const effectBoundary = assertWritePlan(plan);
+  const effectActions = plan.actions.slice(effectBoundary).map((_action, offset) => materializeAction(plan, effectBoundary + offset, input));
+  const effectPayloadHash = await fingerprintCompiledDomActions(effectActions);
+  const activePage = await executePrefix(page, plan, input, effectBoundary);
+  const finalAction = effectActions[0]!;
   const preparedAt = new Date();
   const receipt: EffectReceipt = {
     id: randomUUID(),
@@ -238,6 +218,7 @@ export async function prepareDomWorkflowWrite(
     committedAt: null,
     preparedUrl: activePage.url(),
     finalAction: { method: finalAction.method ?? "click", selectorHash: hash(finalAction.selector) },
+    ...(effectPayloadHash ? { effectPayloadHash } : {}),
   };
   await journal.create(receipt);
   return receipt;
@@ -251,7 +232,7 @@ export async function commitPreparedDomWorkflowWrite(
   input: DomInput,
 ): Promise<{ receipt: EffectReceipt; result: DomWorkflowResult }> {
   assertInput(plan, input);
-  const finalIndex = assertWritePlan(plan);
+  const effectBoundary = assertWritePlan(plan);
   const receipt = await journal.get(receiptId);
   if (!receipt) throw new Error("Prepared effect receipt was not found.");
   if (receipt.planHash !== planHash(plan) || receipt.inputHash !== hash(input)) {
@@ -263,17 +244,31 @@ export async function commitPreparedDomWorkflowWrite(
     throw new Error("Prepared effect expired before commit.");
   }
 
+  const effectActions = plan.actions.slice(effectBoundary).map((_action, offset) => materializeAction(plan, effectBoundary + offset, input));
+  const effectPayloadHash = await fingerprintCompiledDomActions(effectActions);
+  if ((receipt.effectPayloadHash ?? null) !== effectPayloadHash) {
+    throw new Error("Prepared upload contents changed before commit.");
+  }
+
   const startedAt = performance.now();
-  let activePage = await executePrefix(page, plan, input, finalIndex);
+  let activePage = await executePrefix(page, plan, input, effectBoundary);
   await journal.transition(receipt.id, "prepared", "committing");
   try {
+    const downloads: DomWorkflowResult["downloads"] = [];
     const beforeOutput = await readDomOutputTextIfPresent(
       activePage,
       plan.validation.outputSelector,
       plan.validation.outputFramePath,
     );
-    activePage = await executeAction(activePage, materializeAction(plan, finalIndex, input));
-    await settle(activePage);
+    for (const action of effectActions) {
+      activePage = await executeCompiledDomAction(activePage, action, {
+        onDownload: (artifact) => downloads.push(artifact),
+      });
+      await settle(activePage);
+      if (new URL(activePage.url()).origin !== plan.origin) {
+        throw new Error("Committed write workflow left its allowed origin.");
+      }
+    }
     await waitForDomOutputChange(
       activePage,
       plan.validation.outputSelector,
@@ -281,7 +276,6 @@ export async function commitPreparedDomWorkflowWrite(
       plan.validation.outputChangeTimeoutMs,
       plan.validation.outputFramePath,
     );
-    if (new URL(activePage.url()).origin !== plan.origin) throw new Error("Committed write workflow left its allowed origin.");
     const output = await captureDomOutput(activePage, plan.validation.outputSelector, plan.validation.outputFramePath);
     validateDomOutput(plan, output, input);
     const committed = await journal.transition(receipt.id, "committing", "committed");
@@ -293,6 +287,7 @@ export async function commitPreparedDomWorkflowWrite(
         navigations: 1,
         modelCalls: 0,
         durationMs: performance.now() - startedAt,
+        ...(downloads.length > 0 ? { downloads } : {}),
       },
     };
   } catch (error) {
