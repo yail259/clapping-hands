@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "kind": "self-hosted-application-capability-regression",
+  "generatedAt": "2026-09-04T18:53:41.428Z",
+  "compilerCommit": "f5c3b8c186f4f9ad8182b30cbc8e4b60cb6c523f",
+  "application": "Odoo Community 19.0",
+  "origin": "http://127.0.0.1:18102",
+  "containerImages": {
+    "application": {
+      "image": "odoo:19.0",
+      "digest": "sha256:f99ffac95cb39a0924622ea4118481c95651d9c84187e5b30a21c2cc4419c7dd"
+    },
+    "database": {
+      "image": "postgres:15",
+      "digest": "sha256:9b1d34adbce1dd07ee6e94b4a2cf698884b89bd44a6c9c12f5da8f3acbfe4957"
+    }
+  },
+  "intervention": "guided demonstrations",
+  "policyBasis": "Loopback-only official containers with synthetic partners, service products, and quotations",
+  "credentialHandling": "Generated a synthetic administrator password in process memory and restored the exact prior hash; persisted no credential or session value",
+  "claimScope": "Three post-v2 capability regressions; not untouched holdouts or latency distributions",
+  "runtimeCorrections": [
+    "Controlled text-entry widgets receive a bounded client-state settle window before a dependent action.",
+    "A changed final output must remain stable before replay can report success, preventing transient loading views from satisfying input evidence."
+  ],
+  "authSurvivedBrowserRestart": true,
+  "compileMs": {
+    "search": 5.95,
+    "quantity": 1.32,
+    "confirmation": 0.98
+  },
+  "effectBoundaryActionIndexes": {
+    "quantity": 1,
+    "confirmation": 0
+  },
+  "demonstrationOracles": {
+    "quantity": [
+      {
+        "orderId": 73,
+        "expected": 5,
+        "observed": 5,
+        "exact": true
+      },
+      {
+        "orderId": 74,
+        "expected": 6,
+        "observed": 6,
+        "exact": true
+      }
+    ],
+    "confirmation": [
+      {
+        "orderId": 73,
+        "observed": "sale",
+        "exact": true
+      },
+      {
+        "orderId": 74,
+        "observed": "sale",
+        "exact": true
+      }
+    ]
+  },
+  "searchReplayTraffic": {
+    "requests": 21,
+    "navigations": 1
+  },
+  "rows": [
+    {
+      "id": "search-synthetic-quotation-by-customer",
+      "effect": "read",
+      "engine": "stagehand-action-v1",
+      "exactResult": true,
+      "modelCalls": 0,
+      "compiledDurationMs": 2844.28,
+      "oracle": {
+        "searchInputValue": "",
+        "visibleResultCount": 1,
+        "expectedCustomerFound": true,
+        "seededDecoysExcluded": true,
+        "applicationStateUnchanged": true
+      }
+    },
+    {
+      "id": "update-synthetic-quotation-line-quantity",
+      "effect": "write",
+      "engine": "stagehand-action-v1",
+      "exactResult": true,
+      "preparedWithoutEffect": true,
+      "repeatedCommitRejected": true,
+      "modelCalls": 0,
+      "compiledDurationMs": 1799.45,
+      "oracle": {
+        "before": 4,
+        "afterCommit": 7,
+        "afterRejectedRepeatUnchanged": true
+      }
+    },
+    {
+      "id": "confirm-synthetic-quotation-once",
+      "effect": "commit",
+      "engine": "stagehand-action-v1",
+      "exactResult": true,
+      "preparedWithoutEffect": true,
+      "repeatedCommitRejected": true,
+      "modelCalls": 0,
+      "compiledDurationMs": 1691.21,
+      "oracle": {
+        "before": "draft",
+        "afterCommit": "sale",
+        "afterRejectedRepeatUnchanged": true
+      }
+    }
+  ],
+  "cleanupVerified": true,
+  "summary": {
+    "passed": 3,
+    "total": 3,
+    "falseSuccesses": 0,
+    "duplicateCommits": 0
+  }
+}

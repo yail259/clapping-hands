@@ -77,10 +77,11 @@ external rows already selected but not yet completed:
 | 7 | Operator-owned Google Form | traverse conditional pages; prepare mixed fields; submit and verify once | hosted cross-origin commit with owner-side reset and oracle |
 
 These seven rows form a 21-task expansion queue, not a retroactive v2 corpus and
-not yet a v3 freeze. Roundcube should run first because it adds the most new
-mechanisms at modest setup cost. Odoo and PrestaShop follow. OpenProject and
-Mattermost are heavier installations and should run only if the earlier rows do
-not expose a more general compiler defect worth fixing first. Facebook
+not yet a v3 freeze. Roundcube's read slice and Odoo's full three-task slice are
+now exercised; Odoo exposed two general asynchronous-UI defects that were fixed
+before moving on. PrestaShop is therefore next. OpenProject and Mattermost are
+heavier installations and should run only if the earlier rows do not expose a
+more general compiler defect worth fixing first. Facebook
 Marketplace stays in a separate private dogfood lane: useful for product truth,
 but not reproducible or permission-clear enough to carry the public percentage.
 
@@ -191,13 +192,14 @@ This ledger is roadmap evidence, not the frozen v2 denominator. Completed rows
 that caused compiler changes remain regression results rather than untouched
 wins.
 
-One reserve row has also been exercised without changing the frozen eight-row
-denominator:
+Three additional rows have also been exercised without changing the frozen
+eight-row denominator:
 
-| Reserve | Evidence completed | What it adds | Disposition |
+| Additional row | Evidence completed | What it adds | Disposition |
 | --- | --- | --- | --- |
 | InvoicePlane 1.7.2 | unseen draft invoice with client lookup, line item, calculated totals, prepare/commit, restart, repeat rejection, and exact database cleanup: 1/1 | API-poor stateful finance UI; Select2 AJAX plus JSON save; short decimal and quantity bindings | retain as high-value regression; add a 20-pair read distribution only if a representative read task is selected in advance |
 | Roundcube 1.6.13 + GreenMail 2.1.13 | two varied subject searches compiled and one unseen search replayed exactly after restart: 1/1 | split-pane webmail, asynchronous IMAP search, opaque request IDs, and a non-forwarding SMTP/IMAP oracle | continue with a draft attachment and send-once workflow; the one read replay is capability evidence, not a speed row |
+| Odoo Community 19.0 | unseen quotation search, line-quantity edit, and one-time quotation confirmation after clean restarts: 3/3 | OWL controlled input state, relational editable lists, asynchronous RPC results, and a server-backed commit | retain as post-fix regression; PrestaShop is next in the prospective expansion queue |
 
 OrangeHRM was also installed and inspected locally, but its current application
 exposes broad employee CRUD routes under `/api/v2`. It is therefore more useful

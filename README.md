@@ -264,6 +264,21 @@ use Discourse's first-party API whenever it is configured and task-complete. The
 sanitized report is
 [`discourse-local-capability.json`](bench/runs/2026-09-04/discourse-local-capability.json).
 
+A pinned, loopback-only Odoo Community 19.0 regression adds a dense enterprise
+OWL application to the evidence. It passed 3/3 on an unseen customer search, a
+relational line-quantity edit, and an exactly-once quotation confirmation. Both
+writes prepared without a database effect, committed once with zero model
+calls, rejected receipt reuse, survived clean browser restarts, and were fully
+removed. Odoo exposed two general asynchronous-UI defects: controlled inputs
+can lag their DOM value, and a transient re-render is not necessarily the final
+result. The runtime now gives text entry a bounded settle window and requires a
+changed final output to remain stable before reporting success. This is
+post-fix capability evidence—not untouched holdout credit or a speed claim.
+Compiler checkpoint
+[`f5c3b8c`](https://github.com/yail259/clapping-hands/commit/f5c3b8c); sanitized
+report:
+[`odoo-local-capability.json`](bench/runs/2026-09-05/odoo-local-capability.json).
+
 The generic JSON compiler also passed a real Discourse numbered-pagination
 regression at checkpoint
 [`8478ea1`](https://github.com/yail259/clapping-hands/commit/8478ea1): two

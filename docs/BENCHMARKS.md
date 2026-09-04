@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 100 passing tests and the built MCP
+cross-site speed claim. The current suite has 102 passing tests and the built MCP
 server advertises ten management/Marketplace tools before any generated
 workflow tools are loaded.
 
@@ -808,6 +808,42 @@ existing compiled navigation/hydration gate was sufficient for the unseen
 replay. This is a 1/1 post-v2 capability regression, not an untouched holdout
 or a latency distribution. The sanitized report is
 [`bench/runs/2026-09-05/roundcube-local-capability.json`](../bench/runs/2026-09-05/roundcube-local-capability.json).
+
+## Self-hosted Odoo capability regression — 2026-09-05
+
+Odoo Community 19.0 and PostgreSQL 15 ran from pinned official images on
+loopback. The fixture created three synthetic customers, service products, and
+quotations, rotated only the synthetic administrator credential, and restored
+the exact prior credential state after the run.
+
+| Workflow | Mechanism | Effect path | Compiled model calls | Exact result | Verdict |
+| --- | --- | --- | ---: | --- | --- |
+| Search unseen quotation by customer | OWL controlled search box and asynchronous list RPC | read DOM after restart | 0 | one expected row; two decoys excluded; database unchanged | pass after compiler fix |
+| Change unseen quotation line quantity | editable relational line plus explicit save | safe prefix, then one-shot commit | 0 | prepare retained quantity 4; commit wrote 7; repeat rejected | pass |
+| Confirm unseen quotation | server-backed order-state transition | browser-idle prepare, then one-shot commit | 0 | prepare retained `draft`; commit reached `sale`; repeat rejected | pass |
+
+The search exposed two general timing defects. First, a controlled text-entry
+widget can accept a DOM value before its component state is ready for a
+dependent `Enter`; compiled text entry now receives a bounded 250 ms client
+settle window, while other intermediate actions use 50 ms. Second, Odoo briefly
+re-renders the list before its RPC result arrives. The old freshness check could
+accept that first transient change even when the requested input appeared in a
+loading view. A changed final output must now remain stable for 250 ms before
+validation. Controlled regressions cover both cases without an Odoo-specific
+runtime branch.
+
+The two write plans placed their effect boundaries at the first quantity fill
+and the confirmation click. Prepare left the database unchanged; each commit
+ran once with an expiring receipt, and reusing either receipt was rejected
+before another action. Authentication survived two clean Chrome restarts. All
+three orders, partners, and products were deleted and the prior password hash
+was restored exactly.
+
+This is 3/3 post-v2 capability regression evidence on one pinned application,
+not untouched holdout credit or a latency distribution. Compiler checkpoint
+[`f5c3b8c`](https://github.com/yail259/clapping-hands/commit/f5c3b8c) and the
+sanitized report is
+[`bench/runs/2026-09-05/odoo-local-capability.json`](../bench/runs/2026-09-05/odoo-local-capability.json).
 
 ## API-first negative control — 2026-09-04
 
