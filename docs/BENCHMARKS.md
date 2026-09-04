@@ -246,6 +246,30 @@ Because the holdout directly drove compiler changes, the 3/3 corrected run is
 regression evidence and is excluded from the untouched-holdout denominator. It
 is one compiled run per task and is not a latency distribution.
 
+### osTicket warm performance distribution
+
+The same pinned container images were then used for a 20-pair interleaved
+performance run, after three warmups. Even samples ran browser first and odd
+samples ran compiled first. Both paths made two fresh HTTP requests; the
+compiled path skipped browser navigation/rendering and validated the returned
+HTML directly.
+
+| Workflow | Engine | n | Browser p50 / p95 | Compiled p50 / p95 | Median speedup | Correctness | Requests; navigations |
+| --- | --- | ---: | ---: | ---: | ---: | --- | --- |
+| Authenticated ticket search | `html-form-v2` | 20 pairs | 626.06 / 643.56 ms | 42.74 / 61.09 ms | **14.65×** | UI 20/20 + compiled 20/20 | UI 2; 2 → compiled 2; 0 |
+
+The query order cycled through three seeded synthetic tickets, and an
+independent oracle required only the requested subject to appear. The runner
+temporarily rotated the disposable loopback staff credential in memory and
+restored its original hash after completion. Compile time was 1,285.26 ms and
+is excluded from warm replay timings.
+
+This is the first qualifying distribution on a real application, but it is
+still only one version-pinned self-hosted app and one read workflow. It supports
+the row above, not “websites are 16× faster.” The report retains every timing
+sample in
+[`bench/runs/2026-09-04/osticket-local-performance.json`](../bench/runs/2026-09-04/osticket-local-performance.json).
+
 ## Discourse official-demo holdout — 2026-09-04
 
 Compiler checkpoint [`2ed9448`](https://github.com/yail259/clapping-hands/commit/2ed9448)

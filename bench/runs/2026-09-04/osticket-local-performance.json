@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-04T10:37:34.064Z",
+  "gitSha": "063fd66569b09e2c9c9b444a6e0e1668d8e194b9",
+  "runner": "scripts/benchmark-osticket-performance.ts",
+  "runClass": "self-hosted-application-performance",
+  "intervention": "guided form demonstrations plus an independent exact subject oracle",
+  "application": "Self-hosted osTicket",
+  "origin": "http://127.0.0.1:18089",
+  "containerImages": {
+    "application": "sha256:2900dc6d032b13548e9f15194c298f464d5a0ee70441c0c592fcb7f87e009400",
+    "database": "sha256:611a2fcc5fa7c6ceb8644c6f74b25ede004ff6c3a6b38c8f8c23d3bbf6c26430"
+  },
+  "environment": {
+    "browserVersion": "151.0.7922.138",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "credentialHandling": "Read a synthetic loopback-only fixture credential from the process environment; persisted no credential in plans or results",
+  "protocol": {
+    "warmups": 3,
+    "pairedSamples": 20,
+    "order": "interleaved; browser first on even samples and compiled first on odd samples",
+    "queryCycle": [
+      "Printer",
+      "VPN",
+      "Invoice"
+    ]
+  },
+  "workflow": {
+    "id": "osticket-search-ticket",
+    "engine": "html-form-v2",
+    "compileMs": 1285.26,
+    "browser": {
+      "p50Ms": 626.06,
+      "p95Ms": 643.56,
+      "slowestMs": 644.56,
+      "samplesMs": [
+        627.85,
+        626.06,
+        631.84,
+        619,
+        621.77,
+        631.72,
+        635.28,
+        620.14,
+        644.56,
+        621.26,
+        628.07,
+        642.54,
+        643.56,
+        623.66,
+        630.7,
+        622.52,
+        632.62,
+        622.54,
+        624.98,
+        619.8
+      ],
+      "correctness": "20/20",
+      "requestsPerRun": 2,
+      "navigationsPerRun": 2,
+      "modelCallsPerRun": 0
+    },
+    "compiled": {
+      "p50Ms": 42.74,
+      "p95Ms": 61.09,
+      "slowestMs": 61.41,
+      "samplesMs": [
+        53.87,
+        39.4,
+        60.09,
+        41.16,
+        57.15,
+        37.71,
+        56.86,
+        43.12,
+        49.55,
+        35.77,
+        53.65,
+        42.74,
+        42.17,
+        36.3,
+        61.09,
+        36.51,
+        58.97,
+        37.36,
+        61.41,
+        36.19
+      ],
+      "correctness": "20/20",
+      "requestsPerRun": 2,
+      "navigationsPerRun": 0,
+      "modelCallsPerRun": 0
+    },
+    "medianSpeedup": 14.65
+  },
+  "claimScope": "One pinned self-hosted application and one read workflow; not a general website speed claim"
+}

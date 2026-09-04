@@ -183,6 +183,15 @@ form submission, rich-editor synchronization, role-separated profiles, and
 input-bound same-origin start URLs. This is regression evidence, not an
 untouched holdout or speed result.
 
+The first qualifying warm distribution on that pinned self-hosted application
+measured the authenticated ticket-search workflow over 20 interleaved pairs:
+browser replay p50/p95 **626.06/643.56 ms**, compiled direct replay
+**42.74/61.09 ms**, or **14.65× median speedup**, with 20/20 exact results on
+both paths, two fresh requests per run, and browser navigations reduced from
+2 to 0. This is one real application/workflow—not a general speed claim. The
+raw sanitized samples are in
+[`bench/runs/2026-09-04/osticket-local-performance.json`](bench/runs/2026-09-04/osticket-local-performance.json).
+
 An untouched read-only smoke on Discourse's official demo then passed 1/1:
 after demonstrations on the `general` and `tech` categories, the compiled tool
 opened the unseen `support` category through Ember client routing, reached the
