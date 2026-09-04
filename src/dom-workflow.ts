@@ -393,11 +393,21 @@ async function waitForUniqueCompiledLocator(
   const locator = locatorInFramePath(page, framePath, selector);
   const deadline = Date.now() + timeoutMs;
   let count = 0;
+  let sawAmbiguity = false;
+  let uniqueSince: number | null = null;
   while (Date.now() < deadline) {
     count = await locator.count().catch(() => 0);
-    if (count === 1) return locator;
-    if (count > 1) throw new Error(`Compiled selector matched ${count} elements: ${selector}`);
+    if (count === 1) {
+      uniqueSince ??= Date.now();
+      if (Date.now() - uniqueSince >= 100) return locator;
+    } else {
+      uniqueSince = null;
+      if (count > 1) sawAmbiguity = true;
+    }
     await delay(50);
+  }
+  if (sawAmbiguity) {
+    throw new Error(`Compiled selector remained ambiguous (${count} matches): ${selector}`);
   }
   throw new Error(`Compiled selector did not become available: ${selector}`);
 }
@@ -1408,9 +1418,14 @@ async function typeWithVerifiedFallback(locator: Locator, text: string): Promise
 export async function executeCompiledDomAction(
   page: Page,
   action: BrowserAction,
-  options: { onDownload?: (artifact: DomDownloadArtifact) => void } = {},
+  options: { onDownload?: (artifact: DomDownloadArtifact) => void; readinessTimeoutMs?: number } = {},
 ): Promise<Page> {
-  const locator = await waitForUniqueCompiledLocator(page, action.framePath ?? [], action.selector);
+  const locator = await waitForUniqueCompiledLocator(
+    page,
+    action.framePath ?? [],
+    action.selector,
+    options.readinessTimeoutMs,
+  );
   const args = action.arguments ?? [];
   const method = normalizeMethod(action);
   const pagesBefore = new Set(page.context().pages());

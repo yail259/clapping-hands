@@ -336,6 +336,23 @@ async function fixture(): Promise<{ server: Server; origin: string }> {
         </script></main>`);
       return;
     }
+    if (url.pathname === "/converging-selector") {
+      response.end(`<!doctype html><main>
+        <button id="narrow">Narrow results</button>
+        <input class="quantity"><input class="quantity"><input class="quantity">
+        <output id="result">Ready</output>
+        <script>
+          document.querySelector('#narrow').addEventListener('click', () => setTimeout(() => {
+            const inputs = document.querySelectorAll('.quantity');
+            inputs[0].remove();
+            inputs[1].remove();
+            document.querySelector('.quantity').addEventListener('input', event => {
+              document.querySelector('#result').textContent = 'Adjusted ' + event.target.value;
+            });
+          }, 200));
+        </script></main>`);
+      return;
+    }
     response.end(`<!doctype html><main>
       <label>Search <input id="query"></label><button id="run">Run</button>
       <output id="result">Ready</output>
@@ -1595,6 +1612,55 @@ test("accepts a fresh result when a state-setting action is already satisfied", 
     const page = await browser.newPage();
     const result = await replayDomWorkflow(page, plan, { sort: "az" });
     assert.equal(result.text, "Inventory ready");
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("waits for a transiently ambiguous SPA selector to converge", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    await page.goto(`${origin}/converging-selector`);
+    await executeCompiledDomAction(page, {
+      selector: "#narrow",
+      description: "Narrow results",
+      method: "click",
+      arguments: [],
+    });
+    await executeCompiledDomAction(page, {
+      selector: ".quantity",
+      description: "Enter quantity",
+      method: "fill",
+      arguments: ["5"],
+    }, { readinessTimeoutMs: 2_000 });
+    assert.equal(await page.locator(".quantity").inputValue(), "5");
+    assert.equal(await page.locator("#result").innerText(), "Adjusted 5");
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("fails closed when a compiled selector remains ambiguous", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    await page.goto(`${origin}/converging-selector`);
+    await assert.rejects(() => executeCompiledDomAction(page, {
+      selector: ".quantity",
+      description: "Enter quantity",
+      method: "fill",
+      arguments: ["5"],
+    }, { readinessTimeoutMs: 200 }), /remained ambiguous/);
+    assert.equal(await page.locator(".quantity").count(), 3);
     await page.close();
   } finally {
     await browser?.close();
