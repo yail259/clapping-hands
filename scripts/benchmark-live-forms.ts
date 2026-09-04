@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "playwright-core";
@@ -80,7 +80,35 @@ async function main(): Promise<void> {
   if (!process.argv.includes("--live")) {
     throw new Error("Live traffic is disabled by default. Re-run with --live after reviewing docs/BENCHMARK_PLAN.md.");
   }
+  const externalArgument = process.argv.find((argument) => argument.startsWith("--external-journeys-today="));
+  if (!externalArgument) {
+    throw new Error("Declare manual/browser traffic with --external-journeys-today=N so it counts against the live budget.");
+  }
+  const externalJourneys = Number(externalArgument.slice("--external-journeys-today=".length));
+  if (!Number.isSafeInteger(externalJourneys) || externalJourneys < 0) {
+    throw new Error("--external-journeys-today must be a non-negative integer.");
+  }
   await mkdir(DATA_DIRECTORY, { recursive: true, mode: 0o700 });
+  const day = new Date().toISOString().slice(0, 10);
+  const budgetPath = resolve(DATA_DIRECTORY, `traffic-${day}.json`);
+  let scriptedJourneys = 0;
+  try {
+    const budget = JSON.parse(await readFile(budgetPath, "utf8")) as { scriptedJourneys?: number };
+    scriptedJourneys = budget.scriptedJourneys ?? 0;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  const only = process.argv.find((argument) => argument.startsWith("--only="))?.slice("--only=".length);
+  const selected = only ? workflows.filter((workflow) => workflow.id === only) : workflows;
+  if (selected.length === 0) throw new Error(`Unknown workflow ${only}.`);
+  const plannedJourneys = selected.length * 2;
+  if (externalJourneys + scriptedJourneys + plannedJourneys > 10) {
+    throw new Error(
+      `Live run refused: ${externalJourneys} external + ${scriptedJourneys} scripted + ${plannedJourneys} planned journeys exceeds the daily domain cap of 10.`,
+    );
+  }
+  // Reserve before launch so an interrupted run fails toward less traffic.
+  await writeFile(budgetPath, `${JSON.stringify({ day, scriptedJourneys: scriptedJourneys + plannedJourneys }, null, 2)}\n`, { mode: 0o600 });
   const context = await chromium.launchPersistentContext(resolve(DATA_DIRECTORY, "browser-profile"), {
     executablePath: CHROME,
     headless: true,
@@ -90,9 +118,6 @@ async function main(): Promise<void> {
   const rows: Array<Record<string, unknown>> = [];
 
   try {
-    const only = process.argv.find((argument) => argument.startsWith("--only="))?.slice("--only=".length);
-    const selected = only ? workflows.filter((workflow) => workflow.id === only) : workflows;
-    if (selected.length === 0) throw new Error(`Unknown workflow ${only}.`);
     for (const [index, workflow] of selected.entries()) {
       if (index > 0) await delay(15_000);
       const page = await context.newPage();

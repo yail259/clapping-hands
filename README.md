@@ -77,6 +77,7 @@ In short: **first compile away the model; then compile away the UI.**
 - [`docs/PRODUCT_BRIEF.md`](docs/PRODUCT_BRIEF.md) — wedge, user, promise, and MVP
 - [`docs/MCP_DOGFOOD.md`](docs/MCP_DOGFOOD.md) — Marketplace tool, authentication, and safety boundary
 - [`docs/BENCHMARK_PLAN.md`](docs/BENCHMARK_PLAN.md) — multi-site corpus, verification protocol, and claim gates
+- [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) — live smoke results, failed rows, and iteration evidence
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — proposed system boundaries
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — staged path to a convincing prototype
 - [`docs/decisions/0001-stagehand.md`](docs/decisions/0001-stagehand.md) — why Stagehand is a replaceable dependency
@@ -110,6 +111,24 @@ closes it, and proves the authenticated state survives a clean restart.
 `dogfood:marketplace` then performs two DOM demonstrations, two read-only
 network shadows, three warm runs, and a restart run. Its sanitized report is
 written under `.data/`.
+
+The repository also contains an experimental, site-independent compiler for
+same-origin HTML form workflows. Its low-volume live runner is disabled unless
+the operator explicitly supplies `--live` after reviewing the policy and
+traffic budget:
+
+```sh
+npm run benchmark:live -- --live --external-journeys-today=0
+```
+
+The external-journey count is mandatory and includes manual discovery in other
+browsers. The runner keeps a local scripted-traffic ledger and refuses a run
+that would exceed the public-site daily cap.
+
+The first public smoke covered three GOV.UK calculators with exact browser vs
+compiled result agreement after one recorded fix. These are `guided`, `n=1`
+observations on one domain—not evidence for “any website” or a general latency
+claim. See [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
 Restart Codex after adding the server so these tools are discovered:
 
