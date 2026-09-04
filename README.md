@@ -266,15 +266,18 @@ input must not rewrite an earlier compiler placeholder. This is one capability
 regression, not a timing distribution or general coverage claim. Compiler
 checkpoint [`b919e74`](https://github.com/yail259/clapping-hands/commit/b919e74).
 
-A pinned, loopback-only Moodle 5.2.2 regression also passed 2/2 after a clean
-browser restart. A compiled read opened an unseen course/tab combination; a
-compiled teacher workflow changed one synthetic student's grade through the
-prepare/commit boundary. Prepare left the grade empty, commit set it exactly
-once according to Moodle's server-side gradebook API, a repeated commit was
-rejected, and cleanup restored all three synthetic grades to empty. Moodle's
-persistent Edit mode exposed a state-machine pitfall: the plan uses an
-idempotent `check` operation rather than a literal toggle click. This is
-capability regression evidence, not an untouched holdout or speed result.
+A pinned, loopback-only Moodle 5.2.2 regression now passes 3/3 across separate
+teacher and student profiles. A compiled read opened an unseen course/tab
+combination; a teacher workflow changed one synthetic student's grade; and an
+unseen student workflow submitted an exact online-text assignment response.
+Both roles survived clean browser restarts. Each prepare left the browser and
+server state untouched, each commit wrote exactly once, repeated receipts were
+rejected, and cleanup restored every synthetic grade and submission to empty.
+Moodle's persistent Edit mode uses an idempotent `check` rather than a literal
+toggle, while the assignment plan treats opening its form as passive and the
+following fill as the conservative effect boundary. This is capability
+regression evidence, not an untouched holdout or speed result. Expanded
+checkpoint [`271a2bd`](https://github.com/yail259/clapping-hands/commit/271a2bd).
 
 A pinned, loopback-only nopCommerce 4.90.6 run passed 2/2. Product search
 compiled from a server-rendered form, and an add-to-cart workflow used

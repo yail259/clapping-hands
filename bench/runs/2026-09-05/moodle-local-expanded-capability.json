@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "kind": "self-hosted-application-capability-regression",
+  "generatedAt": "2026-09-04T15:39:04.241Z",
+  "compilerCommit": "271a2bdce845e530c2284cebca70d0b7b531704f",
+  "application": "Self-hosted Moodle 5.2.2",
+  "origin": "http://127.0.0.1:18092",
+  "sources": {
+    "moodle": "8ad9354efae75c49a23ca63ec1c5e071f9fefc57",
+    "moodleDocker": "f4c2324d32fb74d7753264381f0a9b418b6034b2"
+  },
+  "containerImages": {
+    "application": "sha256:7fd5f3356a71889fc6eda2a7cca2b44ed1e3f90556f5c3bcd9f2091789739af2",
+    "database": "sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675"
+  },
+  "intervention": "guided",
+  "policyBasis": "Loopback-only official Moodle developer environment with synthetic users, courses, grades, assignments, and responses",
+  "credentialHandling": "Read rotated synthetic credentials from the process environment; persisted no credential or Moodle session key in plans or reports",
+  "claimScope": "Capability regression on one pinned self-hosted application; not a speed or untouched-holdout result",
+  "developmentHistory": [
+    {
+      "stage": "stateful-mode-control",
+      "result": "corrected-before-compiled-run",
+      "reason": "Moodle edit mode is a persistent toggle, so a literal click could disable it on a later run.",
+      "correction": "Demonstrate an idempotent check action that ensures edit mode is enabled regardless of prior session state.",
+      "compilerChanged": false
+    },
+    {
+      "stage": "grade-format-assertion",
+      "result": "failed-closed-then-corrected",
+      "reason": "Moodle formats numeric grades with decimal places, while the first harness assertion required the unformatted input string.",
+      "correction": "Compare the rendered grade numerically and continue to require the independent server-side gradebook oracle.",
+      "compilerChanged": false
+    },
+    {
+      "stage": "fixture-email-debugging",
+      "result": "corrected-before-compiled-run",
+      "reason": "Moodle developer debugging disables an automatic post-submission redirect when a synthetic .invalid email address triggers a notification warning.",
+      "correction": "Use example.com fixture addresses with delivery contained by the local Mailpit service, then clear the discovery submission.",
+      "compilerChanged": false
+    },
+    {
+      "stage": "submission-effect-assertion",
+      "result": "failed-closed-then-corrected",
+      "reason": "The first submission action opens a read-only form, so the compiler conservatively placed the effect boundary at the following fill rather than the initial click required by the first harness assertion.",
+      "correction": "Require commitActionIndex 1 while continuing to prove that prepare performs no browser action or database mutation and commit replays the entire workflow only once.",
+      "compilerChanged": false
+    }
+  ],
+  "demonstrationOracles": [
+    {
+      "gradeItemId": 4,
+      "expected": 72,
+      "observed": 72
+    },
+    {
+      "gradeItemId": 6,
+      "expected": 83,
+      "observed": 83
+    }
+  ],
+  "submissionDemonstrationOracles": [
+    {
+      "assignmentId": 2,
+      "expected": "Clapping Hands reliability observation alpha.",
+      "observed": "Clapping Hands reliability observation alpha.",
+      "status": "submitted"
+    },
+    {
+      "assignmentId": 3,
+      "expected": "Clapping Hands effect observation beta.",
+      "observed": "Clapping Hands effect observation beta.",
+      "status": "submitted"
+    }
+  ],
+  "environment": {
+    "browserVersion": "151.0.7922.138",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "authSurvivedBrowserRestart": true,
+  "roleAuth": {
+    "teacherSurvivedBrowserRestart": true,
+    "studentSurvivedBrowserRestart": true
+  },
+  "fixtureCleanupVerified": true,
+  "rows": [
+    {
+      "task": "open-unseen-course-tab",
+      "effect": "read",
+      "mechanism": "authenticated-server-navigation",
+      "exactResult": true,
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 17258.425667000003,
+      "navigations": 3
+    },
+    {
+      "task": "change-unseen-course-grade",
+      "effect": "write",
+      "mechanism": "idempotent-mode-precondition-plus-prepare-commit",
+      "exactResult": true,
+      "preparedWithoutEffect": true,
+      "repeatedCommitRejected": true,
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 10579.689249999996,
+      "oracle": {
+        "expectedGrade": 61,
+        "gradeAfterCommit": 61,
+        "gradeAfterRejectedRepeat": 61
+      }
+    },
+    {
+      "task": "submit-unseen-student-assignment",
+      "effect": "write",
+      "mechanism": "role-separated-input-bound-activity-plus-prepare-commit",
+      "exactResult": true,
+      "preparedWithoutEffect": true,
+      "prepareLeftBrowserUntouched": true,
+      "repeatedCommitRejected": true,
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 13576.316208000004,
+      "oracle": {
+        "expectedStatus": "submitted",
+        "statusAfterCommit": "submitted",
+        "exactTextAfterCommit": true,
+        "unchangedAfterRejectedRepeat": true,
+        "renderedResultMatched": true
+      }
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "total": 3,
+    "falseSuccesses": 0,
+    "duplicateCommits": 0
+  }
+}

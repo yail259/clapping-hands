@@ -110,7 +110,7 @@ Current execution ledger for those eight application rows:
 | --- | --- | --- |
 | osTicket | local search, public create, and private note: 3/3 regression; qualifying search distribution | a second staff-side state transition distinct from rich-text notes |
 | WordPress | Playground iframe search regression; qualifying local post-search distribution; Redirection 5.10.0 plugin write: 1/1 regression | an isolated core create/edit draft workflow, reported as architecture coverage rather than a no-API win |
-| Moodle | local unseen course navigation and one exact grade write: 2/2 | a student-side synthetic activity submission |
+| Moodle | local unseen course navigation, exact teacher grade write, and exact student assignment submission across separate persistent roles: 3/3 | an allowlisted assignment upload or a branching quiz attempt, selected before demonstrations |
 | Discourse | official-demo category read plus local search/create/edit: 3/3 local regression | a permission/role transition or allowlisted upload |
 | Nextcloud | local folder, upload, download artifact, and public share: 4/4 | a user-targeted share or permission transition distinct from public links |
 | nopCommerce | local product search and reversible cart write: 2/2; qualifying search distribution | an isolated admin edit, with API routing checked first |
@@ -193,6 +193,15 @@ server-calculated totals, rejected receipt reuse, survived an authenticated
 browser restart, and was fully removed. Because the row caused compiler fixes,
 it is regression evidence rather than untouched coverage, and because it has
 only one replay it contributes no speed claim.
+
+The Moodle row subsequently expanded from 2/2 to 3/3 with the previously
+missing student-side synthetic activity submission. Two varied assignment and
+response demonstrations compiled into an input-bound three-action plan; after
+a clean student-profile restart, the unseen response was absent at prepare,
+present exactly once with server status `submitted` after commit, unchanged
+after rejected receipt reuse, and absent again after cleanup. This remains
+regression evidence because the run corrected fixture and harness assumptions,
+although it required no compiler change.
 
 ## Claim gates
 

@@ -548,18 +548,20 @@ row is evidence for browser fallback, artifacts, and effect safety—not a no-AP
 product win or speed result. The sanitized report is
 [`bench/runs/2026-09-04/nextcloud-local-capability.json`](../bench/runs/2026-09-04/nextcloud-local-capability.json).
 
-## Self-hosted Moodle capability regression — 2026-09-04
+## Self-hosted Moodle capability regression — expanded 2026-09-05
 
 The official Moodle developer environment was installed on loopback from
 Moodle 5.2.2 commit `8ad9354e` and `moodle-docker` commit `f4c2324d`, with a
 synthetic teacher, student, three courses, and three manual grade items. The
 runner rotated the local credentials, persisted neither credentials nor Moodle
-session keys, and restarted the browser before both unseen replays.
+session keys, and restarted separate teacher and student browser profiles before
+their unseen replays.
 
 | Workflow | Mechanism | Effect path | Compiled model calls | Exact result | Verdict |
 | --- | --- | --- | ---: | --- | --- |
 | Open unseen course/tab combination | authenticated server navigation across course and role views | read DOM after clean restart | 0 | exact course, Participants route, and rendered evidence | pass |
 | Change unseen course grade | persistent edit-mode state plus form save | prepare/commit | 0 | prepare empty; commit grade 61; repeat rejected | pass |
+| Submit unseen student assignment | input-bound activity URL plus online-text form | browser-idle prepare, then one-shot commit | 0 | no response at prepare; exact submitted response at commit; repeat rejected | pass |
 
 Moodle's Edit mode is a persistent toggle. A literal “click Edit mode” plan can
 silently do the opposite on a later run, so the demonstrated plan uses the
@@ -569,14 +571,38 @@ first formal harness attempt also compared the entered string `72` with
 Moodle's formatted `72.00` and failed closed; the corrected assertion compares
 numbers and still requires Moodle's server-side gradebook API as the oracle.
 
-The two demonstrations set grades 72 and 83 on separate courses and were
+The grade demonstrations set grades 72 and 83 on separate courses and were
 independently verified and cleared. The unseen commit set grade 61 exactly
 once, a second use of the receipt was rejected before another UI action, and
-the oracle verified all synthetic grades were empty after cleanup. This is
-development/regression evidence on one pinned application, not a speed result
-or untouched-holdout credit. The sanitized report is
-[`bench/runs/2026-09-04/moodle-local-capability.json`](../bench/runs/2026-09-04/moodle-local-capability.json),
-and the fixture sources and setup notes are in
+the oracle verified all synthetic grades were empty after cleanup.
+
+The expanded run provisioned three online-text assignments and configured the
+synthetic student to use Moodle's plain textarea editor, isolating the
+role/session, activity-route, and effect-lifecycle behavior missing from the
+row. Two different assignment/response pairs were demonstrated and removed.
+After a clean student-profile restart, compiled replay opened the unseen third
+activity, entered a new response, and saved it. Moodle's database reported
+status `submitted` and the exact response text; the rendered status agreed.
+Prepare created no submission and did not change the page, receipt reuse was
+rejected with the same submission ID remaining, and all three responses were
+deleted and verified absent.
+
+One discovery-only fixture warning and one formal harness assertion failed
+closed without compiler changes. Developer debugging refused Moodle's automatic
+redirect for `.invalid` fixture email; `example.com` fixture addresses now route
+only to local Mailpit. The first plan assertion also demanded an effect boundary
+at the read-only “Add submission” click, while the compiler correctly placed it
+at the following fill because reactive form fields may autosave. The runner now
+requires that conservative index and independently proves browser-idle,
+database-idle prepare.
+
+This is development/regression evidence on one pinned application, not a speed
+result or untouched-holdout credit. The expanded compiler checkpoint is
+[`271a2bd`](https://github.com/yail259/clapping-hands/commit/271a2bd), and its
+sanitized report is
+[`bench/runs/2026-09-05/moodle-local-expanded-capability.json`](../bench/runs/2026-09-05/moodle-local-expanded-capability.json).
+The earlier 2/2 report remains as historical evidence. Fixture sources and
+setup notes are in
 [`bench/fixtures/moodle`](../bench/fixtures/moodle/README.md).
 
 ## Self-hosted nopCommerce capability and performance — 2026-09-04
