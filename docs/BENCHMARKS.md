@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 99 passing tests and the built MCP
+cross-site speed claim. The current suite has 100 passing tests and the built MCP
 server advertises ten management/Marketplace tools before any generated
 workflow tools are loaded.
 
@@ -77,6 +77,14 @@ verb or a file-like noun near choose/select/set, with a controlled regression
 covering the original mixed-control page. The corrected order transition is
 retained only as regression evidence; the frozen task remains a 0/1 compiler
 failure.
+
+That regression next found a second general validation defect: short numeric
+enum codes such as `20` and `30` appeared coincidentally in dense admin output
+during demonstrations, so they were incorrectly promoted to semantic output
+evidence. The actual status transition completed, then replay failed closed
+because the result used the label `Complete` rather than the code. Pure numeric
+and primitive values now remain valid action bindings but cannot become inferred
+semantic postconditions merely through substring coincidence.
 
 The reproducible controlled protocol at compiler commit
 [`387ede5`](https://github.com/yail259/clapping-hands/commit/387ede5) ran 20

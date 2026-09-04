@@ -492,6 +492,43 @@ test("uses demonstrated input evidence to validate an unseen write result", () =
   }, { sourceUrl: "/old-gamma", targetUrl: "/new-gamma" }), /required evidence for input targetUrl/);
 });
 
+test("does not treat numeric enum codes as semantic output evidence", () => {
+  const origin = "https://fixture.invalid";
+  const demonstrate = (status: string, output: string): DomWorkflowDemonstration => ({
+    input: { status },
+    actions: [{
+      selector: "#status",
+      description: `Select status ${status}`,
+      method: "selectOptionFromDropdown",
+      arguments: [status],
+    }],
+    output: {
+      selector: "#order",
+      tagName: "main",
+      text: output,
+      textHash: createHash("sha256").update(output).digest("hex"),
+      url: `${origin}/order`,
+    },
+    modelCalls: 1,
+  });
+  const plan = compileDomWorkflow("change_status", `${origin}/order`, [
+    demonstrate("20", "Processing · 20 orders on this page"),
+    demonstrate("30", "Complete · reference 30"),
+  ], {
+    effect: "write",
+    confirmation: "Change this fixture order status",
+  });
+
+  assert.deepEqual(plan.validation.inputEvidenceNames, []);
+  assert.doesNotThrow(() => validateDomOutput(plan, {
+    selector: "#order",
+    tagName: "main",
+    text: "Complete",
+    textHash: "unseen-status-hash",
+    url: `${origin}/order`,
+  }, { status: "30" }));
+});
+
 test("waits for an asynchronously mounted compiled iframe", async () => {
   const { server, origin } = await fixture();
   let browser: Browser | null = null;

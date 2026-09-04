@@ -381,6 +381,20 @@ try {
     intervention: "guided demonstrations",
     credentialHandling: "Rotated a synthetic administrator password in memory and restored the prior password row; no credential or session value was persisted",
     demonstrationOracles,
+    developmentHistory: [
+      {
+        stage: "first demonstration",
+        result: "failed-closed",
+        reason: "The status-selection instruction was intercepted as a file-selection request because the page also contained an unrelated file input.",
+        fix: "Require explicit file intent before using the guided file-selection bridge.",
+      },
+      {
+        stage: "first post-fix compiled replay",
+        result: "failed-closed-after-effect",
+        reason: "Short numeric status codes were inferred as output evidence from coincidental occurrences in the demonstration pages.",
+        fix: "Do not infer pure numeric or primitive values as semantic output postconditions.",
+      },
+    ],
     tasks: [task],
     regression: {
       compilerCommit: regressionCompilerCommit,

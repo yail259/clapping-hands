@@ -524,6 +524,16 @@ function inputBindingOrder(demonstration: DomWorkflowDemonstration, inputNames: 
     .sort((left, right) => right.raw.length - left.raw.length || left.inputIndex - right.inputIndex);
 }
 
+function reliableOutputEvidence(value: unknown): string | null {
+  const evidence = normalizedText(String(value)).toLowerCase();
+  if (evidence.length < 3) return null;
+  // Short identifiers and enum values occur coincidentally throughout dense
+  // application pages (prices, counts, dates, element IDs). They are useful
+  // action bindings but are not a trustworthy semantic postcondition.
+  if (/^[+-]?(?:\d+(?:[.,]\d+)?|true|false|null|undefined|yes|no)$/i.test(evidence)) return null;
+  return evidence;
+}
+
 function replaceInputOccurrences(value: string, raw: string, sentinel: string): string {
   const replaceOrdinaryText = (text: string): string => {
     if (raw.length >= 3) return text.split(raw).join(sentinel);
@@ -828,8 +838,8 @@ export function compileDomWorkflow(
     ...demonstrations.map((demo) => normalizedText(demo.output.text).length),
   ) * 0.25));
   const inputEvidenceNames = inputNames.filter((name) => demonstrations.every((demo) => {
-    const evidence = normalizedText(String(demo.input[name])).toLowerCase();
-    return evidence.length > 0 && normalizedText(demo.output.text).toLowerCase().includes(evidence);
+    const evidence = reliableOutputEvidence(demo.input[name]);
+    return evidence !== null && normalizedText(demo.output.text).toLowerCase().includes(evidence);
   }));
   // Aggregate views can contain every demonstrated item, producing identical
   // full-page hashes even though the requested input is safely evidenced in
