@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "kind": "frozen-holdout-smoke",
+  "generatedAt": "2026-09-04T08:55:50.676Z",
+  "frozenCompilerCommit": "054bf03d80bf5401e26267e2a7c6d59931670876",
+  "testedCompilerCommit": "90090371d9d60422523bf33370e9ae447a9bb8b6",
+  "application": "WordPress Playground",
+  "origin": "https://playground.wordpress.net",
+  "policyBasis": "Official isolated browser sandbox; all state remained in the ephemeral local Playground instance",
+  "intervention": "guided",
+  "claimScope": "Frozen-corpus capability holdout; n=1 compiled run, not a speed benchmark",
+  "claimEligibility": "Regression after a holdout-discovered compiler fix; excluded from the untouched-holdout success denominator",
+  "traffic": {
+    "inspectionJourneys": 2,
+    "failedAttemptJourneys": 12,
+    "diagnosticJourneys": 1,
+    "reportedRunJourneys": 3,
+    "totalTopLevelJourneys": 18,
+    "externalWordPressSitesModified": 0
+  },
+  "developmentHistory": [
+    {
+      "attempt": 1,
+      "compilerCommit": "054bf03d80bf5401e26267e2a7c6d59931670876",
+      "result": "failed-closed",
+      "reason": "The compiled control was checked before the asynchronous Playground iframe mounted.",
+      "fix": "Wait for a compiled selector to become uniquely available, including through a declared frame path.",
+      "journeys": 3
+    },
+    {
+      "attempt": 2,
+      "result": "failed-closed",
+      "reason": "The two search strings selected the same single result row, so freshness could not be proven.",
+      "fix": "Correct the holdout inputs to demonstrate a miss and a hit; no compiler behavior changed.",
+      "journeys": 3
+    },
+    {
+      "attempt": 3,
+      "result": "failed-closed",
+      "reason": "The replay query still selected the same row shown by the clean starting page.",
+      "fix": "Use an unseen no-match replay input so the clean hit-to-miss transition is independently observable; no compiler behavior changed.",
+      "journeys": 3
+    },
+    {
+      "attempt": 4,
+      "result": "failed-closed",
+      "reason": "The guided demonstrator observed the old visible table before the inner frame navigation completed.",
+      "fix": "Wait for the demonstrated query in the WordPress frame URL before capturing output; no compiler behavior changed.",
+      "journeys": 3
+    }
+  ],
+  "rows": [
+    {
+      "task": "search-posts",
+      "effect": "read",
+      "path": "same-origin-iframe-dom",
+      "intervention": "guided",
+      "demonstrations": 2,
+      "compiledRuns": 1,
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 3794.2058749999997,
+      "exactResult": true
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "total": 1,
+    "falseSuccesses": 0
+  }
+}

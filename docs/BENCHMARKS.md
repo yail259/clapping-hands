@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 69 passing tests and the built MCP server
+cross-site speed claim. The current suite has 70 passing tests and the built MCP server
 advertises ten management/Marketplace tools before any generated workflow tools
 are loaded.
 
@@ -184,3 +184,31 @@ This is the third public domain and the first externally hosted authenticated
 SPA in the evidence. It remains guided, `n=1` per task, and outside the unseen
 holdout denominator; it supports capability claims, not a speed or 80–90%
 generality claim.
+
+## WordPress Playground holdout and regression — 2026-09-04
+
+The 32-task corpus was frozen at compiler checkpoint
+[`054bf03`](https://github.com/yail259/clapping-hands/commit/054bf03) before
+opening WordPress Playground. The first guided post-search replay failed closed:
+the compiled selector was checked before Playground's asynchronous WASM-backed
+iframe had mounted. The runtime now waits for a selector to become uniquely
+available through its declared same-origin frame path; a controlled regression
+and all 70 tests pass.
+
+The corrected workflow then passed on checkpoint
+[`9009037`](https://github.com/yail259/clapping-hands/commit/9009037):
+
+| Workflow | Mechanism | Effect path | Compiled model calls | Exact result | Verdict |
+| --- | --- | --- | ---: | --- | --- |
+| Search posts | asynchronously mounted same-origin iframe | read DOM | 0 | independently checked no-match result | pass after fix |
+
+Three subsequent development attempts also failed closed while the harness was
+made honest about WordPress's initial result and inner-frame navigation. Those
+were benchmark-driver corrections, not compiler changes. The sanitized report
+records all 18 top-level journeys and is
+[`bench/runs/2026-09-04/wordpress-playground-holdout.json`](../bench/runs/2026-09-04/wordpress-playground-holdout.json).
+Because the holdout caused a compiler fix, this pass is regression evidence and
+is excluded from the untouched-holdout success denominator. It is not a speed
+result. WordPress Playground also has first-party JavaScript and Blueprint APIs,
+so the row tests UI architecture rather than claiming UI compilation is the
+preferred integration for WordPress.

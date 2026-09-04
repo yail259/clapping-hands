@@ -114,6 +114,7 @@ npm test
 npm run build
 npm run benchmark:corpus
 npm run benchmark:controlled
+npm run benchmark:wordpress-playground -- --live
 npm run smoke:general
 npm run auth:marketplace
 npm run dogfood:marketplace
@@ -165,6 +166,12 @@ A third bounded smoke on SauceDemo passed 3/3 guided probes: authenticated
 profile restart, independently checked client-side sorting, and a reversible
 cart write whose prepare phase left the cart empty. The test created no order
 and removed its cart item. This is also capability evidence, not a speed ratio.
+
+The frozen compiler's first WordPress Playground holdout failed closed while
+its WASM-backed iframe was still mounting. A general action-readiness fix then
+passed the same guided post-search workflow with an exact unseen result and zero
+compiled model calls. Because the holdout caused the fix, that pass is retained
+as regression evidence and excluded from the untouched-holdout success rate.
 
 Restart Codex after adding the server so these tools are discovered:
 

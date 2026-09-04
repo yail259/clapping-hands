@@ -35,6 +35,19 @@ async function wordpressFrame(page: Page): Promise<Frame> {
   throw new Error("WordPress Playground did not expose its posts administration frame.");
 }
 
+async function wordpressSearchResultFrame(page: Page, query: string): Promise<Frame> {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    const frame = page.frames().find((candidate) => {
+      if (!candidate.url().startsWith(`${ORIGIN}/scope:`) || !candidate.url().includes("/wp-admin/edit.php")) return false;
+      return new URL(candidate.url()).searchParams.get("s") === query;
+    });
+    if (frame && await frame.locator(".wp-list-table.posts").isVisible().catch(() => false)) return frame;
+    await page.waitForTimeout(50);
+  }
+  throw new Error(`WordPress Playground did not finish the search for ${query}.`);
+}
+
 function learnerResult(selector: string, description: string, method: string, arguments_: string[] = []) {
   return {
     success: true,
@@ -57,7 +70,7 @@ async function demonstrateSearch(page: Page, query: string): Promise<DomWorkflow
         return learnerResult("#post-search-input", `Enter ${query} in post search`, "fill", [query]);
       }
       await frame.locator("#search-submit").click();
-      await frame.locator(".wp-list-table.posts").waitFor({ state: "visible", timeout: 15_000 });
+      await wordpressSearchResultFrame(page, query);
       return learnerResult("#search-submit", `Search posts for ${query}`, "click");
     },
   }, page, START_URL, { query }, [
@@ -75,8 +88,8 @@ try {
     await demonstrateSearch(page, "missing-fixture-post"),
   ];
   const plan = compileDomWorkflow("wordpress_playground_search_posts", START_URL, demonstrations);
-  const result = await replayDomWorkflow(page, plan, { query: "world" });
-  const exactResult = result.text.includes("Hello world!") && !result.text.includes("No posts found.");
+  const result = await replayDomWorkflow(page, plan, { query: "another-missing-post" });
+  const exactResult = result.text.includes("No posts found.") && !result.text.includes("Hello world!");
   const rows = [{
     task: "search-posts",
     effect: "read",
@@ -99,11 +112,13 @@ try {
     policyBasis: "Official isolated browser sandbox; all state remained in the ephemeral local Playground instance",
     intervention: "guided",
     claimScope: "Frozen-corpus capability holdout; n=1 compiled run, not a speed benchmark",
+    claimEligibility: "Regression after a holdout-discovered compiler fix; excluded from the untouched-holdout success denominator",
     traffic: {
       inspectionJourneys: 2,
-      failedAttemptJourneys: 6,
+      failedAttemptJourneys: 12,
+      diagnosticJourneys: 1,
       reportedRunJourneys: 3,
-      totalTopLevelJourneys: 11,
+      totalTopLevelJourneys: 18,
       externalWordPressSitesModified: 0,
     },
     developmentHistory: [
@@ -120,6 +135,20 @@ try {
         result: "failed-closed",
         reason: "The two search strings selected the same single result row, so freshness could not be proven.",
         fix: "Correct the holdout inputs to demonstrate a miss and a hit; no compiler behavior changed.",
+        journeys: 3,
+      },
+      {
+        attempt: 3,
+        result: "failed-closed",
+        reason: "The replay query still selected the same row shown by the clean starting page.",
+        fix: "Use an unseen no-match replay input so the clean hit-to-miss transition is independently observable; no compiler behavior changed.",
+        journeys: 3,
+      },
+      {
+        attempt: 4,
+        result: "failed-closed",
+        reason: "The guided demonstrator observed the old visible table before the inner frame navigation completed.",
+        fix: "Wait for the demonstrated query in the WordPress frame URL before capturing output; no compiler behavior changed.",
         journeys: 3,
       },
     ],

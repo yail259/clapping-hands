@@ -61,6 +61,14 @@ useful DOM-only result rather than a forced network-speedup win. The Internet's
 delayed element appears about five seconds after the final click, which is now
 an explicit stale-output regression case for the runtime.
 
+After the freeze, WordPress Playground's post-search task found that compiled
+actions did not wait for an asynchronously mounted iframe. The frozen compiler
+failed closed; the general readiness regression now passes on the corrected
+runtime with zero compiled model calls. Because that holdout directly caused a
+compiler change, its rerun is excluded from the untouched-holdout success
+denominator. WordPress Playground's own JavaScript and Blueprint APIs also make
+it an architecture-coverage row, not a “no API” product win.
+
 ## Claim gates
 
 The denominator is **declared tasks in the representative corpus**, not “all
