@@ -105,6 +105,24 @@ async function fixture(): Promise<{ server: Server; origin: string }> {
       </main>`);
       return;
     }
+    if (url.pathname === "/never-load-image") {
+      response.writeHead(200, {
+        "content-type": "image/png",
+        "content-length": "1",
+      });
+      request.on("close", () => response.destroy());
+      return;
+    }
+    if (url.pathname === "/dom-ready-never-load") {
+      response.end(`<!doctype html><main>
+        <img src="/never-load-image" alt="">
+        <button id="dom-ready-run">Run usable app</button><output id="dom-ready-result">Ready</output>
+        <script>document.querySelector('#dom-ready-run').onclick = () => {
+          document.querySelector('#dom-ready-result').textContent = 'Usable before global load';
+        };</script>
+      </main>`);
+      return;
+    }
     if (url.pathname === "/rich-editor") {
       response.end(`<!doctype html><main><form>
         <div id="editor" contenteditable="true"></div><textarea id="source" hidden></textarea>
@@ -483,6 +501,45 @@ test("waits for bounded post-load hydration before executing compiled actions", 
     const result = await replayDomWorkflow(page, plan, {});
     assert.equal(result.text, "Hydrated handler ready");
     assert.equal(result.modelCalls, 0);
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("executes a DOM-ready app whose global load event never completes", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    const demonstration = (): DomWorkflowDemonstration => ({
+      input: {},
+      actions: [{
+        selector: "#dom-ready-run",
+        description: "Run the usable app",
+        method: "click",
+        arguments: [],
+      }],
+      output: {
+        selector: "#dom-ready-result",
+        tagName: "output",
+        text: "Usable before global load",
+        textHash: createHash("sha256").update("Usable before global load").digest("hex"),
+        url: `${origin}/dom-ready-never-load`,
+      },
+      modelCalls: 1,
+    });
+    const plan = compileDomWorkflow("dom_ready_never_load", `${origin}/dom-ready-never-load`, [
+      demonstration(),
+      demonstration(),
+    ]);
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const startedAt = performance.now();
+    const result = await replayDomWorkflow(page, plan, {});
+    assert.equal(result.text, "Usable before global load");
+    assert.equal(result.modelCalls, 0);
+    assert.ok(performance.now() - startedAt < 10_000);
     await page.close();
   } finally {
     await browser?.close();

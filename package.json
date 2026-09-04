@@ -16,6 +16,7 @@
     "benchmark:discourse": "tsx scripts/benchmark-discourse.ts",
     "benchmark:marketplace": "tsx scripts/benchmark-marketplace.ts",
     "benchmark:moodle": "tsx scripts/benchmark-moodle.ts",
+    "benchmark:nextcloud": "tsx scripts/benchmark-nextcloud.ts",
     "benchmark:osticket": "tsx scripts/benchmark-osticket.ts",
     "benchmark:saucedemo": "tsx scripts/benchmark-saucedemo.ts",
     "benchmark:the-internet": "tsx scripts/benchmark-the-internet.ts",

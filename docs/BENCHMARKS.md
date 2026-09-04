@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 80 passing tests and the built MCP server
+cross-site speed claim. The current suite has 81 passing tests and the built MCP server
 advertises ten management/Marketplace tools before any generated workflow tools
 are loaded.
 
@@ -272,3 +272,27 @@ The sanitized report is
 This is the first untouched corpus-v2 candidate pass, but one task on one
 application is far below the release gate for an 80–90% representative-corpus
 claim.
+
+## Nextcloud instant-trial holdout — rerun deferred, 2026-09-04
+
+[Nextcloud's instant trial](https://try.nextcloud.com/) created a disposable
+test account on an official demo host. The account is automatically removed;
+the harness persisted only its browser-managed session and created no files or
+folders. The frozen task was to demonstrate opening `Documents` and `Photos`,
+restart the browser, then replay the unseen `Templates` folder.
+
+No compiled replay ran. Three first-journey attempts failed closed:
+
+| Stage | Failure | Disposition |
+| --- | --- | --- |
+| Initial demonstration | The first-run wizard intercepted the folder click. | Treat onboarding as an explicit trial setup precondition, never a generic auto-dismiss rule. |
+| Corrected demonstration | The harness sampled hidden carousel controls during the wizard's intro transition. | Use the wizard's documented `Close` action after a bounded wait. |
+| Corrected demonstration | The file UI was usable, but the core navigator required the global `load` event and timed out after 30 seconds. | Commit navigation at `DOMContentLoaded`; use bounded `load`/network-idle settling and keep selectors/output as the real readiness gates. |
+
+The navigation fix has a controlled regression for a DOM-ready application
+whose global `load` event never completes, but the public rerun is deferred.
+Eight of the ten permitted demo-host journeys were actually consumed; the two
+remaining journeys cannot fit a clean two-demonstration-plus-replay run. This
+row therefore contributes **no pass**, no speed number, and no coverage credit.
+The sanitized failure report is
+[`bench/runs/2026-09-04/nextcloud-trial-holdout.json`](../bench/runs/2026-09-04/nextcloud-trial-holdout.json).

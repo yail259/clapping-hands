@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "kind": "live-disposable-trial-holdout",
+  "generatedAt": "2026-09-04T10:28:44.000Z",
+  "compilerCommit": "4e2fd4f",
+  "application": "Nextcloud instant trial",
+  "origin": "https://demo1.nextcloud.com",
+  "policyBasis": "Nextcloud offers an immediate disposable test account for exploring the interface; the account is automatically removed",
+  "credentialHandling": "Used only browser-managed state from the official instant-account handoff; persisted no credentials in plans or reports",
+  "claimScope": "Corpus-v2 candidate holdout; rerun deferred, no pass and no speed claim",
+  "traffic": {
+    "actualJourneysConsumed": 8,
+    "dailyDomainCap": 10,
+    "remainingJourneys": 2,
+    "requiredForCleanRerun": 3,
+    "sharedContentCreated": 0,
+    "disposableTrialAccountsCreated": 1
+  },
+  "task": {
+    "id": "open-folder",
+    "demonstrations": [
+      { "folderName": "Documents" },
+      { "folderName": "Photos" }
+    ],
+    "replay": { "folderName": "Templates" },
+    "mechanism": "authenticated-vue-file-route",
+    "compiledReplaysExecuted": 0,
+    "rerunDeferred": true
+  },
+  "failedStages": [
+    {
+      "stage": "initial-demonstration",
+      "reason": "The first-run wizard intercepted the seeded Documents folder click.",
+      "fix": "Dismiss the trial onboarding through an explicit, bounded setup precondition rather than teaching a generic overlay click."
+    },
+    {
+      "stage": "onboarding-precondition",
+      "reason": "The harness sampled a transient zero-count while the wizard replaced hidden carousel controls.",
+      "fix": "Wait for and invoke the wizard's documented Close action after its intro transition."
+    },
+    {
+      "stage": "workflow-navigation",
+      "reason": "The Nextcloud file UI reached DOM readiness but did not complete the browser global load event within 30 seconds.",
+      "fix": "Commit navigation at DOMContentLoaded, use bounded load and network-idle settling, and retain selector/output readiness as the success gates."
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "total": 1,
+    "falseSuccesses": 0,
+    "status": "rerun-deferred"
+  }
+}

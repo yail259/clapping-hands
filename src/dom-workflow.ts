@@ -891,8 +891,14 @@ async function settle(page: Page): Promise<void> {
 }
 
 export async function navigateForCompiledDomWorkflow(page: Page, url: string): Promise<void> {
-  await page.goto(url, { waitUntil: "load", timeout: 30_000 });
-  await page.waitForLoadState("networkidle", { timeout: 2_000 }).catch(() => {});
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  // Long-lived applications can keep resources or connections open forever.
+  // DOMContentLoaded commits the navigation; load/network-idle are bounded
+  // settling hints, while selector and output readiness remain the real gates.
+  await Promise.all([
+    page.waitForLoadState("load", { timeout: 2_000 }).catch(() => {}),
+    page.waitForLoadState("networkidle", { timeout: 2_000 }).catch(() => {}),
+  ]);
   await page.evaluate(() => new Promise<void>((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
   }));
