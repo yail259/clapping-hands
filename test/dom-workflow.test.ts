@@ -122,6 +122,11 @@ async function fixture(): Promise<{ server: Server; origin: string }> {
         };</script></main>`);
       return;
     }
+    if (url.pathname === "/idempotent-select") {
+      response.end(`<!doctype html><main><select id="sort"><option value="az" selected>A to Z</option><option value="za">Z to A</option></select>
+        <output id="result">Inventory ready</output></main>`);
+      return;
+    }
     response.end(`<!doctype html><main>
       <label>Search <input id="query"></label><button id="run">Run</button>
       <output id="result">Ready</output>
@@ -687,6 +692,39 @@ test("learns a single allowlisted file input without asking Stagehand for an uns
     await browser?.close();
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("accepts a fresh result when a state-setting action is already satisfied", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    const demo = (sort: string): DomWorkflowDemonstration => ({
+      input: { sort },
+      actions: [{
+        selector: "#sort",
+        description: `Sort ${sort}`,
+        method: "selectOptionFromDropdown",
+        arguments: [sort],
+      }],
+      output: {
+        selector: "#result",
+        tagName: "output",
+        text: "Inventory ready",
+        textHash: createHash("sha256").update("Inventory ready").digest("hex"),
+        url: `${origin}/idempotent-select`,
+      },
+      modelCalls: 1,
+    });
+    const plan = compileDomWorkflow("default_sort", `${origin}/idempotent-select`, [demo("az"), demo("za")]);
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const result = await replayDomWorkflow(page, plan, { sort: "az" });
+    assert.equal(result.text, "Inventory ready");
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 });
 

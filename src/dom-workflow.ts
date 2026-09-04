@@ -1161,6 +1161,19 @@ export async function executeCompiledDomAction(
   return nextPage;
 }
 
+async function compiledActionAlreadySatisfied(page: Page, action: BrowserAction): Promise<boolean> {
+  const method = normalizeMethod(action);
+  if (!new Set<DomActionMethod>(["selectOption", "check", "uncheck"]).has(method)) return false;
+  const locator = locatorInFramePath(page, action.framePath ?? [], action.selector);
+  if (await locator.count() !== 1) return false;
+  if (method === "check") return locator.isChecked().catch(() => false);
+  if (method === "uncheck") return locator.isChecked().then((checked) => !checked).catch(() => false);
+  const expected = action.arguments ?? [];
+  const selected = await locator.locator("option:checked").evaluateAll((options) =>
+    options.map((option) => (option as HTMLOptionElement).value)).catch(() => [] as string[]);
+  return JSON.stringify(selected) === JSON.stringify(expected);
+}
+
 export function validateDomOutput(plan: DomWorkflowPlan, output: DomOutputSnapshot, input?: DomInput): void {
   assertSameOrigin(output.url, plan.origin, "Compiled DOM replay");
   if (JSON.stringify(output.framePath ?? []) !== JSON.stringify(plan.validation.outputFramePath ?? [])) {
@@ -1208,15 +1221,19 @@ export async function replayDomWorkflow(
   let navigations = 1;
   const downloads: DomDownloadArtifact[] = [];
   for (const [index, template] of plan.actions.entries()) {
+    const action = materializeAction(template, input);
     const beforeUrl = activePage.url();
     const beforeOutput = index === plan.actions.length - 1
       ? await readDomOutputTextIfPresent(activePage, plan.validation.outputSelector, plan.validation.outputFramePath)
       : null;
-    activePage = await executeCompiledDomAction(activePage, materializeAction(template, input), {
+    const alreadySatisfied = index === plan.actions.length - 1
+      ? await compiledActionAlreadySatisfied(activePage, action)
+      : false;
+    activePage = await executeCompiledDomAction(activePage, action, {
       onDownload: (artifact) => downloads.push(artifact),
     });
     await settle(activePage);
-    if (index === plan.actions.length - 1 && !template.download) {
+    if (index === plan.actions.length - 1 && !template.download && !alreadySatisfied) {
       await waitForDomOutputChange(
         activePage,
         plan.validation.outputSelector,
