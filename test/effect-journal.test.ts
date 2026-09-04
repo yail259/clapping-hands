@@ -173,7 +173,7 @@ function dialogDemonstration(origin: string, message: string, ordinal: number): 
   };
 }
 
-function demonstration(origin: string, note: string): DomWorkflowDemonstration {
+function demonstration(origin: string, note: string, ordinal: number): DomWorkflowDemonstration {
   return {
     input: { note },
     actions: [
@@ -183,15 +183,15 @@ function demonstration(origin: string, note: string): DomWorkflowDemonstration {
     output: {
       selector: "#result",
       tagName: "output",
-      text: `Published ${note}`,
-      textHash: `dynamic-${note}`,
+      text: `Published ${ordinal}`,
+      textHash: `dynamic-${ordinal}`,
       url: `${origin}/`,
     },
     modelCalls: 1,
   };
 }
 
-function autosaveDemonstration(origin: string, title: string): DomWorkflowDemonstration {
+function autosaveDemonstration(origin: string, title: string, ordinal: number): DomWorkflowDemonstration {
   return {
     input: { title },
     actions: [
@@ -201,8 +201,8 @@ function autosaveDemonstration(origin: string, title: string): DomWorkflowDemons
     output: {
       selector: "#result",
       tagName: "output",
-      text: `Published ${title}`,
-      textHash: `autosave-${title}`,
+      text: `Published ${ordinal}`,
+      textHash: `autosave-${ordinal}`,
       url: `${origin}/autosave`,
     },
     modelCalls: 1,
@@ -232,8 +232,8 @@ test("prepare performs no browser actions and hidden autosaves stay inside the o
   let browser: Browser | null = null;
   try {
     const plan = compileDomWorkflow("publish-autosaved-topic", `${origin}/autosave`, [
-      autosaveDemonstration(origin, "first"),
-      autosaveDemonstration(origin, "second"),
+      autosaveDemonstration(origin, "first", 1),
+      autosaveDemonstration(origin, "second", 2),
     ], { effect: "write", confirmation: "Publish this autosaved synthetic topic" });
     browser = await chromium.launch({ executablePath: CHROME, headless: true });
     const page = await browser.newPage();
@@ -298,8 +298,8 @@ test("write workflows require a durable prepare/commit receipt and commit at mos
   let browser: Browser | null = null;
   try {
     const plan = compileDomWorkflow("publish-note", origin, [
-      demonstration(origin, "first"),
-      demonstration(origin, "second"),
+      demonstration(origin, "first", 1),
+      demonstration(origin, "second", 2),
     ], { effect: "write", confirmation: "Publish this note to the site" });
     browser = await chromium.launch({ executablePath: CHROME, headless: true });
     const page = await browser.newPage();
@@ -336,8 +336,8 @@ test("a post-click validation failure becomes uncertain and is never retried", a
   let browser: Browser | null = null;
   try {
     const plan = compileDomWorkflow("publish-note", origin, [
-      demonstration(origin, "first"),
-      demonstration(origin, "second"),
+      demonstration(origin, "first", 1),
+      demonstration(origin, "second", 2),
     ], { effect: "write", confirmation: "Publish this note to the site" });
     plan.validation.outputSelector = "#missing-after-commit";
     plan.validation.outputChangeTimeoutMs = 100;
@@ -370,18 +370,18 @@ test("prepared writes execute inside a same-origin iframe", async () => {
   const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-effects-frame-"));
   let browser: Browser | null = null;
   try {
-    const framedDemo = (note: string): DomWorkflowDemonstration => ({
-      ...demonstration(origin, note),
-      actions: demonstration(origin, note).actions.map((action) => ({ ...action, framePath: ["#editor"] })),
+    const framedDemo = (note: string, ordinal: number): DomWorkflowDemonstration => ({
+      ...demonstration(origin, note, ordinal),
+      actions: demonstration(origin, note, ordinal).actions.map((action) => ({ ...action, framePath: ["#editor"] })),
       output: {
-        ...demonstration(origin, note).output,
+        ...demonstration(origin, note, ordinal).output,
         url: `${origin}/framed`,
         framePath: ["#editor"],
       },
     });
     const plan = compileDomWorkflow("publish_framed_note", `${origin}/framed`, [
-      framedDemo("first"),
-      framedDemo("second"),
+      framedDemo("first", 1),
+      framedDemo("second", 2),
     ], { effect: "write", confirmation: "Publish this framed test note" });
     browser = await chromium.launch({ executablePath: CHROME, headless: true });
     const page = await browser.newPage();

@@ -777,12 +777,10 @@ export function compileDomWorkflow(
   const minimumOutputCharacters = Math.max(1, Math.floor(Math.min(
     ...demonstrations.map((demo) => normalizedText(demo.output.text).length),
   ) * 0.25));
-  const inputEvidenceNames = effectLevel === "read"
-    ? inputNames.filter((name) => demonstrations.every((demo) => {
-      const evidence = normalizedText(String(demo.input[name])).toLowerCase();
-      return evidence.length > 0 && normalizedText(demo.output.text).toLowerCase().includes(evidence);
-    }))
-    : [];
+  const inputEvidenceNames = inputNames.filter((name) => demonstrations.every((demo) => {
+    const evidence = normalizedText(String(demo.input[name])).toLowerCase();
+    return evidence.length > 0 && normalizedText(demo.output.text).toLowerCase().includes(evidence);
+  }));
   // Aggregate views can contain every demonstrated item, producing identical
   // full-page hashes even though the requested input is safely evidenced in
   // the output. In that case the evidence is the reusable contract; freezing

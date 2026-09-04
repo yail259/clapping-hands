@@ -439,6 +439,50 @@ test("uses input evidence when varied demonstrations share one aggregate output 
   }, { filename: "gamma.txt" }), /required evidence for input filename/);
 });
 
+test("uses demonstrated input evidence to validate an unseen write result", () => {
+  const origin = "https://fixture.invalid";
+  const demonstrate = (sourceUrl: string, targetUrl: string): DomWorkflowDemonstration => ({
+    input: { sourceUrl, targetUrl },
+    actions: [
+      { selector: "#source", description: "Fill source URL", method: "fill", arguments: [sourceUrl] },
+      { selector: "#target", description: "Fill target URL", method: "fill", arguments: [targetUrl] },
+      { selector: "#create", description: "Create redirect", method: "click", arguments: [] },
+    ],
+    output: {
+      selector: "#redirects",
+      tagName: "main",
+      text: `Created ${sourceUrl} → ${targetUrl}`,
+      textHash: createHash("sha256").update(`${sourceUrl}:${targetUrl}`).digest("hex"),
+      url: `${origin}/redirects`,
+    },
+    modelCalls: 1,
+  });
+  const plan = compileDomWorkflow("create_redirect", `${origin}/redirects`, [
+    demonstrate("/old-alpha", "/new-alpha"),
+    demonstrate("/old-beta", "/new-beta"),
+  ], {
+    effect: "write",
+    confirmation: "Create this redirect",
+  });
+
+  assert.equal(plan.validation.outputMode, "present");
+  assert.deepEqual(plan.validation.inputEvidenceNames, ["sourceUrl", "targetUrl"]);
+  assert.doesNotThrow(() => validateDomOutput(plan, {
+    selector: "#redirects",
+    tagName: "main",
+    text: "Created /old-gamma → /new-gamma",
+    textHash: "unseen-write-hash",
+    url: `${origin}/redirects`,
+  }, { sourceUrl: "/old-gamma", targetUrl: "/new-gamma" }));
+  assert.throws(() => validateDomOutput(plan, {
+    selector: "#redirects",
+    tagName: "main",
+    text: "Created /old-gamma → /wrong-target",
+    textHash: "wrong-write-hash",
+    url: `${origin}/redirects`,
+  }, { sourceUrl: "/old-gamma", targetUrl: "/new-gamma" }), /required evidence for input targetUrl/);
+});
+
 test("waits for an asynchronously mounted compiled iframe", async () => {
   const { server, origin } = await fixture();
   let browser: Browser | null = null;
