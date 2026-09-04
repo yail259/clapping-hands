@@ -284,7 +284,9 @@ try {
     confirmation: "Advance one synthetic local order to the requested later status exactly once",
   });
   const compileMs = performance.now() - compileStartedAt;
-  if (plan.effect.commitActionIndex !== 0) throw new Error("The complete order transition was not withheld until commit.");
+  if (plan.effect.commitActionIndex !== 1) {
+    throw new Error(`The order status selector was not the inferred effect boundary: ${plan.effect.commitActionIndex}.`);
+  }
 
   await browser.close();
   browser = new PersistentWorkflowBrowser({
@@ -385,6 +387,7 @@ try {
       status: exactResult ? "passed" : "failed",
       claimEligible: false,
       reasonExcluded: "The frozen task exposed the compiler defect that motivated this intent-classification fix.",
+      harnessCorrection: "The status selector is the inferred effect boundary at index 1; prepare remains browser-idle and commit replays the complete action sequence.",
       engine: plan.engine,
       exactResult,
       preparedWithoutEffect,
