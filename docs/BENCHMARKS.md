@@ -58,9 +58,10 @@ New regression coverage includes:
 
 - generic form discovery among unrelated forms, document `<base>` handling,
   browser-default successful controls, and same-document SPA submissions;
-- JSON capture for GET/POST/PUT/PATCH/DELETE on the workflow origin or exact
-  operator-allowed origins, redaction of auth and CSRF-shaped headers, and
-  capture from every attached tab;
+- read-only JSON acceleration for GET and output-evidenced POST on the workflow
+  origin or exact operator-allowed origins, redaction of auth and CSRF-shaped
+  headers, and capture from every attached tab; mutation-shaped methods stay on
+  the prepared effectful path;
 - same-origin iframe action/output discovery, declared new-page transitions,
   and zero-argument DOM and JSON workflows;
 - nested input inference and replay for form-encoded GraphQL variables;

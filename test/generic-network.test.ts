@@ -10,6 +10,7 @@ import {
   compileGenericJsonFromTraces,
   recordGenericJsonShadow,
   replayGenericJsonPlan,
+  type GenericJsonPlan,
   type GenericNetworkDemonstration,
   type NetworkInput,
 } from "../src/generic-network.js";
@@ -56,7 +57,14 @@ async function apiFixture(): Promise<{ server: Server; origin: string }> {
       const query = url.searchParams.get("q") ?? "";
       response.end(JSON.stringify(query === "drift"
         ? { wrong: true }
-        : { items: [{ id: query.length, title: query }], meta: { count: 1 } }));
+        : query === "empty-drift"
+          ? { items: [], meta: { count: 0 } }
+          : { items: [{ id: query.length, title: query }], meta: { count: 1 } }));
+      return;
+    }
+    if (url.pathname === "/api/html-json") {
+      response.setHeader("content-type", "text/html");
+      response.end(JSON.stringify({ items: [{ title: "looks structured" }] }));
       return;
     }
     if (url.pathname === "/api/status") {
@@ -112,6 +120,7 @@ test("infers a redacted GET query plan from two demonstrations and validates rep
     stable = recordGenericJsonShadow(stable, { query: "desk" }, true);
     assert.equal(stable.status, "stable");
     await assert.rejects(() => replayGenericJsonPlan(context!, plan, { query: "drift" }), /structural contract/);
+    await assert.rejects(() => replayGenericJsonPlan(context!, plan, { query: "empty-drift" }), /structural contract/);
   } finally {
     await context?.close();
     await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
@@ -281,6 +290,77 @@ test("refuses unbound dynamic values and sensitive constants", () => {
     exchange(`${origin}/api`, { query: "sofa" }, { ok: true }, { method: "POST", requestBody: { query: "sofa", csrf_token: "fixed" } }),
     exchange(`${origin}/api`, { query: "chair" }, { ok: true }, { method: "POST", requestBody: { query: "chair", csrf_token: "fixed" } }),
   ]), /sensitive request field/);
+});
+
+test("read accelerators reject mutation methods and HTTPS downgrade endpoints", () => {
+  const origin = "https://example.test";
+  for (const method of ["PUT", "PATCH", "DELETE"]) {
+    assert.throws(() => compileGenericJsonPlan(`unsafe_${method.toLowerCase()}`, [
+      exchange(`${origin}/api?q=sofa`, { query: "sofa" }, { ok: true }, { method }),
+      exchange(`${origin}/api?q=chair`, { query: "chair" }, { ok: true }, { method }),
+    ]), /requires the effectful workflow path/);
+  }
+
+  assert.throws(() => compileGenericJsonPlan("downgrade", [
+    exchange("http://api.example.test/search?q=sofa", { query: "sofa" }, { items: [{ title: "sofa" }] }),
+    exchange("http://api.example.test/search?q=chair", { query: "chair" }, { items: [{ title: "chair" }] }),
+  ], {
+    workflowOrigin: origin,
+    allowedNetworkOrigins: ["http://api.example.test"],
+  }), /plaintext network endpoint/);
+});
+
+test("replay rejects a JSON-shaped body served as HTML", async () => {
+  const { server, origin } = await apiFixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-content-type-"));
+  let context: BrowserContext | null = null;
+  try {
+    const demonstrations = ["sofa", "chair"].map((query) => exchange(
+      `${origin}/api/html-json?q=${query}`,
+      { query },
+      { items: [{ title: "looks structured" }] },
+    ));
+    const plan = compileGenericJsonPlan("content_type_guard", demonstrations);
+    context = await chromium.launchPersistentContext(directory, { executablePath: CHROME, headless: true });
+    await assert.rejects(
+      () => replayGenericJsonPlan(context!, plan, { query: "lamp" }),
+      /unexpected content type: text\/html/,
+    );
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("replay revalidates persisted endpoints, methods, headers, and response limits", async () => {
+  const { server, origin } = await apiFixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-plan-safety-"));
+  let context: BrowserContext | null = null;
+  try {
+    const plan = compileGenericJsonPlan("persisted_plan_guard", searchDemonstrations(origin));
+    context = await chromium.launchPersistentContext(directory, { executablePath: CHROME, headless: true });
+
+    const endpoint = structuredClone(plan);
+    endpoint.request.endpointPath = "https://attacker.invalid/collect";
+    await assert.rejects(() => replayGenericJsonPlan(context!, endpoint, { query: "lamp" }), /same-origin absolute path/);
+
+    const method = structuredClone(plan);
+    (method.request as unknown as { method: string }).method = "DELETE";
+    await assert.rejects(() => replayGenericJsonPlan(context!, method as GenericJsonPlan, { query: "lamp" }), /effectful workflow path/);
+
+    const header = structuredClone(plan);
+    header.request.headers.authorization = "Bearer should-never-leave";
+    await assert.rejects(() => replayGenericJsonPlan(context!, header, { query: "lamp" }), /forbidden request header/);
+
+    const responseLimit = structuredClone(plan);
+    responseLimit.response.maximumBytes = Number.MAX_SAFE_INTEGER;
+    await assert.rejects(() => replayGenericJsonPlan(context!, responseLimit, { query: "lamp" }), /response limit is invalid/);
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("generic recorder captures same-origin GET JSON and strips secret headers", async () => {

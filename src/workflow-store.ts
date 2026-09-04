@@ -3,7 +3,7 @@ import { mkdir, open, readFile, readdir, rename, unlink, writeFile } from "node:
 import { resolve } from "node:path";
 import type { DomWorkflowPlan } from "./dom-workflow.js";
 import type { FormWorkflowPlan } from "./form-workflow.js";
-import type { GenericJsonPlan } from "./generic-network.js";
+import { assertGenericJsonPlanSafety, type GenericJsonPlan } from "./generic-network.js";
 
 export type BaselineWorkflowPlan = DomWorkflowPlan | FormWorkflowPlan;
 
@@ -59,6 +59,7 @@ function parseWorkflow(serialized: string): StoredWorkflow {
   if (value.accelerator && (value.action !== value.accelerator.action || value.origin !== value.accelerator.origin)) {
     throw new Error("Stored workflow accelerator identity does not match its baseline plan.");
   }
+  if (value.accelerator) assertGenericJsonPlanSafety(value.accelerator);
   return value as StoredWorkflow;
 }
 

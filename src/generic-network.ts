@@ -9,7 +9,7 @@ type TemplateValue = null | string | number | boolean | InputReference | Templat
 
 export type JsonShape =
   | { type: "null" | "string" | "number" | "boolean" }
-  | { type: "array"; items: JsonShape | null }
+  | { type: "array"; items: JsonShape | null; minimumItems?: 1 }
   | { type: "object"; required: string[]; properties: Record<string, JsonShape> }
   | { type: "union"; anyOf: JsonShape[] };
 
@@ -22,7 +22,7 @@ export type GenericJsonPlan = {
   origin: string;
   status: "candidate" | "provisional" | "stable" | "degraded";
   request: {
-    method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+    method: "GET" | "POST";
     endpointOrigin?: string;
     endpointPath: string;
     headers: Record<string, string>;
@@ -58,6 +58,7 @@ export type GenericNetworkTrace = {
 const SENSITIVE_NAME = /(?:authorization|cookie|password|passwd|secret|token|csrf|xsrf|session|api[_-]?key|jazoest|dtsg|\blsd\b)/i;
 const PUBLIC_OPAQUE_CONSTANT_NAME = /^(?:sha256hash|sha256_hash)$/i;
 const SAFE_HEADERS = new Set(["accept", "content-type", "x-requested-with"]);
+const READ_NETWORK_METHODS = new Set(["GET", "POST"]);
 
 function hash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -85,8 +86,13 @@ function inferJsonShape(values: unknown[]): JsonShape {
     return { type: kind as "null" | "string" | "number" | "boolean" };
   }
   if (kind === "array") {
-    const items = group.flatMap((value) => value as unknown[]);
-    return { type: "array", items: items.length > 0 ? inferJsonShape(items) : null };
+    const arrays = group as unknown[][];
+    const items = arrays.flat();
+    return {
+      type: "array",
+      items: items.length > 0 ? inferJsonShape(items) : null,
+      ...(arrays.every((array) => array.length > 0) ? { minimumItems: 1 as const } : {}),
+    };
   }
   const objects = group as Array<Record<string, unknown>>;
   const required = Object.keys(objects[0] ?? {}).filter((key) => objects.every((object) => key in object)).sort();
@@ -101,7 +107,9 @@ export function matchesJsonShape(value: unknown, shape: JsonShape): boolean {
   if (shape.type === "union") return shape.anyOf.some((candidate) => matchesJsonShape(value, candidate));
   if (shape.type === "null") return value === null;
   if (shape.type === "array") {
-    return Array.isArray(value) && (!shape.items || value.every((item) => matchesJsonShape(item, shape.items!)));
+    return Array.isArray(value) &&
+      (!shape.minimumItems || value.length >= shape.minimumItems) &&
+      (!shape.items || value.every((item) => matchesJsonShape(item, shape.items!)));
   }
   if (shape.type === "object") {
     return Boolean(value && typeof value === "object" && !Array.isArray(value)) &&
@@ -219,6 +227,51 @@ function assertSafeTemplate(value: unknown, path: Path = []): void {
     const fieldName = [...path].reverse().find((segment): segment is string => typeof segment === "string");
     if (fieldName && PUBLIC_OPAQUE_CONSTANT_NAME.test(fieldName)) return;
     throw new Error(`Refusing to persist a high-entropy request constant at ${path.join(".")}.`);
+  }
+}
+
+export function assertGenericJsonPlanSafety(plan: GenericJsonPlan): void {
+  if (plan.formatVersion !== "clapping-hands.dev/v1alpha2" || plan.engine !== "json-request-v1" || plan.effect !== "read") {
+    throw new Error("Invalid read-only JSON accelerator identity.");
+  }
+  if (!READ_NETWORK_METHODS.has(plan.request.method)) {
+    throw new Error(`Read network acceleration supports GET and evidence-linked POST only; ${String(plan.request.method)} requires the effectful workflow path.`);
+  }
+  const workflow = new URL(plan.origin);
+  if (!new Set(["http:", "https:"]).has(workflow.protocol) || workflow.origin !== plan.origin || workflow.pathname !== "/" || workflow.search || workflow.hash) {
+    throw new Error("Compiled workflow origin must be a canonical HTTP(S) origin.");
+  }
+  const endpointOrigin = plan.request.endpointOrigin ?? plan.origin;
+  const endpoint = new URL(endpointOrigin);
+  if (!new Set(["http:", "https:"]).has(endpoint.protocol) || endpoint.origin !== endpointOrigin || endpoint.pathname !== "/" || endpoint.search || endpoint.hash) {
+    throw new Error("Compiled network endpoint origin must be a canonical HTTP(S) origin.");
+  }
+  if (workflow.protocol === "https:" && endpoint.protocol !== "https:") {
+    throw new Error("An HTTPS workflow cannot accelerate through a plaintext network endpoint.");
+  }
+  const resolved = new URL(plan.request.endpointPath, endpointOrigin);
+  if (!plan.request.endpointPath.startsWith("/") || resolved.origin !== endpointOrigin ||
+    plan.request.endpointPath !== resolved.pathname || resolved.search || resolved.hash) {
+    throw new Error("Compiled network endpoint path must be a same-origin absolute path without query or fragment data.");
+  }
+  for (const [name, value] of Object.entries(plan.request.headers)) {
+    if (name !== name.toLowerCase() || !SAFE_HEADERS.has(name) || typeof value !== "string") {
+      throw new Error(`Compiled network plan contains a forbidden request header: ${name}.`);
+    }
+  }
+  if (!new Set(["none", "json", "form"]).has(plan.request.bodyCodec)) {
+    throw new Error("Compiled network plan has an unsupported request body codec.");
+  }
+  if (plan.request.bodyCodec === "none" && plan.request.bodyTemplate !== null) {
+    throw new Error("A body-less compiled request cannot contain a body template.");
+  }
+  if (plan.request.bodyCodec !== "none" && plan.request.bodyTemplate === null) {
+    throw new Error("A compiled request body codec requires a body template.");
+  }
+  assertSafeTemplate(plan.request.queryTemplate);
+  if (plan.request.bodyTemplate !== null) assertSafeTemplate(plan.request.bodyTemplate);
+  if (!Number.isSafeInteger(plan.response.maximumBytes) || plan.response.maximumBytes < 1 || plan.response.maximumBytes > 8 * 1024 * 1024) {
+    throw new Error("Compiled network response limit is invalid.");
   }
 }
 
@@ -343,6 +396,10 @@ export function compileGenericJsonPlan(
   options: { workflowOrigin?: string; allowedNetworkOrigins?: string[] } = {},
 ): GenericJsonPlan {
   if (demonstrations.length < 2) throw new Error("Two distinct network demonstrations are required.");
+  const method = demonstrations[0]!.exchange.method.toUpperCase();
+  if (!READ_NETWORK_METHODS.has(method)) {
+    throw new Error(`Read network acceleration supports GET and evidence-linked POST only; ${method} requires the effectful workflow path.`);
+  }
   const signatures = new Set(demonstrations.map(({ exchange }) => requestSignature(exchange)));
   if (signatures.size !== 1) throw new Error("Network demonstrations do not describe the same operation.");
   const parsed = demonstrations.map(({ exchange }) => parseRequest(exchange));
@@ -396,10 +453,13 @@ export function compileGenericJsonPlan(
   if (parsed.some((request) => request.url.origin !== endpointOrigin)) throw new Error("Network demonstrations crossed origins.");
   const origin = options.workflowOrigin ? new URL(options.workflowOrigin).origin : endpointOrigin;
   const allowedNetworkOrigins = new Set([origin, ...(options.allowedNetworkOrigins ?? []).map((value) => new URL(value).origin)]);
+  if (new URL(origin).protocol === "https:" && new URL(endpointOrigin).protocol !== "https:") {
+    throw new Error("An HTTPS workflow cannot accelerate through a plaintext network endpoint.");
+  }
   if (!allowedNetworkOrigins.has(endpointOrigin)) {
     throw new Error(`Network endpoint origin was not explicitly allowed: ${endpointOrigin}`);
   }
-  return {
+  const plan: GenericJsonPlan = {
     formatVersion: "clapping-hands.dev/v1alpha2",
     engine: "json-request-v1",
     action,
@@ -408,7 +468,7 @@ export function compileGenericJsonPlan(
     origin,
     status: "provisional",
     request: {
-      method: demonstrations[0]!.exchange.method.toUpperCase() as GenericJsonPlan["request"]["method"],
+      method: method as GenericJsonPlan["request"]["method"],
       ...(endpointOrigin !== origin ? { endpointOrigin } : {}),
       endpointPath: first.url.pathname,
       headers: requestHeaders(demonstrations[0]!.exchange),
@@ -426,6 +486,8 @@ export function compileGenericJsonPlan(
       lastValidatedAt: null,
     },
   };
+  assertGenericJsonPlanSafety(plan);
+  return plan;
 }
 
 function materialize(value: TemplateValue, input: NetworkInput): unknown {
@@ -457,6 +519,7 @@ export async function replayGenericJsonPlan(
   plan: GenericJsonPlan,
   input: NetworkInput,
 ): Promise<{ data: unknown; status: number; durationMs: number; requests: 1; navigations: 0 }> {
+  assertGenericJsonPlanSafety(plan);
   const expectedInputs = Object.keys(plan.request.bindings).sort();
   if (JSON.stringify(Object.keys(input).sort()) !== JSON.stringify(expectedInputs)) {
     throw new Error(`Compiled input keys must be exactly: ${expectedInputs.join(", ")}.`);
@@ -479,6 +542,10 @@ export async function replayGenericJsonPlan(
   });
   if (response.status() >= 300 && response.status() < 400) throw new Error("Compiled JSON request refused an unvalidated redirect.");
   if (!response.ok()) throw new Error(`Compiled JSON request returned HTTP ${response.status()}.`);
+  const contentType = response.headers()["content-type"] ?? "";
+  if (!/(?:json|graphql|javascript)/i.test(contentType)) {
+    throw new Error(`Compiled JSON response returned an unexpected content type: ${contentType || "missing"}.`);
+  }
   const body = await response.body();
   if (body.byteLength > plan.response.maximumBytes) throw new Error("Compiled JSON response exceeded its size limit.");
   const parsed = parseJson(body.toString("utf8"));

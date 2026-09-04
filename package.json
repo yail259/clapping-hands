@@ -12,6 +12,7 @@
     "auth:marketplace": "tsx scripts/auth-marketplace.ts",
     "benchmark:live": "tsx scripts/benchmark-live-forms.ts",
     "benchmark:corpus": "tsx scripts/validate-benchmark-corpus.ts",
+    "benchmark:controlled": "tsx scripts/benchmark-controlled-general.ts",
     "benchmark:marketplace": "tsx scripts/benchmark-marketplace.ts",
     "check": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx src/server.ts",
