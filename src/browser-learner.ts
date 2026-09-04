@@ -1,0 +1,111 @@
+import { createServer } from "node:net";
+import { readlink } from "node:fs/promises";
+import { resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+export type BrowserLaunchRequest = {
+  executablePath: string;
+  userDataDir: string;
+  headless: boolean;
+  viewport: { width: number; height: number };
+};
+
+export interface BrowserLearnerLease {
+  readonly cdpUrl: string;
+  readonly provider: string;
+  close(): Promise<void>;
+}
+
+export interface BrowserLearner {
+  launch(request: BrowserLaunchRequest): Promise<BrowserLearnerLease>;
+}
+
+async function availablePort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve());
+  });
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Could not allocate a Chrome debugging port.");
+  await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  return address.port;
+}
+
+function processIsAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+async function chromeProcessId(userDataDir: string): Promise<number | null> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      const target = await readlink(resolve(userDataDir, "SingletonLock"));
+      const match = target.match(/-(\d+)$/);
+      if (match?.[1]) return Number.parseInt(match[1], 10);
+    } catch {
+      // Chrome may not have created its profile singleton yet.
+    }
+    await delay(50);
+  }
+  return null;
+}
+
+async function ensureChromeStopped(pid: number | null): Promise<void> {
+  if (!pid) return;
+  for (let attempt = 0; attempt < 20 && processIsAlive(pid); attempt += 1) await delay(100);
+  if (!processIsAlive(pid)) return;
+
+  process.kill(pid, "SIGTERM");
+  for (let attempt = 0; attempt < 50 && processIsAlive(pid); attempt += 1) await delay(100);
+  if (processIsAlive(pid)) process.kill(pid, "SIGKILL");
+  for (let attempt = 0; attempt < 20 && processIsAlive(pid); attempt += 1) await delay(100);
+  if (processIsAlive(pid)) {
+    throw new Error(`Dedicated Chrome process ${pid} did not exit; the profile lease remains held.`);
+  }
+}
+
+export class StagehandBrowserLearner implements BrowserLearner {
+  async launch(request: BrowserLaunchRequest): Promise<BrowserLearnerLease> {
+    const port = await availablePort();
+    const browser = await localBrowser.launch({
+      headless: request.headless,
+      executablePath: request.executablePath,
+      userDataDir: request.userDataDir,
+      preserveUserDataDir: true,
+      viewport: request.viewport,
+      port,
+      args: ["--restore-last-session"],
+    });
+    const browserProcessId = await chromeProcessId(request.userDataDir);
+
+    let stagehand: Stagehand | null = null;
+    try {
+      stagehand = await Stagehand.create({
+        browser,
+        selfHeal: true,
+        cache: false,
+        logging: { level: "off" },
+      });
+    } catch (error) {
+      await browser.close().catch(() => {});
+      await ensureChromeStopped(browserProcessId).catch(() => {});
+      throw error;
+    }
+
+    return {
+      cdpUrl: `http://127.0.0.1:${port}`,
+      provider: "stagehand-v4-local",
+      async close() {
+        await stagehand?.close().catch(() => {});
+        await browser.close().catch(() => {});
+        await ensureChromeStopped(browserProcessId);
+      },
+    };
+  }
+}
