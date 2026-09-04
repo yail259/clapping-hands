@@ -328,6 +328,36 @@ traffic. API selection is part of the product, not a benchmark inconvenience.
 | **Facebook Marketplace, existing account** | Search listings (`read`) | No suitable general buyer-search API identified | Existing personal dogfood only; Meta warns about unauthorized automated collection | Keep as pre-protocol evidence; not an effectful or high-volume benchmark |
 | **Consenting customer portal** | Retrieve a document (`read`); upload/update a draft (`write`); submit to a controlled queue (`commit`) | No customer-facing API | Written operator and account-holder permission | Highest-value genuinely live row once a partner is recruited |
 
+## Live public-site track
+
+Operator-owned installations are not a substitute for the public web. A second
+track tests low-volume workflows on independently operated production services.
+These rows exercise real deployments, release drift, global latency, analytics
+noise, and service-specific session behavior.
+
+The first live cohort favors public-interest tools with no remote side effect.
+A site is not eligible merely because it is public or the run is called a
+benchmark.
+
+| Live service | Candidate workflow | Action shape | Published access signal | Decision |
+| --- | --- | --- | --- | --- |
+| **GOV.UK State Pension age** | Birth date and requested entitlement → dates/ages | Server-rendered branching `read` | GOV.UK explicitly permits scraping subject to `robots.txt`; this path is allowed there | **First live target** |
+| **GOV.UK visa checker** | Nationality, purpose, and circumstances → visa/ETA guidance | Larger branching decision-tree `read` | Same GOV.UK policy and allowed path | **Second workflow**, but one domain in aggregate claims |
+| **GOV.UK holiday entitlement** | Work pattern and dates/hours → entitlement | Numeric/date calculator `read` | Same GOV.UK policy and allowed path | Strong independent workflow family |
+| **business.gov.au Grants Finder** | Multi-filter grant search and local shortlist | Dynamic search plus session-local state (`read` effect) | Public tool; site content is CC BY, but automation is not expressly granted | Candidate after a short written-permission request |
+| **business.gov.au Business Plan Tool** | Fill synthetic plan, review, and download DOCX | Long form, session state, generated-file `read` effect | Tool terms permit lawful non-interfering use, but do not expressly mention automation | High-value candidate; download only, never email during benchmark |
+| **Get Information about Schools (UK)** | Filter and inspect a small set of schools | Search/filter/pagination `read` | Acceptable-use policy explicitly permits transient, low-volume automation that mimics normal browsing; bulk use must use downloads | **Policy-positive live search target**, with human-paced limits |
+| **USAGov Benefit Finder** | Circumstances/categories → possible benefits | Dynamic multi-select/decision `read` | `robots.txt` permits the path and declares a 10-second crawl delay; no automation grant identified yet | Candidate after terms confirmation; honor at least 10 seconds |
+| **Fair Work PACT (Australia)** | Award/classification/work pattern → rates and entitlements | Multi-step calculator and document `read` | Public official tool; no prohibition found in the reviewed main-site rules, but the calculator subdomain needs confirmation | Candidate, not yet cleared |
+| **Operator-owned Google Form** | Submit a synthetic response and verify it from the owner account | Real SaaS `commit` with controlled target | Official Forms API lists and reads responses but exposes no response-create method | Strong live commit candidate after provider-policy preflight; explicit confirmation and one test response per case |
+| **Yahoo services** | Finance lookup, watchlist, or other account action | `read`/`write` | Yahoo terms prohibit automated access or collection without express prior permission | Exclude unless Yahoo grants permission |
+
+Public-site smoke runs default to one browser journey at a time, no parallelism,
+at least 15 seconds between top-level runs, and no more than 10 journeys per
+domain per day. A published policy may require a lower rate. Public live rows do
+not receive repeated commit trials; effectful reliability is established on
+owned deployments and controlled sinks.
+
 This review is dated 2026-09-04 and must be repeated before each live run. Terms,
 APIs, and robots instructions change.
 
@@ -357,6 +387,32 @@ Source notes for the initial review:
 - nopCommerce documents full frontend and backend API coverage. It is valuable
   precisely as an API-first negative control:
   [nopCommerce Web API](https://docs.nopcommerce.com/en/developer/web-api/index.html).
+- GOV.UK explicitly permits scraping subject to its machine-readable policy,
+  and hosts several multi-step public services on allowed paths:
+  [GOV.UK reuse guidance](https://www.gov.uk/help/reuse-govuk-content),
+  [robots.txt](https://www.gov.uk/robots.txt),
+  [State Pension age](https://www.gov.uk/state-pension-age),
+  [visa checker](https://www.gov.uk/check-uk-visa),
+  [holiday entitlement](https://www.gov.uk/calculate-your-holiday-entitlement).
+- The UK schools service expressly permits transient, low-volume automation
+  resembling normal browsing while directing bulk users to public downloads:
+  [GIAS acceptable-use policy](https://www.get-information-schools.service.gov.uk/AcceptableUsePolicy).
+- business.gov.au publishes its content under CC BY and provides public
+  multi-step grant and business-plan tools; the business-plan terms require
+  lawful, non-interfering use but do not expressly authorize automation:
+  [business.gov.au copyright](https://business.gov.au/legal-notices/copyright),
+  [Grants Finder](https://business.gov.au/grants-and-programs),
+  [Business Plan Tool terms](https://business.gov.au/planning/business-plans/business-plan-tool).
+- USAGov provides a public Benefit Finder and specifies a 10-second crawl delay:
+  [USAGov Benefit Finder](https://www.usa.gov/benefit-finder),
+  [USAGov robots.txt](https://www.usa.gov/robots.txt).
+- Google documents only `get` and `list` methods for Forms responses. An owned
+  form is therefore a promising task-specific API gap, subject to a separate
+  service-policy review:
+  [Google Forms API](https://developers.google.com/workspace/forms/api/reference/rest).
+- Yahoo's current terms prohibit automated access or collection without prior
+  express permission:
+  [Yahoo terms](https://legal.yahoo.com/xw/en/yahoo/terms/otos/index.html).
 - Meta's help center distinguishes authorized and unauthorized automated
   collection and describes enforcement against unauthorized scraping:
   [Meta scraping guidance](https://www.facebook.com/help/463983701520800).
@@ -428,8 +484,10 @@ only winners.
 9. Freeze the compiler, select OrangeHRM, WordPress/plugin, and one further
    eligible application as holdouts, and run without code
    changes.
-10. Add one permissioned customer staging/production portal.
-11. Publish all rows and choose launch wording from the claim ladder rather than
+10. Run the GOV.UK and GIAS live public-site smoke tracks without changing the
+    frozen compiler.
+11. Add one permissioned customer staging/production portal.
+12. Publish all rows and choose launch wording from the claim ladder rather than
     deciding the claim in advance.
 
 ## Release/Show HN gate
@@ -441,6 +499,9 @@ Before making a multi-site compiler claim on Hacker News:
   read, one reversible write, and one explicitly approved commit;
 - at least one real workflow is reproducible by an HN reader on a local
   container or public automation-permitted sandbox;
+- at least two independently operated live public-service workflows have smoke
+  rows, including one with explicit published permission for low-volume
+  automation;
 - at least one row is a frozen-core `automatic` holdout;
 - every effectful row has confirmation, journal, at-most-once/reconciliation,
   and reset/postcondition evidence;
