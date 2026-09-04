@@ -2,7 +2,7 @@ import { createServer } from "node:net";
 import { readlink } from "node:fs/promises";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand, type Action } from "@browserbasehq/stagehand";
 
 export type BrowserLaunchRequest = {
   executablePath: string;
@@ -14,8 +14,26 @@ export type BrowserLaunchRequest = {
 export interface BrowserLearnerLease {
   readonly cdpUrl: string;
   readonly provider: string;
+  act(instruction: string | BrowserAction): Promise<BrowserActResult>;
+  observe(instruction?: string): Promise<{ actions: BrowserAction[]; modelCalls: number }>;
   close(): Promise<void>;
 }
+
+export type BrowserAction = {
+  selector: string;
+  description: string;
+  method?: string;
+  arguments?: string[];
+};
+
+export type BrowserActResult = {
+  success: boolean;
+  message: string;
+  actions: BrowserAction[];
+  modelCalls: number;
+  inputTokens: number;
+  outputTokens: number;
+};
 
 export interface BrowserLearner {
   launch(request: BrowserLaunchRequest): Promise<BrowserLearnerLease>;
@@ -101,6 +119,26 @@ export class StagehandBrowserLearner implements BrowserLearner {
     return {
       cdpUrl: `http://127.0.0.1:${port}`,
       provider: "stagehand-v4-local",
+      async act(instruction) {
+        const result = typeof instruction === "string"
+          ? await stagehand.act(instruction)
+          : await stagehand.act(instruction as Action);
+        return {
+          success: result.data.success,
+          message: result.data.message,
+          actions: result.data.actions,
+          modelCalls: result.metadata.usage.inferenceTimeMs > 0 ? 1 : 0,
+          inputTokens: result.metadata.usage.inputTokens,
+          outputTokens: result.metadata.usage.outputTokens,
+        };
+      },
+      async observe(instruction) {
+        const result = await stagehand.observe(instruction);
+        return {
+          actions: result.data,
+          modelCalls: result.metadata.usage.inferenceTimeMs > 0 ? 1 : 0,
+        };
+      },
       async close() {
         await stagehand?.close().catch(() => {});
         await browser.close().catch(() => {});

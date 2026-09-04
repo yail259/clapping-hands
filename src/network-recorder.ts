@@ -9,7 +9,12 @@ export type NetworkRecorderMark = {
   diagnosticIndex: number;
 };
 
-type CaptureOutcome = "captured" | "missing-request-body" | "response-too-large" | "response-body-error";
+type CaptureOutcome =
+  | "captured"
+  | "cross-origin"
+  | "unsupported-content-type"
+  | "response-too-large"
+  | "response-body-error";
 
 type CaptureDiagnostic = {
   outcome: CaptureOutcome;
@@ -23,22 +28,26 @@ export type NetworkCaptureSummary = {
   operations: string[];
 };
 
-function safeOperation(requestBody: string | null): string {
-  if (!requestBody) return "unknown";
+function safeOperation(request: Request): string {
+  const requestBody = request.postData();
   try {
-    const value = new URLSearchParams(requestBody).get("fb_api_req_friendly_name") ?? "unknown";
-    return /^[A-Za-z0-9_]{1,120}$/.test(value) ? value : "unknown";
+    if (requestBody) {
+      const value = new URLSearchParams(requestBody).get("fb_api_req_friendly_name");
+      if (value && /^[A-Za-z0-9_]{1,120}$/.test(value)) return value;
+    }
+    const url = new URL(request.url());
+    return `${request.method()} ${url.pathname.slice(0, 160)}`;
   } catch {
     return "unknown";
   }
 }
 
 function isCandidate(request: Request): boolean {
-  if (request.method() !== "POST") return false;
+  if (!new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]).has(request.method())) return false;
   if (!new Set(["xhr", "fetch"]).has(request.resourceType())) return false;
   try {
     const url = new URL(request.url());
-    return url.pathname.endsWith("/api/graphql/") || url.pathname.endsWith("/api/graphql");
+    return url.protocol === "https:" || url.protocol === "http:";
   } catch {
     return false;
   }
@@ -48,7 +57,10 @@ function boundedHeaders(headers: Record<string, string>): Record<string, string>
   const output: Record<string, string> = {};
   for (const [name, value] of Object.entries(headers)) {
     const lower = name.toLowerCase();
-    if (["cookie", "authorization", "proxy-authorization"].includes(lower)) continue;
+    if (
+      ["cookie", "authorization", "proxy-authorization"].includes(lower) ||
+      /(?:token|csrf|xsrf|api-key|secret|\blsd\b|dtsg)/i.test(lower)
+    ) continue;
     output[lower] = value;
   }
   return output;
@@ -58,15 +70,15 @@ export class NetworkRecorder {
   private readonly exchanges: CapturedExchange[] = [];
   private readonly diagnostics: CaptureDiagnostic[] = [];
   private readonly pending = new Set<Promise<void>>();
-  private attached = false;
+  private readonly attachedPages = new WeakSet<Page>();
 
   attach(page: Page): void {
-    if (this.attached) return;
-    this.attached = true;
+    if (this.attachedPages.has(page)) return;
+    this.attachedPages.add(page);
     page.on("response", (response) => {
       const request = response.request();
       if (!isCandidate(request)) return;
-      const capture = this.capture(request, response).catch(() => {});
+      const capture = this.capture(page, request, response).catch(() => {});
       this.pending.add(capture);
       void capture.finally(() => this.pending.delete(capture));
     });
@@ -114,11 +126,21 @@ export class NetworkRecorder {
     while (this.pending.size > 0) await Promise.all([...this.pending]);
   }
 
-  private async capture(request: Request, response: Response): Promise<void> {
-    const requestBody = request.postData();
-    const operation = safeOperation(requestBody);
-    if (!requestBody) {
-      this.recordDiagnostic({ outcome: "missing-request-body", operation });
+  private async capture(page: Page, request: Request, response: Response): Promise<void> {
+    const operation = safeOperation(request);
+    try {
+      const pageOrigin = new URL(page.url()).origin;
+      if (new URL(request.url()).origin !== pageOrigin) {
+        this.recordDiagnostic({ outcome: "cross-origin", operation });
+        return;
+      }
+    } catch {
+      this.recordDiagnostic({ outcome: "cross-origin", operation });
+      return;
+    }
+    const contentType = response.headers()["content-type"] ?? "";
+    if (!/(?:^text\/|json|javascript|x-ndjson|graphql)/i.test(contentType)) {
+      this.recordDiagnostic({ outcome: "unsupported-content-type", operation });
       return;
     }
     let body: Buffer;
@@ -137,7 +159,7 @@ export class NetworkRecorder {
       method: request.method(),
       resourceType: request.resourceType(),
       requestHeaders: boundedHeaders(await request.allHeaders()),
-      requestBody,
+      requestBody: request.postData() ?? "",
       responseStatus: response.status(),
       responseBody: body.toString("utf8"),
     };

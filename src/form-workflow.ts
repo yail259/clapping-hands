@@ -12,20 +12,30 @@ export type FormControl = {
   name: string;
   kind: "hidden" | "text" | "radio" | "checkbox" | "select" | "textarea";
   required: boolean;
+  multiple: boolean;
   optionValues: string[];
 };
 
 export type ObservedFormStep = {
   questionKey: string;
+  formIndex: number;
+  formSignature: string;
   pagePath: string;
   method: "GET" | "POST";
   actionPath: string;
+  encoding: "application/x-www-form-urlencoded";
+  submitter: {
+    index: number;
+    name: string | null;
+    value: string | null;
+  };
+  transition: "unknown" | "navigation" | "same-document";
   controls: FormControl[];
 };
 
 export type FormWorkflowPlan = {
-  formatVersion: "clapping-hands.dev/v1alpha1";
-  engine: "html-form-v1";
+  formatVersion: "clapping-hands.dev/v1alpha2";
+  engine: "html-form-v2";
   action: string;
   version: number;
   effect: "read";
@@ -35,7 +45,8 @@ export type FormWorkflowPlan = {
   steps: ObservedFormStep[];
   validation: {
     maximumSteps: number;
-    finalContentSelector: "main";
+    finalContentSelector: string;
+    finalHeadingMode: "one-of" | "present";
     finalHeadingHashes: string[];
   };
   evidence: {
@@ -51,6 +62,7 @@ export type FormWorkflowResult = {
   heading: string | null;
   mainText: string;
   resultHash: string;
+  resultSelector: string;
   questionKeys: string[];
   requests: number;
   navigations: number;
@@ -83,10 +95,18 @@ export function hashFormInput(answers: FormWorkflowAnswers): string {
   return createHash("sha256").update(JSON.stringify(answers)).digest("hex");
 }
 
-export function extractMainResult(html: string, url: string): Omit<FormWorkflowResult, "questionKeys" | "requests" | "navigations" | "durationMs"> {
+export function extractMainResult(
+  html: string,
+  url: string,
+  preferredSelector?: string,
+): Omit<FormWorkflowResult, "questionKeys" | "requests" | "navigations" | "durationMs"> {
   const $ = load(html);
-  const main = $("main").first();
-  if (main.length !== 1) throw new Error("Final page did not contain exactly one main result region.");
+  const selectors = preferredSelector
+    ? [preferredSelector]
+    : ["main", '[role="main"]', "#main", "#content", "body"];
+  const resultSelector = selectors.find((selector) => $(selector).length === 1);
+  if (!resultSelector) throw new Error("Final page did not contain a unique result region.");
+  const main = $(resultSelector).first();
   // Compare the task result, not page furniture whose text can change after
   // client-side enhancement (for example an expandable GOV.UK step nav).
   main.find("script, style, form, .govuk-feedback, .gem-c-feedback, .gem-c-contextual-sidebar").remove();
@@ -99,6 +119,7 @@ export function extractMainResult(html: string, url: string): Omit<FormWorkflowR
     heading,
     mainText,
     resultHash: hashText(mainText),
+    resultSelector,
   };
 }
 
@@ -113,54 +134,129 @@ function controlKind(tagName: string, type: string | undefined): FormControl["ki
   return "text";
 }
 
-export function inspectFormPage(html: string, currentUrl: string): ObservedFormStep | null {
+function slug(value: string): string {
+  return value
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 64);
+}
+
+export function inspectFormCandidates(html: string, currentUrl: string): ObservedFormStep[] {
   const current = new URL(currentUrl);
   const $ = load(html);
-  const forms = $("form[data-question-key]");
-  if (forms.length === 0) return null;
-  if (forms.length !== 1) throw new Error(`Expected one active workflow form, found ${forms.length}.`);
-  const form = forms.first();
-  const questionKey = normalizedText(form.attr("data-question-key") ?? "");
-  if (!questionKey) throw new Error("Workflow form is missing data-question-key.");
-  const method = (form.attr("method") ?? "GET").toUpperCase();
-  if (method !== "GET" && method !== "POST") throw new Error(`Unsupported form method ${method}.`);
-  const action = new URL(form.attr("action") || current.href, current);
-  assertSameOrigin(action, current.origin, "Form action");
-  if (form.find('input[type="file"]').length > 0) throw new Error("File uploads require a separately gated compiler.");
+  const declaredBase = $("base[href]").first().attr("href");
+  const resolutionBase = declaredBase ? new URL(declaredBase, current) : current;
+  assertSameOrigin(resolutionBase, current.origin, "Document base URL");
+  const candidates: ObservedFormStep[] = [];
 
-  const grouped = new Map<string, FormControl>();
-  form.find("input[name], select[name], textarea[name]").each((_index, element) => {
-    const candidate = $(element);
-    if (candidate.is(":disabled")) return;
-    const name = candidate.attr("name") ?? "";
-    if (!name) return;
-    const kind = controlKind(element.tagName, candidate.attr("type")?.toLowerCase());
-    if (!kind) return;
-    const existing = grouped.get(name);
-    const optionValues = kind === "select"
-      ? candidate.find("option").map((_optionIndex, option) => $(option).attr("value") ?? $(option).text()).get()
-      : kind === "radio" || kind === "checkbox"
-        ? [candidate.attr("value") ?? "on"]
-        : [];
-    if (existing) {
-      existing.optionValues.push(...optionValues.filter((value) => !existing.optionValues.includes(value)));
-    } else {
-      grouped.set(name, {
-        name,
-        kind,
-        required: candidate.is("[required]"),
-        optionValues,
-      });
+  $("form").each((formIndex, element) => {
+    const form = $(element);
+    const submitters = form.find('button[type="submit"], input[type="submit"], button:not([type]), input[type="image"]');
+    const editable = form.find("input[name], select[name], textarea[name]").filter((_index, control) => {
+      const candidate = $(control);
+      const type = candidate.attr("type")?.toLowerCase();
+      return !candidate.is(":disabled") && !["hidden", "submit", "button", "reset", "image"].includes(type ?? "");
+    });
+    if (submitters.length === 0 || editable.length === 0) return;
+    if (form.find('input[type="file"]').length > 0) {
+      throw new Error("File uploads require a separately gated compiler.");
     }
-  });
+    const method = (form.attr("method") ?? "GET").toUpperCase();
+    if (method !== "GET" && method !== "POST") throw new Error(`Unsupported form method ${method}.`);
+    const rawEncoding = (form.attr("enctype") ?? "application/x-www-form-urlencoded").toLowerCase().split(";")[0]!.trim();
+    if (rawEncoding !== "application/x-www-form-urlencoded") {
+      throw new Error(`Unsupported form encoding ${rawEncoding}.`);
+    }
+    const action = new URL(form.attr("action") || current.href, resolutionBase);
+    assertSameOrigin(action, current.origin, "Form action");
 
-  return {
-    questionKey,
-    pagePath: normalizedPath(current),
-    method,
-    actionPath: normalizedPath(action),
-    controls: [...grouped.values()],
-  };
+    const grouped = new Map<string, FormControl>();
+    form.find("input[name], select[name], textarea[name]").each((_index, controlElement) => {
+      const candidate = $(controlElement);
+      if (candidate.is(":disabled")) return;
+      const name = candidate.attr("name") ?? "";
+      if (!name) return;
+      const kind = controlKind(controlElement.tagName, candidate.attr("type")?.toLowerCase());
+      if (!kind) return;
+      const existing = grouped.get(name);
+      const optionValues = kind === "select"
+        ? candidate.find("option").map((_optionIndex, option) => $(option).attr("value") ?? $(option).text()).get()
+        : kind === "radio" || kind === "checkbox"
+          ? [candidate.attr("value") ?? "on"]
+          : [];
+      if (existing) {
+        existing.required ||= candidate.is("[required]");
+        existing.multiple ||= candidate.is("[multiple]");
+        existing.optionValues.push(...optionValues.filter((value) => !existing.optionValues.includes(value)));
+      } else {
+        grouped.set(name, {
+          name,
+          kind,
+          required: candidate.is("[required]"),
+          multiple: candidate.is("[multiple]") || kind === "checkbox",
+          optionValues,
+        });
+      }
+    });
+    const controls = [...grouped.values()];
+    const firstSubmitter = submitters.first();
+    const submitter = {
+      index: 0,
+      name: firstSubmitter.attr("name") ?? null,
+      value: firstSubmitter.attr("value") ?? (firstSubmitter.is("button") ? normalizedText(firstSubmitter.text()) : null),
+    };
+    const shape = {
+      method,
+      actionPath: normalizedPath(action),
+      controls: controls.map(({ name, kind, multiple, optionValues }) => ({ name, kind, multiple, optionValues })),
+      submitter,
+    };
+    const formSignature = hashText(JSON.stringify(shape));
+    const explicitKey = form.attr("data-question-key") ?? form.attr("id") ?? form.attr("name") ?? form.attr("aria-label");
+    const actionKey = slug(action.pathname.split("/").filter(Boolean).at(-1) ?? "form");
+    const questionKey = slug(explicitKey ?? "") || `${actionKey || "form"}-${formSignature.slice(0, 10)}`;
+    candidates.push({
+      questionKey,
+      formIndex,
+      formSignature,
+      pagePath: normalizedPath(current),
+      method,
+      actionPath: normalizedPath(action),
+      encoding: "application/x-www-form-urlencoded",
+      submitter,
+      transition: "unknown",
+      controls,
+    });
+  });
+  return candidates;
+}
+
+export function inspectFormPage(
+  html: string,
+  currentUrl: string,
+  options: { expected?: ObservedFormStep; answerKeys?: string[] } = {},
+): ObservedFormStep | null {
+  const candidates = inspectFormCandidates(html, currentUrl);
+  if (options.expected) {
+    const byKey = candidates.filter((candidate) => candidate.questionKey === options.expected!.questionKey);
+    if (byKey.length === 1) return byKey[0]!;
+    const bySignature = candidates.filter((candidate) => candidate.formSignature === options.expected!.formSignature);
+    if (bySignature.length === 1) return bySignature[0]!;
+    if (candidates.length === 1) return candidates[0]!;
+    return null;
+  }
+  if (options.answerKeys) {
+    const keys = new Set(options.answerKeys);
+    const matches = candidates.filter((candidate) => keys.has(candidate.questionKey));
+    if (matches.length === 1) return matches[0]!;
+    if (matches.length > 1) throw new Error(`Multiple workflow forms matched the supplied answer keys.`);
+    return null;
+  }
+  if (candidates.length === 0) return null;
+  if (candidates.length !== 1) throw new Error(`Expected one workflow form, found ${candidates.length}.`);
+  return candidates[0]!;
 }
 
 function assertAnswerMatches(step: ObservedFormStep, answers: FormStepAnswers): void {
@@ -186,7 +282,7 @@ function cssAttribute(value: string): string {
 }
 
 async function fillBrowserForm(page: Page, step: ObservedFormStep, answers: FormStepAnswers): Promise<void> {
-  const form = page.locator("form[data-question-key]").first();
+  const form = page.locator("form").nth(step.formIndex);
   assertAnswerMatches(step, answers);
   for (const [name, raw] of Object.entries(answers)) {
     const control = step.controls.find((candidate) => candidate.name === name)!;
@@ -206,16 +302,40 @@ async function fillBrowserForm(page: Page, step: ObservedFormStep, answers: Form
 }
 
 function assertObservedStep(expected: ObservedFormStep, actual: ObservedFormStep): void {
-  const expectedControls = expected.controls.map(({ name, kind, optionValues }) => ({ name, kind, optionValues }));
-  const actualControls = actual.controls.map(({ name, kind, optionValues }) => ({ name, kind, optionValues }));
+  const expectedControls = expected.controls.map(({ name, kind, multiple, optionValues }) => ({ name, kind, multiple, optionValues }));
+  const actualControls = actual.controls.map(({ name, kind, multiple, optionValues }) => ({ name, kind, multiple, optionValues }));
   if (
     expected.questionKey !== actual.questionKey ||
     expected.method !== actual.method ||
     expected.actionPath !== actual.actionPath ||
+    expected.encoding !== actual.encoding ||
+    JSON.stringify(expected.submitter) !== JSON.stringify(actual.submitter) ||
     JSON.stringify(expectedControls) !== JSON.stringify(actualControls)
   ) {
     throw new Error(`Workflow drift at ${actual.questionKey}; compiled plan refused to guess.`);
   }
+}
+
+async function submitBrowserForm(page: Page, step: ObservedFormStep): Promise<"navigation" | "same-document"> {
+  const form = page.locator("form").nth(step.formIndex);
+  const submitters = form.locator('button[type="submit"], input[type="submit"], button:not([type]), input[type="image"]');
+  const submit = submitters.nth(step.submitter.index);
+  if (await submit.count() !== 1) throw new Error(`No compiled submit control found for ${step.questionKey}.`);
+  const beforeUrl = page.url();
+  const beforeText = await page.locator("body").innerText().catch(() => "");
+  const navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 15_000 })
+    .then(() => "navigation" as const)
+    .catch(() => null);
+  const sameDocument = page.waitForFunction(
+    ({ url, text }) => location.href === url && (document.body?.innerText ?? "") !== text,
+    { url: beforeUrl, text: beforeText },
+    { timeout: 15_000 },
+  ).then(() => "same-document" as const).catch(() => null);
+  await submit.click();
+  const outcome = await Promise.race([navigation, sameDocument]);
+  if (!outcome) throw new Error(`Submitting ${step.questionKey} produced no observable page change.`);
+  await page.waitForLoadState("networkidle", { timeout: 2_000 }).catch(() => {});
+  return outcome;
 }
 
 export async function demonstrateFormWorkflow(
@@ -227,13 +347,14 @@ export async function demonstrateFormWorkflow(
   const startedAt = performance.now();
   const origin = new URL(startUrl).origin;
   const steps: ObservedFormStep[] = [];
+  const answerKeys = Object.keys(answers);
   let navigations = 1;
   await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
   assertSameOrigin(new URL(page.url()), origin, "Browser workflow");
 
   while (steps.length < maximumSteps) {
     const html = await page.content();
-    const step = inspectFormPage(html, page.url());
+    const step = inspectFormPage(html, page.url(), { answerKeys });
     if (!step) {
       const extracted = extractMainResult(html, page.url());
       return {
@@ -251,14 +372,10 @@ export async function demonstrateFormWorkflow(
     const answer = answers[step.questionKey];
     if (!answer) throw new Error(`No guided answer was provided for question ${step.questionKey}.`);
     await fillBrowserForm(page, step, answer);
+    const transition = await submitBrowserForm(page, step);
+    step.transition = transition;
     steps.push(step);
-    const submit = page.locator("form[data-question-key]").first().locator('button[type="submit"], input[type="submit"], button:not([type])').first();
-    if (await submit.count() !== 1) throw new Error(`No unique submit control found for ${step.questionKey}.`);
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30_000 }),
-      submit.click(),
-    ]);
-    navigations += 1;
+    if (transition === "navigation") navigations += 1;
     assertSameOrigin(new URL(page.url()), origin, "Browser workflow");
   }
   throw new Error(`Workflow exceeded the ${maximumSteps}-step safety limit.`);
@@ -281,9 +398,14 @@ export function compileFormWorkflow(
     if (!demonstration.result.heading) throw new Error("Demonstrated result is missing a final heading.");
     return hashText(demonstration.result.heading);
   }))];
+  const finalContentSelector = first.result.resultSelector;
+  if (demonstrations.some((demonstration) => demonstration.result.resultSelector !== finalContentSelector)) {
+    throw new Error("Demonstrations used different final result regions.");
+  }
+  const finalHeadingMode = finalHeadingHashes.length === 1 ? "one-of" : "present";
   return {
-    formatVersion: "clapping-hands.dev/v1alpha1",
-    engine: "html-form-v1",
+    formatVersion: "clapping-hands.dev/v1alpha2",
+    engine: "html-form-v2",
     action,
     version: 1,
     effect: "read",
@@ -291,7 +413,12 @@ export function compileFormWorkflow(
     startPath: normalizedPath(url),
     status: demonstrations.length >= 2 ? "provisional" : "candidate",
     steps: first.steps,
-    validation: { maximumSteps: 10, finalContentSelector: "main", finalHeadingHashes },
+    validation: {
+      maximumSteps: 10,
+      finalContentSelector,
+      finalHeadingMode,
+      finalHeadingHashes: finalHeadingMode === "one-of" ? finalHeadingHashes : [],
+    },
     evidence: {
       demonstrationInputHashes: [...new Set(demonstrations.map((demonstration) => demonstration.inputHash))],
       successfulShadowInputHashes: [],
@@ -304,17 +431,38 @@ export function compileFormWorkflow(
 function successfulFields(html: string, step: ObservedFormStep, answers: FormStepAnswers): URLSearchParams {
   assertAnswerMatches(step, answers);
   const $ = load(html);
-  const form = $("form[data-question-key]").first();
+  const form = $("form").eq(step.formIndex);
   const fields = new URLSearchParams();
-  form.find('input[type="hidden"][name]').each((_index, element) => {
+  const emittedAnswers = new Set<string>();
+  form.find("input[name], select[name], textarea[name]").each((_index, element) => {
     const candidate = $(element);
-    fields.append(candidate.attr("name")!, candidate.attr("value") ?? "");
+    if (candidate.is(":disabled") || candidate.closest("fieldset[disabled]").length > 0) return;
+    const name = candidate.attr("name")!;
+    const tag = element.tagName;
+    const type = (candidate.attr("type") ?? "text").toLowerCase();
+    if (["submit", "button", "reset", "image", "file"].includes(type)) return;
+    const supplied = answers[name];
+    const suppliedValues = supplied === undefined ? null : Array.isArray(supplied) ? supplied : [supplied];
+    if (tag === "input" && (type === "radio" || type === "checkbox")) {
+      const value = candidate.attr("value") ?? "on";
+      if (suppliedValues ? suppliedValues.includes(value) : candidate.is("[checked]")) fields.append(name, value);
+      return;
+    }
+    if (emittedAnswers.has(name)) return;
+    emittedAnswers.add(name);
+    if (suppliedValues) {
+      suppliedValues.forEach((value) => fields.append(name, value));
+      return;
+    }
+    if (tag === "select") {
+      const selected = candidate.find("option[selected]");
+      const options = selected.length > 0 ? selected : candidate.find("option").first();
+      options.each((_optionIndex, option) => fields.append(name, $(option).attr("value") ?? $(option).text()));
+      return;
+    }
+    fields.append(name, tag === "textarea" ? candidate.text() : candidate.attr("value") ?? "");
   });
-  for (const [name, raw] of Object.entries(answers)) {
-    for (const value of Array.isArray(raw) ? raw : [raw]) fields.append(name, value);
-  }
-  const submit = form.find('button[type="submit"][name], input[type="submit"][name], button:not([type])[name]').first();
-  if (submit.length) fields.append(submit.attr("name")!, submit.attr("value") ?? submit.text());
+  if (step.submitter.name) fields.append(step.submitter.name, step.submitter.value ?? "");
   return fields;
 }
 
@@ -369,6 +517,10 @@ export async function replayFormWorkflow(
   plan: FormWorkflowPlan,
   answers: FormWorkflowAnswers,
 ): Promise<FormWorkflowResult> {
+  const nonNavigating = plan.steps.find((step) => step.transition !== "navigation");
+  if (nonNavigating) {
+    throw new Error(`Step ${nonNavigating.questionKey} requires deterministic browser replay, not direct form requests.`);
+  }
   const startedAt = performance.now();
   const start = new URL(plan.startPath, plan.origin);
   assertSameOrigin(start, plan.origin, "Compiled workflow");
@@ -379,7 +531,7 @@ export async function replayFormWorkflow(
   for (const expected of plan.steps) {
     const current = new URL(response.url);
     assertSameOrigin(current, plan.origin, "Compiled workflow");
-    const actual = inspectFormPage(response.html, response.url);
+    const actual = inspectFormPage(response.html, response.url, { expected });
     if (!actual) throw new Error(`Expected question ${expected.questionKey}, but the workflow ended early.`);
     assertObservedStep(expected, actual);
     const answer = answers[actual.questionKey];
@@ -392,19 +544,66 @@ export async function replayFormWorkflow(
     questionKeys.push(actual.questionKey);
   }
 
-  if (inspectFormPage(response.html, response.url)) {
-    throw new Error("Workflow entered an uncompiled branch; compiled plan refused to continue.");
-  }
   assertSameOrigin(new URL(response.url), plan.origin, "Compiled result");
-  const extracted = extractMainResult(response.html, response.url);
-  if (!extracted.heading || !plan.validation.finalHeadingHashes.includes(hashText(extracted.heading))) {
-    throw new Error("Compiled response did not match a demonstrated final result heading.");
-  }
+  const extracted = extractMainResult(response.html, response.url, plan.validation.finalContentSelector);
+  validateFinalResult(plan, extracted);
   return {
     ...extracted,
     questionKeys,
     requests,
     navigations: 0,
+    durationMs: performance.now() - startedAt,
+  };
+}
+
+function validateFinalResult(
+  plan: FormWorkflowPlan,
+  result: Pick<FormWorkflowResult, "heading" | "mainText">,
+): void {
+  if (!result.heading) throw new Error("Compiled response did not contain a final result heading.");
+  if (/\b(?:sign[ -]?in|log[ -]?in|session expired|captcha|checkpoint|access denied|verify (?:you|your identity))\b/i.test(
+    `${result.heading} ${result.mainText.slice(0, 500)}`,
+  )) {
+    throw new Error("Compiled response appears to be an authentication or access-control page.");
+  }
+  if (
+    plan.validation.finalHeadingMode === "one-of" &&
+    !plan.validation.finalHeadingHashes.includes(hashText(result.heading))
+  ) {
+    throw new Error("Compiled response did not match a demonstrated final result heading.");
+  }
+}
+
+export async function replayFormWorkflowInBrowser(
+  page: Page,
+  plan: FormWorkflowPlan,
+  answers: FormWorkflowAnswers,
+): Promise<FormWorkflowResult> {
+  const startedAt = performance.now();
+  const start = new URL(plan.startPath, plan.origin);
+  await page.goto(start.href, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  assertSameOrigin(new URL(page.url()), plan.origin, "Browser replay");
+  let navigations = 1;
+  const questionKeys: string[] = [];
+  for (const expected of plan.steps) {
+    const actual = inspectFormPage(await page.content(), page.url(), { expected });
+    if (!actual) throw new Error(`Expected question ${expected.questionKey}, but the browser workflow ended early.`);
+    assertObservedStep(expected, actual);
+    const answer = answers[expected.questionKey];
+    if (!answer) throw new Error(`No guided answer was provided for question ${expected.questionKey}.`);
+    await fillBrowserForm(page, actual, answer);
+    const transition = await submitBrowserForm(page, actual);
+    if (transition === "navigation") navigations += 1;
+    assertSameOrigin(new URL(page.url()), plan.origin, "Browser replay");
+    questionKeys.push(expected.questionKey);
+  }
+  const extracted = extractMainResult(await page.content(), page.url(), plan.validation.finalContentSelector);
+  validateFinalResult(plan, extracted);
+  return {
+    ...extracted,
+    questionKeys,
+    requests: navigations,
+    navigations,
     durationMs: performance.now() - startedAt,
   };
 }

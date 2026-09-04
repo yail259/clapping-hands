@@ -11,8 +11,10 @@ import {
   FormWorkflowPlanStore,
   extractMainResult,
   inspectFormPage,
+  inspectFormCandidates,
   recordFormShadow,
   replayFormWorkflow,
+  replayFormWorkflowInBrowser,
   type FormWorkflowAnswers,
 } from "../src/form-workflow.js";
 
@@ -33,6 +35,32 @@ async function fixture(): Promise<{
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://fixture.invalid");
     response.setHeader("content-type", "text/html; charset=utf-8");
+    if (url.pathname === "/generic") {
+      response.end(page(`<form id="site-search" action="/noop"><input name="q"><button>Search</button></form>
+        <h1>Profile</h1><form id="profile-form" action="/generic/result" method="post">
+        <input type="hidden" name="csrf" value="fresh-fixture-value">
+        <input required name="display"><input name="nickname" value="default nick">
+        <label><input type="checkbox" name="newsletter" value="yes" checked> Newsletter</label>
+        <select name="locale"><option value="en" selected>English</option><option value="fr">French</option></select>
+        <button type="submit" name="intent" value="save">Save</button></form>`));
+      return;
+    }
+    if (url.pathname === "/generic/result" && request.method === "POST") {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const fields = new URLSearchParams(Buffer.concat(chunks).toString("utf8"));
+      response.end(page(`<h1>Profile saved</h1><p>${["display", "nickname", "newsletter", "locale", "intent"]
+        .map((name) => `${name}=${fields.get(name)}`).join("|")}</p>`));
+      return;
+    }
+    if (url.pathname === "/spa") {
+      response.end(page(`<h1>SPA form</h1><form id="spa-form"><input name="message" required><button>Finish</button></form>
+        <script>document.querySelector('#spa-form').addEventListener('submit', event => {
+          event.preventDefault(); const value = new FormData(event.currentTarget).get('message');
+          document.querySelector('main').innerHTML = '<h1>Complete</h1><p>Received ' + value + '</p>';
+        });</script>`));
+      return;
+    }
     if (url.pathname === "/post") {
       response.end(page(`<h1>Topics</h1><form data-question-key="topics" action="/post/result" method="post">
         <input type="hidden" name="csrf" value="rotating-fixture-secret">
@@ -100,7 +128,7 @@ const answers: FormWorkflowAnswers = {
 
 test("inspects a same-origin form without retaining current values", () => {
   const step = inspectFormPage(page(`<form data-question-key="email" action="/done" method="post">
-    <input type="hidden" name="csrf" value="fixture-secret"><input required name="address" value="person@example.test">
+    <input type="hidden" name="csrf" value="fixture-secret"><input required name="address" value="person@example.test"><button>Go</button>
   </form>`), "https://example.test/start");
   assert.equal(step?.actionPath, "/done");
   assert.deepEqual(step?.controls.map(({ name, kind }) => ({ name, kind })), [
@@ -112,9 +140,20 @@ test("inspects a same-origin form without retaining current values", () => {
 
 test("rejects cross-origin form actions", () => {
   assert.throws(
-    () => inspectFormPage(page('<form data-question-key="x" action="https://other.test/done"></form>'), "https://example.test/start"),
+    () => inspectFormPage(page('<form data-question-key="x" action="https://other.test/done"><input name="x"><button>Go</button></form>'), "https://example.test/start"),
     /left the allowed origin/,
   );
+});
+
+test("discovers a generic form among unrelated forms and honors document base URLs", () => {
+  const html = page(`<base href="/base/"><form id="search" action="search"><input name="q"><button>Go</button></form>
+    <form id="checkout" action="result" method="post"><input required name="name"><button name="intent" value="save">Save</button></form>`);
+  const candidates = inspectFormCandidates(html, "https://example.test/start");
+  assert.equal(candidates.length, 2);
+  const selected = inspectFormPage(html, "https://example.test/start", { answerKeys: ["checkout"] });
+  assert.equal(selected?.questionKey, "checkout");
+  assert.equal(selected?.actionPath, "/base/result");
+  assert.equal(selected?.submitter.name, "intent");
 });
 
 test("result comparison excludes client-enhanced contextual furniture", () => {
@@ -186,6 +225,46 @@ test("compiled POST replay preserves repeated successful controls", async () => 
   }
 });
 
+test("generic form replay preserves browser default successful controls", async () => {
+  const { server, origin } = await fixture();
+  const userDataDir = await mkdtemp(resolve(tmpdir(), "clapping-hands-generic-"));
+  let context: BrowserContext | null = null;
+  try {
+    context = await chromium.launchPersistentContext(userDataDir, { executablePath: CHROME, headless: true });
+    const genericAnswers = { "profile-form": { display: "Ada" } };
+    const demonstration = await demonstrateFormWorkflow(await context.newPage(), `${origin}/generic`, genericAnswers);
+    const plan = compileFormWorkflow("fixture_generic", `${origin}/generic`, [demonstration]);
+    const replay = await replayFormWorkflow(context, plan, genericAnswers);
+    assert.equal(replay.mainText, demonstration.result.mainText);
+    assert.match(replay.mainText, /nickname=default nick\|newsletter=yes\|locale=en\|intent=save/);
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test("same-document forms compile to deterministic browser replay and refuse network replay", async () => {
+  const { server, origin } = await fixture();
+  const userDataDir = await mkdtemp(resolve(tmpdir(), "clapping-hands-spa-"));
+  let context: BrowserContext | null = null;
+  try {
+    context = await chromium.launchPersistentContext(userDataDir, { executablePath: CHROME, headless: true });
+    const spaAnswers = { "spa-form": { message: "hello" } };
+    const demonstration = await demonstrateFormWorkflow(await context.newPage(), `${origin}/spa`, spaAnswers);
+    assert.equal(demonstration.steps[0]?.transition, "same-document");
+    const plan = compileFormWorkflow("fixture_spa", `${origin}/spa`, [demonstration]);
+    await assert.rejects(() => replayFormWorkflow(context!, plan, spaAnswers), /browser replay/);
+    const replay = await replayFormWorkflowInBrowser(await context.newPage(), plan, spaAnswers);
+    assert.equal(replay.mainText, demonstration.result.mainText);
+    assert.equal(replay.navigations, 1);
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(userDataDir, { recursive: true, force: true });
+  }
+});
+
 test("compiled replay rejects an HTTP-200 login shell", async () => {
   const { server, origin, activateLoginShell } = await fixture();
   const userDataDir = await mkdtemp(resolve(tmpdir(), "clapping-hands-login-shell-"));
@@ -195,7 +274,7 @@ test("compiled replay rejects an HTTP-200 login shell", async () => {
     const demonstration = await demonstrateFormWorkflow(await context.newPage(), `${origin}/wizard`, answers);
     const plan = compileFormWorkflow("fixture_login_shell", `${origin}/wizard`, [demonstration]);
     activateLoginShell();
-    await assert.rejects(() => replayFormWorkflow(context!, plan, answers), /final result|login|heading/i);
+    await assert.rejects(() => replayFormWorkflow(context!, plan, answers), /final result|login|heading|authentication/i);
   } finally {
     await context?.close();
     await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));

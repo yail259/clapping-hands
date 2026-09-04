@@ -43,7 +43,11 @@ export class ProfileLease {
   private held = false;
   private readonly lockPath: string;
 
-  constructor(readonly directory: string, readonly profileId = "facebook-marketplace") {
+  constructor(
+    readonly directory: string,
+    readonly profileId = "facebook-marketplace",
+    private readonly allowedOrigins: string[] = ["https://www.facebook.com"],
+  ) {
     this.lockPath = resolve(directory, ".clapping-hands.lock");
   }
 
@@ -88,7 +92,7 @@ export class ProfileLease {
       id: this.profileId,
       createdAt,
       updatedAt: new Date().toISOString(),
-      allowedOrigins: ["https://www.facebook.com"],
+      allowedOrigins: this.allowedOrigins,
       browserIdentity: {
         channel: "Google Chrome stable",
         locale: "en-AU",
