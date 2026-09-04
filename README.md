@@ -227,16 +227,19 @@ use Discourse's first-party API whenever it is configured and task-complete. The
 sanitized report is
 [`discourse-local-capability.json`](bench/runs/2026-09-04/discourse-local-capability.json).
 
-A pinned, loopback-only Nextcloud 33.0.8 regression then passed 2/2: it opened
-an unseen folder after a clean browser restart and uploaded one allowlisted
-synthetic file through prepare/commit. Prepare created no file, commit created
-exactly one, a repeated commit was rejected, and all three demonstration/test
-files were removed and independently verified absent. The run exposed and
-fixed a general multiple-file-input ambiguity: the compiler may now choose a
-uniquely named `upload` versus `attachment` input, while anonymous or tied
-candidates still fail closed. Nextcloud's documented WebDAV remains the right
-integration for API-covered file tasks; this row is browser/effect-safety
-evidence, not an argument to ignore it.
+A pinned, loopback-only Nextcloud 33.0.8 regression then passed 4/4: it opened
+an unseen folder, uploaded and downloaded an allowlisted synthetic file, and
+created one public share after a clean browser restart. The download matched
+filename, byte count, and SHA-256. Both writes prepared without effect, committed
+exactly once, rejected receipt reuse, and were removed with all synthetic files.
+The run exposed two general compiler defects: competing file inputs now require
+one semantic winner, and identical aggregate demonstration pages now use varied
+input evidence instead of freezing unrelated surrounding content. Anonymous or
+tied candidates and unseen outputs without their requested input still fail
+closed. Nextcloud's WebDAV and OCS APIs remain the right integrations for tasks
+they cover; this row is browser/artifact/effect-safety evidence, not an argument
+to ignore them. The expanded compiler checkpoint is
+[`7edd55a`](https://github.com/yail259/clapping-hands/commit/7edd55a).
 
 A pinned, loopback-only Moodle 5.2.2 regression also passed 2/2 after a clean
 browser restart. A compiled read opened an unseen course/tab combination; a

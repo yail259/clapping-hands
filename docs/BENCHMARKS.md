@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 88 passing tests and the built MCP
+cross-site speed claim. The current suite has 89 passing tests and the built MCP
 server advertises ten management/Marketplace tools before any generated
 workflow tools are loaded.
 
@@ -304,7 +304,7 @@ reusable inputs. Read semantics now require an explicit conservative submitter
 allowlist, and form signatures/projected steps exclude unanswered result-row
 controls. Repeated result-page URLs with a query string are also recognized as
 terminal results when an empty form action resolves back to that URL. The full
-88-test suite covers these cases.
+89-test suite covers these cases.
 
 This supports only the pinned WordPress version and post-search workflow above;
 it is not a claim that all WordPress tasks—or websites generally—are 7× faster.
@@ -403,14 +403,16 @@ The sanitized failure report is
 
 The same workflow family was exercised independently against the official
 Nextcloud 33.0.8 Apache container on loopback, with a synthetic account and
-files. This was a new local run at compiler checkpoint
-[`87f827f`](https://github.com/yail259/clapping-hands/commit/87f827f), not a
+files. The expanded run used compiler checkpoint
+[`7edd55a`](https://github.com/yail259/clapping-hands/commit/7edd55a), and is not a
 retroactive pass for the capped public holdout.
 
 | Workflow | Mechanism | Effect path | Compiled model calls | Exact result | Verdict |
 | --- | --- | --- | ---: | --- | --- |
 | Open unseen `Templates` folder | authenticated Vue route with numeric view ID and `dir` query | read DOM after clean restart | 0 | route and rendered folder matched | pass after runner correction |
 | Upload allowlisted synthetic file | two competing file inputs, asynchronous upload | prepare/commit | 0 | prepare absent; commit one file; repeat rejected | pass after compiler fix |
+| Download unseen synthetic file | input-bound row menu + browser download | read DOM + quarantined artifact | 0 | filename, byte count, and SHA-256 matched | pass after compiler fix |
+| Create public share for unseen file | input-bound sharing sidebar + finite OCS mutation | prepare/commit | 0 | prepare absent; one type-3 share; repeat rejected | pass |
 
 The initial upload demonstration failed closed because the page contains both
 the Files uploader and a text-editor attachment input. The general learner now
@@ -423,13 +425,24 @@ Nextcloud 33 uses a numeric file-view path plus a `dir` query, and file-row
 accessible labels are generic while the visible stem and extension occupy
 separate spans. The rerun used version-tolerant exact oracles for both.
 
+The download demonstrations also exposed a general validation defect. Because
+both alpha and beta were visible in the aggregate file list, the two complete
+output snapshots were identical. Exact-snapshot validation then rejected the
+unseen gamma list despite the requested filename being present. When varied
+inputs are explicitly evidenced in output, the compiler now validates that
+input evidence plus output plausibility instead of freezing unrelated aggregate
+content. The controlled regression still rejects an unseen input that is absent.
+
 The upload plan persisted neither demonstrated filename nor credential. A
-WebDAV HEAD oracle proved no file existed after prepare, one 47-byte file
+WebDAV HEAD proved no file existed after upload prepare, one 47-byte file
 existed after commit, and its entity and size were unchanged after a rejected
-second commit. WebDAV DELETE then removed all three synthetic files and the
-oracle verified cleanup. Because WebDAV already covers file operations, this
-row is evidence for browser fallback and effect safety—not a no-API product win
-or a speed result. The sanitized report is
+second commit. The downloaded artifact matched the allowlisted source by size
+and SHA-256. An OCS oracle proved no public share existed after prepare, exactly
+one public-link share existed after commit, and the share ID was unchanged after
+rejected receipt reuse. OCS and WebDAV then removed all shares and files and
+verified cleanup. Because those APIs already cover the tested operations, this
+row is evidence for browser fallback, artifacts, and effect safety—not a no-API
+product win or speed result. The sanitized report is
 [`bench/runs/2026-09-04/nextcloud-local-capability.json`](../bench/runs/2026-09-04/nextcloud-local-capability.json).
 
 ## Self-hosted Moodle capability regression — 2026-09-04

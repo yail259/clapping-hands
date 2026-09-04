@@ -112,7 +112,7 @@ Current execution ledger for those eight application rows:
 | WordPress | Playground iframe search regression; qualifying local post-search distribution | an isolated plugin-specific UI-only write |
 | Moodle | local unseen course navigation and one exact grade write: 2/2 | a student-side synthetic activity submission |
 | Discourse | official-demo category read plus local search/create/edit: 3/3 local regression | a permission/role transition or allowlisted upload |
-| Nextcloud | local folder navigation and allowlisted upload: 2/2 | download artifact plus a distinct share/permission state |
+| Nextcloud | local folder, upload, download artifact, and public share: 4/4 | a user-targeted share or permission transition distinct from public links |
 | nopCommerce | local product search and reversible cart write: 2/2; qualifying search distribution | an isolated admin edit, with API routing checked first |
 | GOV.UK decision tools | three guided production smokes retained | rate-limited revalidation on a fresh window and a distinct public-service operator |
 | Operator-owned Google Form | none yet | conditional multi-page submit with owner-side response oracle |

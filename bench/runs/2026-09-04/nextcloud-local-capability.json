@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "self-hosted-application-capability-regression",
-  "generatedAt": "2026-09-04T11:19:04.818Z",
-  "compilerCommit": "87f827fc26bf501cf8e2d394e45f4457013816f6",
+  "generatedAt": "2026-09-04T14:10:05.224Z",
+  "compilerCommit": "7edd55a8d5549872733a86fbf9bdd1d534c7d545",
   "application": "Self-hosted Nextcloud 33.0.8",
   "origin": "http://127.0.0.1:18091",
   "containerImages": {
@@ -10,15 +10,21 @@
   },
   "intervention": "guided",
   "policyBasis": "Loopback-only official container with one synthetic user and synthetic files",
-  "credentialHandling": "Read a rotated synthetic credential from the process environment; persisted no credential in plans or reports",
+  "credentialHandling": "Read a rotated synthetic credential from the process environment; persisted no credential or file contents in plans or reports",
   "claimScope": "Capability regression on one pinned self-hosted application; not a speed or untouched-holdout result",
-  "apiDisposition": "WebDAV is the preferred integration for API-covered file operations; it was used only as the independent oracle and cleanup path here",
+  "apiDisposition": "WebDAV and OCS are preferred for API-covered file/share operations; they were used only as independent oracles and cleanup paths for the UI fallback rows",
   "developmentHistory": [
     {
       "stage": "file-input-selection",
       "result": "failed-closed",
       "reason": "The file page exposed both a primary uploader and an editor attachment input.",
       "fix": "Select only a uniquely scored semantic upload/attachment input and continue to reject anonymous or tied candidates."
+    },
+    {
+      "stage": "artifact-and-permission-expansion",
+      "result": "four-workflow-regression",
+      "reason": "The original local row covered folder navigation and upload but not a returned artifact or independently verified share state.",
+      "fix": "Add input-bound download and public-share plans with SHA-256 and OCS oracles, receipt reuse rejection, and verified cleanup."
     }
   ],
   "runnerCorrections": [
@@ -43,7 +49,7 @@
       "path": "compiled-dom",
       "exactResult": true,
       "compiledModelCalls": 0,
-      "compiledDurationMs": 2380.2454579999994,
+      "compiledDurationMs": 2368.575084,
       "navigations": 2
     },
     {
@@ -60,12 +66,43 @@
         "unchangedAfterRejectedRepeat": true
       },
       "compiledModelCalls": 0,
-      "compiledDurationMs": 2094.560292000002
+      "compiledDurationMs": 2696.136707999998
+    },
+    {
+      "task": "download-unseen-file",
+      "effect": "read",
+      "path": "compiled-dom-download",
+      "exactResult": true,
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 2202.045582999999,
+      "artifact": {
+        "count": 1,
+        "suggestedFilenameMatched": true,
+        "sizeMatched": true,
+        "sha256Matched": true
+      }
+    },
+    {
+      "task": "create-unseen-public-share",
+      "effect": "write",
+      "path": "prepare-commit",
+      "exactResult": true,
+      "preparedWithoutEffect": true,
+      "prepareLeftBrowserUntouched": true,
+      "receiptStatus": "committed",
+      "repeatedCommitRejected": true,
+      "oracle": {
+        "publicShareCountAfterCommit": 1,
+        "publicShareType": 3,
+        "unchangedAfterRejectedRepeat": true
+      },
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 2928.8177080000023
     }
   ],
   "summary": {
-    "passed": 2,
-    "total": 2,
+    "passed": 4,
+    "total": 4,
     "falseSuccesses": 0,
     "duplicateCommits": 0
   }
