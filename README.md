@@ -31,10 +31,12 @@ zero-argument and parameterized DOM interactions, same-origin frames and new
 tabs, select/scroll/double-click/drag actions, and same-origin HTML forms. It can learn authenticated JSON and
 form-encoded GraphQL request accelerators on the workflow origin or an exact
 additional origin declared by the operator when that response is evidenced in
-the rendered result. Multi-page JSON reads can infer opaque cursors or numeric
-page/offset increments from repeated traces, including an omitted first `page`
-parameter or initial cursor, and stop only on a demonstrated terminal signal within strict page
-and aggregate-size limits. Experimental write workflows use a separate prepare/commit
+the rendered result. Multi-page JSON reads can infer opaque cursors, numeric
+page/offset increments, or response-provided next URLs from repeated traces,
+including an omitted first `page` parameter or initial cursor. Replay stops only
+on a demonstrated terminal signal within strict page and aggregate-size limits;
+next URLs must retain the exact endpoint, user inputs, stable query values, and
+demonstrated mutable-query shape. Experimental write workflows use a separate prepare/commit
 lifecycle. Preparation validates and journals an expiring intent without
 navigating or touching the browser; after confirmation, the receipt enters its
 one-shot `committing` state before any navigation or UI action. This protects

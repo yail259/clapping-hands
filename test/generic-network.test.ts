@@ -108,6 +108,30 @@ async function apiFixture(): Promise<{ server: Server; origin: string }> {
       }));
       return;
     }
+    if (url.pathname === "/api/link-state") {
+      const query = url.searchParams.get("q") ?? "";
+      const state = url.searchParams.get("state") ?? "";
+      const next = query === "cross-origin"
+        ? "https://example.com/api/link-state?q=cross-origin&limit=5&state=opaque-a"
+        : query === "input-drift"
+          ? "/api/link-state?q=other&limit=5&state=opaque-a"
+          : query === "query-shape-drift"
+            ? "/api/link-state?q=query-shape-drift&limit=5&state=opaque-a&extra=1"
+          : query === "stable-drift"
+              ? "/api/link-state?q=stable-drift&limit=99&state=opaque-a"
+          : query === "repeat-link"
+            ? "/api/link-state?q=repeat-link&limit=5&state=opaque-a"
+            : state === ""
+              ? `/api/link-state?q=${query}&limit=5&state=opaque-a`
+              : state === "opaque-a"
+                ? `/api/link-state?state=opaque-z&limit=5&q=${query}`
+                : null;
+      response.end(JSON.stringify({
+        items: [{ id: `${query}-${state || "initial"}`, title: `${query} ${state || "initial"}` }],
+        ...(next ? { links: { next } } : {}),
+      }));
+      return;
+    }
     if (url.pathname === "/api/graphql-paged" && request.method === "POST") {
       const chunks: Buffer[] = [];
       for await (const chunk of request) chunks.push(Buffer.from(chunk));
@@ -286,6 +310,35 @@ function booleanPageTrace(origin: string, query: string) {
   };
 }
 
+function nextUrlTrace(origin: string, query: string) {
+  return {
+    input: { query },
+    exchanges: [
+      exchange(
+        `${origin}/api/link-state?q=${query}&limit=5`,
+        { query },
+        {
+          items: [{ id: `${query}-initial`, title: `${query} initial` }],
+          links: { next: `/api/link-state?q=${query}&limit=5&state=opaque-a` },
+        },
+      ).exchange,
+      exchange(
+        `${origin}/api/link-state?q=${query}&limit=5&state=opaque-a`,
+        { query },
+        {
+          items: [{ id: `${query}-opaque-a`, title: `${query} opaque-a` }],
+          links: { next: `/api/link-state?state=opaque-z&limit=5&q=${query}` },
+        },
+      ).exchange,
+      exchange(
+        `${origin}/api/link-state?state=opaque-z&limit=5&q=${query}`,
+        { query },
+        { items: [{ id: `${query}-opaque-z`, title: `${query} opaque-z` }] },
+      ).exchange,
+    ],
+  };
+}
+
 test("infers a redacted GET query plan from two demonstrations and validates replay", async () => {
   const { server, origin } = await apiFixture();
   const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-get-"));
@@ -362,6 +415,8 @@ test("infers terminal cursor pagination from traces and replays every unseen pag
     );
 
     const overwriting = structuredClone(plan);
+    assert.equal(overwriting.request.pagination?.strategy, "cursor");
+    if (overwriting.request.pagination?.strategy !== "cursor") throw new Error("Expected cursor pagination.");
     overwriting.request.pagination!.requestPath = ["q", 0];
     await assert.rejects(
       () => replayGenericJsonPlan(context!, overwriting, { query: "lamp" }),
@@ -510,6 +565,53 @@ test("infers offset short-page and camel-case boolean termination strategies", a
     assert.equal(offsetReplay.requests, 3);
     assert.equal(booleanReplay.requests, 3);
     assert.equal((offsetReplay.data as Array<{ results: unknown[] }>).flatMap((page) => page.results).length, 5);
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("infers response-driven next URLs and constrains them to the bound endpoint", async () => {
+  const { server, origin } = await apiFixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-next-url-"));
+  let context: BrowserContext | null = null;
+  try {
+    const plan = compileGenericJsonFromTraces("linked_search", [
+      nextUrlTrace(origin, "sofa"),
+      nextUrlTrace(origin, "chair"),
+    ]).plan;
+    assert.deepEqual(plan.request.pagination, {
+      strategy: "next-url",
+      responseNextUrlPath: ["links", "next"],
+      mutableQueryPaths: [["state", 0]],
+      maximumPages: 40,
+    });
+
+    context = await chromium.launchPersistentContext(directory, { executablePath: CHROME, headless: true });
+    const replay = await replayGenericJsonPlan(context, plan, { query: "lamp" });
+    assert.equal(replay.requests, 3);
+    assert.equal((replay.data as Array<{ items: Array<{ id: string }> }>)[2]!.items[0]!.id, "lamp-opaque-z");
+    await assert.rejects(
+      () => replayGenericJsonPlan(context!, plan, { query: "cross-origin" }),
+      /outside its validated endpoint/,
+    );
+    await assert.rejects(
+      () => replayGenericJsonPlan(context!, plan, { query: "input-drift" }),
+      /changed a user input binding/,
+    );
+    await assert.rejects(
+      () => replayGenericJsonPlan(context!, plan, { query: "query-shape-drift" }),
+      /changed its demonstrated query shape/,
+    );
+    await assert.rejects(
+      () => replayGenericJsonPlan(context!, plan, { query: "stable-drift" }),
+      /changed a stable query value/,
+    );
+    await assert.rejects(
+      () => replayGenericJsonPlan(context!, plan, { query: "repeat-link" }),
+      /repeated request URL/,
+    );
   } finally {
     await context?.close();
     await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));

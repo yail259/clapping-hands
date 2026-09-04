@@ -48,6 +48,11 @@ export type GenericJsonPlan = {
         | { type: "next-value"; responsePath: Path }
         | { type: "short-page"; responsePath: Path; pageSize: number };
       maximumPages: number;
+    } | {
+      strategy: "next-url";
+      responseNextUrlPath: Path;
+      mutableQueryPaths: Path[];
+      maximumPages: number;
     };
   };
   response: {
@@ -349,57 +354,85 @@ export function assertGenericJsonPlanSafety(plan: GenericJsonPlan): void {
   }
   if (plan.request.pagination !== undefined) {
     const pagination = plan.request.pagination;
-    if (!new Set(["cursor", "increment"]).has(pagination.strategy) ||
-      !new Set(["query", "body"]).has(pagination.requestSource)) {
+    if (!new Set(["cursor", "increment", "next-url"]).has(pagination.strategy)) {
       throw new Error("Compiled network pagination strategy is invalid.");
     }
-    assertTemplatePath(pagination.requestPath, "Compiled pagination request path");
-    if (Object.values(plan.request.bindings).flat().some((binding) =>
-      binding.source === pagination.requestSource &&
-      JSON.stringify(binding.path) === JSON.stringify(pagination.requestPath)
-    )) {
-      throw new Error("Compiled pagination cannot overwrite a user input binding.");
-    }
-    if (pagination.strategy === "cursor") {
-      if (!PAGINATION_FIELD_NAME.test(lastNamedSegment(pagination.requestPath))) {
-        throw new Error("Compiled cursor request path is not pagination-shaped.");
+    if (pagination.strategy === "next-url") {
+      assertTemplatePath(pagination.responseNextUrlPath, "Compiled pagination next-URL path");
+      if (!NEXT_VALUE_FIELD_NAME.test(lastNamedSegment(pagination.responseNextUrlPath))) {
+        throw new Error("Compiled pagination next-URL path is not pagination-shaped.");
       }
-      assertTemplatePath(pagination.responseCursorPath, "Compiled pagination response-cursor path");
-      if (pagination.responseHasNextPath !== undefined) {
-        assertTemplatePath(pagination.responseHasNextPath, "Compiled pagination has-next path");
+      if (!Array.isArray(pagination.mutableQueryPaths) || pagination.mutableQueryPaths.length < 1 ||
+        pagination.mutableQueryPaths.length > 50) {
+        throw new Error("Compiled pagination mutable-query paths are invalid.");
+      }
+      const mutablePathKeys = new Set<string>();
+      for (const path of pagination.mutableQueryPaths) {
+        assertTemplatePath(path, "Compiled pagination mutable-query path");
+        const key = JSON.stringify(path);
+        if (mutablePathKeys.has(key)) throw new Error("Compiled pagination mutable-query paths must be unique.");
+        mutablePathKeys.add(key);
+      }
+      if (plan.request.method !== "GET" || plan.request.bodyCodec !== "none" ||
+        Object.values(plan.request.bindings).flat().some((binding) => binding.source !== "query")) {
+        throw new Error("Compiled next-URL pagination requires a body-less GET with query-only inputs.");
+      }
+      if (Object.values(plan.request.bindings).flat().some((binding) =>
+        mutablePathKeys.has(JSON.stringify(binding.path)))) {
+        throw new Error("Compiled pagination cannot mutate a user input binding.");
       }
     } else {
-      if (!INCREMENT_FIELD_NAME.test(lastNamedSegment(pagination.requestPath))) {
-        throw new Error("Compiled increment request path is not pagination-shaped.");
+      if (!new Set(["query", "body"]).has(pagination.requestSource)) {
+        throw new Error("Compiled network pagination request source is invalid.");
       }
-      if (!Number.isSafeInteger(pagination.firstContinuationValue) ||
-        !Number.isSafeInteger(pagination.increment) || pagination.increment < 1 || pagination.increment > 1_000_000) {
-        throw new Error("Compiled increment pagination values are invalid.");
+      assertTemplatePath(pagination.requestPath, "Compiled pagination request path");
+      if (Object.values(plan.request.bindings).flat().some((binding) =>
+        binding.source === pagination.requestSource &&
+        JSON.stringify(binding.path) === JSON.stringify(pagination.requestPath)
+      )) {
+        throw new Error("Compiled pagination cannot overwrite a user input binding.");
       }
-      assertTemplatePath(pagination.termination.responsePath, "Compiled pagination termination path");
-      if (!new Set(["has-next", "next-value", "short-page"]).has(pagination.termination.type)) {
-        throw new Error("Compiled pagination termination strategy is invalid.");
+      if (pagination.strategy === "cursor") {
+        if (!PAGINATION_FIELD_NAME.test(lastNamedSegment(pagination.requestPath))) {
+          throw new Error("Compiled cursor request path is not pagination-shaped.");
+        }
+        assertTemplatePath(pagination.responseCursorPath, "Compiled pagination response-cursor path");
+        if (pagination.responseHasNextPath !== undefined) {
+          assertTemplatePath(pagination.responseHasNextPath, "Compiled pagination has-next path");
+        }
+      } else {
+        if (!INCREMENT_FIELD_NAME.test(lastNamedSegment(pagination.requestPath))) {
+          throw new Error("Compiled increment request path is not pagination-shaped.");
+        }
+        if (!Number.isSafeInteger(pagination.firstContinuationValue) ||
+          !Number.isSafeInteger(pagination.increment) || pagination.increment < 1 || pagination.increment > 1_000_000) {
+          throw new Error("Compiled increment pagination values are invalid.");
+        }
+        assertTemplatePath(pagination.termination.responsePath, "Compiled pagination termination path");
+        if (!new Set(["has-next", "next-value", "short-page"]).has(pagination.termination.type)) {
+          throw new Error("Compiled pagination termination strategy is invalid.");
+        }
+        if (pagination.termination.type === "short-page" &&
+          (!Number.isSafeInteger(pagination.termination.pageSize) || pagination.termination.pageSize < 1 ||
+            pagination.termination.pageSize > 100_000)) {
+          throw new Error("Compiled pagination page size is invalid.");
+        }
       }
-      if (pagination.termination.type === "short-page" &&
-        (!Number.isSafeInteger(pagination.termination.pageSize) || pagination.termination.pageSize < 1 ||
-          pagination.termination.pageSize > 100_000)) {
-        throw new Error("Compiled pagination page size is invalid.");
+      const requestRoot = pagination.requestSource === "query"
+        ? plan.request.queryTemplate
+        : plan.request.bodyTemplate;
+      const omittedTopLevelQueryParameter = pagination.requestSource === "query" && pagination.requestPath.length === 2 &&
+        typeof pagination.requestPath[0] === "string" && pagination.requestPath[1] === 0 &&
+        requestRoot !== null && valueAt(requestRoot, pagination.requestPath) === undefined;
+      if (requestRoot === null ||
+        (valueAt(requestRoot, pagination.requestPath) === undefined &&
+          !omittedTopLevelQueryParameter && !canSetPaginationValue(requestRoot, pagination.requestPath))) {
+        throw new Error("Compiled pagination request path does not exist in its request template.");
       }
     }
     if (!Number.isSafeInteger(pagination.maximumPages) ||
       pagination.maximumPages < 2 || pagination.maximumPages > 40) {
       throw new Error("Compiled pagination page limit is invalid.");
-    }
-    const requestRoot = pagination.requestSource === "query"
-      ? plan.request.queryTemplate
-      : plan.request.bodyTemplate;
-    const omittedTopLevelQueryParameter = pagination.requestSource === "query" && pagination.requestPath.length === 2 &&
-      typeof pagination.requestPath[0] === "string" && pagination.requestPath[1] === 0 &&
-      requestRoot !== null && valueAt(requestRoot, pagination.requestPath) === undefined;
-    if (requestRoot === null ||
-      (valueAt(requestRoot, pagination.requestPath) === undefined &&
-        !omittedTopLevelQueryParameter && !canSetPaginationValue(requestRoot, pagination.requestPath))) {
-      throw new Error("Compiled pagination request path does not exist in its request template.");
     }
   }
   assertSafeTemplate(plan.request.queryTemplate);
@@ -452,6 +485,7 @@ type ParsedPaginationExchange = {
 type PaginationPlan = NonNullable<GenericJsonPlan["request"]["pagination"]>;
 type CursorPaginationPlan = Extract<PaginationPlan, { strategy: "cursor" }>;
 type IncrementPaginationPlan = Extract<PaginationPlan, { strategy: "increment" }>;
+type NextUrlPaginationPlan = Extract<PaginationPlan, { strategy: "next-url" }>;
 
 type CursorPaginationInference = {
   pagination: CursorPaginationPlan;
@@ -461,6 +495,12 @@ type CursorPaginationInference = {
 
 type IncrementPaginationInference = {
   pagination: IncrementPaginationPlan;
+  responseShape: JsonShape;
+  demonstratedPages: number;
+};
+
+type NextUrlPaginationInference = {
+  pagination: NextUrlPaginationPlan;
   responseShape: JsonShape;
   demonstratedPages: number;
 };
@@ -735,6 +775,77 @@ function inferIncrementPagination(
   return null;
 }
 
+function canonicalUrl(value: string, base?: string): string | null {
+  try {
+    const url = base ? new URL(value, base) : new URL(value);
+    if (!new Set(["http:", "https:"]).has(url.protocol) || url.username || url.password || url.hash) return null;
+    url.searchParams.sort();
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+function inferNextUrlPagination(
+  plan: GenericJsonPlan,
+  traces: GenericNetworkTrace[],
+  demonstrations: GenericNetworkDemonstration[],
+): NextUrlPaginationInference | null {
+  if (plan.request.method !== "GET" || plan.request.bodyCodec !== "none" ||
+    Object.values(plan.request.bindings).flat().some((binding) => binding.source !== "query")) return null;
+  const sequences = traces.map((trace, index) => paginationSequence(trace, demonstrations[index]!.exchange));
+  if (sequences.some((sequence) => sequence.length < 2) ||
+    sequences.some((sequence, index) => !sequencePreservesInputs(plan, sequence, traces[index]!.input))) {
+    return null;
+  }
+  const mutablePathsBySequence = sequences.map((sequence) => {
+    const paths = new Map<string, Path>();
+    for (const page of sequence) {
+      for (const entry of leafEntries(page.request.query)) paths.set(JSON.stringify(entry.path), entry.path);
+    }
+    return [...paths.entries()]
+      .filter(([, path]) => new Set(sequence.map((page) =>
+        JSON.stringify(valueAt(page.request.query, path)))).size > 1)
+      .map(([key, path]) => ({ key, path }))
+      .sort((left, right) => left.key.localeCompare(right.key));
+  });
+  const mutableKeys = mutablePathsBySequence[0]!.map((entry) => entry.key);
+  if (mutableKeys.length === 0 || mutablePathsBySequence.some((entries) =>
+    JSON.stringify(entries.map((entry) => entry.key)) !== JSON.stringify(mutableKeys))) return null;
+  const boundQueryPaths = new Set(Object.values(plan.request.bindings).flat()
+    .filter((binding) => binding.source === "query")
+    .map((binding) => JSON.stringify(binding.path)));
+  if (mutableKeys.some((key) => boundQueryPaths.has(key))) return null;
+  const mutableQueryPaths = mutablePathsBySequence[0]!.map((entry) => entry.path);
+  const nextUrlPath = leafEntries(sequences[0]![0]!.response)
+    .filter((entry) => typeof entry.value === "string" && entry.value.length > 0 &&
+      NEXT_VALUE_FIELD_NAME.test(lastNamedSegment(entry.path)))
+    .map((entry) => entry.path)
+    .sort((left, right) => left.length - right.length || JSON.stringify(left).localeCompare(JSON.stringify(right)))
+    .find((path) => sequences.every((sequence) => {
+      const transitionsMatch = sequence.slice(0, -1).every((page, index) => {
+        const value = valueAt(page.response, path);
+        if (typeof value !== "string" || value.length === 0) return false;
+        const expected = canonicalUrl(value, page.request.url.href);
+        const actual = canonicalUrl(sequence[index + 1]!.request.url.href);
+        return expected !== null && expected === actual;
+      });
+      return transitionsMatch && terminalNextValue(valueAt(sequence.at(-1)!.response, path));
+    }));
+  if (!nextUrlPath) return null;
+  const responses = sequences.flatMap((sequence) => sequence.map((page) => page.response));
+  return {
+    pagination: {
+      strategy: "next-url",
+      responseNextUrlPath: nextUrlPath,
+      mutableQueryPaths,
+      maximumPages: 40,
+    },
+    responseShape: inferJsonShape(responses),
+    demonstratedPages: responses.length,
+  };
+}
+
 export function jsonResponseSupportsOutput(responseBody: string, outputText: string, input: NetworkInput): boolean {
   let parsed: unknown;
   try {
@@ -800,7 +911,10 @@ export function compileGenericJsonFromTraces(
         const plan = compileGenericJsonPlan(action, demonstrations, options);
         const cursorPagination = inferCursorPagination(plan, traces, demonstrations);
         const incrementPagination = cursorPagination ? null : inferIncrementPagination(plan, traces, demonstrations);
-        const pagination = cursorPagination ?? incrementPagination;
+        const nextUrlPagination = cursorPagination || incrementPagination
+          ? null
+          : inferNextUrlPagination(plan, traces, demonstrations);
+        const pagination = cursorPagination ?? incrementPagination ?? nextUrlPagination;
         if (pagination) {
           plan.request.pagination = pagination.pagination;
           plan.response.shape = pagination.responseShape;
@@ -948,6 +1062,45 @@ function materializeParameters(template: Record<string, TemplateValue[]>, input:
   return output;
 }
 
+function validatedNextPageUrl(raw: string, currentUrl: string, plan: GenericJsonPlan, input: NetworkInput): URL {
+  const pagination = plan.request.pagination;
+  if (pagination?.strategy !== "next-url") throw new Error("Compiled pagination next-page strategy is invalid.");
+  const canonical = canonicalUrl(raw, currentUrl);
+  if (!canonical) throw new Error("Compiled pagination returned an invalid next-page URL.");
+  const url = new URL(canonical);
+  const endpointOrigin = plan.request.endpointOrigin ?? plan.origin;
+  if (url.origin !== endpointOrigin || url.pathname !== plan.request.endpointPath) {
+    throw new Error("Compiled pagination returned a next-page URL outside its validated endpoint.");
+  }
+  const query = recordFromSearchParams(url.searchParams);
+  const expectedQuery = recordFromSearchParams(materializeParameters(plan.request.queryTemplate, input));
+  const mutablePathKeys = new Set(pagination.mutableQueryPaths.map((path) => JSON.stringify(path)));
+  const expectedPaths = new Map(leafEntries(expectedQuery).map((entry) => [JSON.stringify(entry.path), entry.path]));
+  for (const path of pagination.mutableQueryPaths) expectedPaths.set(JSON.stringify(path), path);
+  const actualPaths = new Map(leafEntries(query).map((entry) => [JSON.stringify(entry.path), entry.path]));
+  const expectedPathKeys = [...expectedPaths.keys()].sort();
+  const actualPathKeys = [...actualPaths.keys()].sort();
+  if (JSON.stringify(expectedPathKeys) !== JSON.stringify(actualPathKeys)) {
+    throw new Error("Compiled pagination next-page URL changed its demonstrated query shape.");
+  }
+  const boundPathKeys = new Set(Object.values(plan.request.bindings).flat()
+    .filter((binding) => binding.source === "query")
+    .map((binding) => JSON.stringify(binding.path)));
+  for (const [key, path] of expectedPaths) {
+    if (mutablePathKeys.has(key) || boundPathKeys.has(key)) continue;
+    if (JSON.stringify(valueAt(query, path)) !== JSON.stringify(valueAt(expectedQuery, path))) {
+      throw new Error("Compiled pagination next-page URL changed a stable query value.");
+    }
+  }
+  for (const [inputName, bindings] of Object.entries(plan.request.bindings)) {
+    if (bindings.some((binding) => binding.source !== "query" ||
+      !equivalent("query", valueAt(query, binding.path), input[inputName]!))) {
+      throw new Error("Compiled pagination next-page URL changed a user input binding.");
+    }
+  }
+  return url;
+}
+
 export async function replayGenericJsonPlan(
   context: BrowserContext,
   plan: GenericJsonPlan,
@@ -963,14 +1116,16 @@ export async function replayGenericJsonPlan(
   const maximumPages = pagination?.maximumPages ?? 1;
   const pages: unknown[] = [];
   const seenCursors = new Set<string>();
+  const seenRequestUrls = new Set<string>();
   let nextCursor: string | number | undefined;
+  let nextPageUrl: string | undefined;
   let totalBytes = 0;
   let status = 0;
 
   for (let pageIndex = 0; pageIndex < maximumPages; pageIndex += 1) {
     const queryTemplate = structuredClone(plan.request.queryTemplate);
     const bodyTemplate = structuredClone(plan.request.bodyTemplate);
-    if (pagination && pageIndex > 0) {
+    if (pagination && pagination.strategy !== "next-url" && pageIndex > 0) {
       const target = pagination.requestSource === "query" ? queryTemplate : bodyTemplate;
       if (target === null) throw new Error("Compiled pagination lost its request template before replay.");
       let requestPaginationValue: string | number;
@@ -991,8 +1146,18 @@ export async function replayGenericJsonPlan(
       );
     }
 
-    const url = new URL(plan.request.endpointPath, plan.request.endpointOrigin ?? plan.origin);
-    url.search = materializeParameters(queryTemplate, input).toString();
+    const initialUrl = new URL(plan.request.endpointPath, plan.request.endpointOrigin ?? plan.origin);
+    initialUrl.search = materializeParameters(queryTemplate, input).toString();
+    const url = pagination?.strategy === "next-url" && pageIndex > 0
+      ? validatedNextPageUrl(nextPageUrl ?? "", initialUrl.href, plan, input)
+      : initialUrl;
+    if (pagination?.strategy === "next-url") {
+      const requestUrlKey = canonicalUrl(url.href);
+      if (!requestUrlKey || seenRequestUrls.has(requestUrlKey)) {
+        throw new Error("Compiled pagination returned a missing or repeated request URL.");
+      }
+      seenRequestUrls.add(requestUrlKey);
+    }
     let requestData: string | undefined;
     if (plan.request.bodyCodec === "json") {
       requestData = JSON.stringify(materialize(bodyTemplate as TemplateValue, input));
@@ -1026,6 +1191,25 @@ export async function replayGenericJsonPlan(
     }
     pages.push(parsed);
     if (!pagination) break;
+
+    if (pagination.strategy === "next-url") {
+      const nextUrl = valueAt(parsed, pagination.responseNextUrlPath);
+      if (terminalNextValue(nextUrl)) {
+        return {
+          data: pages,
+          status,
+          durationMs: performance.now() - startedAt,
+          requests: pages.length,
+          navigations: 0,
+          complete: true,
+        };
+      }
+      if (typeof nextUrl !== "string") {
+        throw new Error("Compiled pagination returned an invalid next-page URL.");
+      }
+      nextPageUrl = nextUrl;
+      continue;
+    }
 
     if (pagination.strategy === "increment") {
       const terminationValue = valueAt(parsed, pagination.termination.responsePath);
