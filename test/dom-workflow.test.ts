@@ -875,6 +875,41 @@ test("redacts an input embedded in a learned selector", async () => {
   }
 });
 
+test("does not bind a short input inside an unrelated selector token", () => {
+  const demonstration = (clientName: string, quantity: string): DomWorkflowDemonstration => ({
+    input: { clientName, quantity },
+    actions: [
+      {
+        selector: `.select2-results [role=option]:has-text(${JSON.stringify(clientName)})`,
+        description: "Choose the requested client",
+        method: "click",
+        arguments: [],
+      },
+      {
+        selector: "#quantity",
+        description: "Fill quantity",
+        method: "fill",
+        arguments: [quantity],
+      },
+    ],
+    output: {
+      selector: "main",
+      tagName: "main",
+      text: `Draft for ${clientName}`,
+      textHash: `hash-${clientName}`,
+      url: "https://example.test/invoices",
+    },
+    modelCalls: 1,
+  });
+  const plan = compileDomWorkflow("create_draft", "https://example.test/invoices", [
+    demonstration("Fixture Alpha", "2"),
+    demonstration("Fixture Beta", "3"),
+  ], { effect: "write", confirmation: "Create one synthetic draft" });
+  assert.match(JSON.stringify(plan.actions[0]!.selector), /clientName/);
+  assert.match(JSON.stringify(plan.actions[0]!.selector), /select2-results/);
+  assert.deepEqual(plan.actions[1]!.arguments[0], [{ $clappingHandsInput: "quantity" }]);
+});
+
 test("persists and replays a same-origin new-page transition", async () => {
   const { server, origin } = await fixture();
   let browser: Browser | null = null;

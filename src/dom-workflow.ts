@@ -524,6 +524,36 @@ function inputBindingOrder(demonstration: DomWorkflowDemonstration, inputNames: 
     .sort((left, right) => right.raw.length - left.raw.length || left.inputIndex - right.inputIndex);
 }
 
+function replaceInputOccurrences(value: string, raw: string, sentinel: string): string {
+  if (raw.length >= 3) return value.split(raw).join(sentinel);
+  // Very short values are common for quantities, booleans, and small record
+  // ids. Treating every matching character as evidence can corrupt unrelated
+  // selector tokens (for example quantity "2" inside the stable class name
+  // "select2"). Exact values and delimiter-bounded occurrences remain valid
+  // bindings, including selectors such as #product-2 and arguments such as 2.
+  const embeddedCharacter = /[A-Za-z0-9_]/;
+  let result = "";
+  let offset = 0;
+  while (offset < value.length) {
+    const index = value.indexOf(raw, offset);
+    if (index < 0) {
+      result += value.slice(offset);
+      break;
+    }
+    const before = index > 0 ? value[index - 1]! : "";
+    const afterIndex = index + raw.length;
+    const after = afterIndex < value.length ? value[afterIndex]! : "";
+    result += value.slice(offset, index);
+    if ((before && embeddedCharacter.test(before)) || (after && embeddedCharacter.test(after))) {
+      result += raw;
+    } else {
+      result += sentinel;
+    }
+    offset = afterIndex;
+  }
+  return result;
+}
+
 function splitByInputs(
   values: string[],
   demonstrations: DomWorkflowDemonstration[],
@@ -545,7 +575,7 @@ function splitByInputs(
       if (!skeleton.includes(raw)) continue;
       const sentinel = `\u0000input:${inputIndex}\u0000`;
       sentinels.set(sentinel, inputName);
-      skeleton = skeleton.split(raw).join(sentinel);
+      skeleton = replaceInputOccurrences(skeleton, raw, sentinel);
     }
     return skeleton;
   });
