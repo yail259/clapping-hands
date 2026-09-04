@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "kind": "api-first-negative-control",
+  "generatedAt": "2026-09-04T10:30:35.896Z",
+  "compilerCommit": "b4c944bef8a4f31c3544b19ae866fb537584f522",
+  "application": "GitHub",
+  "task": "read public repository metadata",
+  "repository": "yail259/clapping-hands",
+  "integrationDecision": "official-api",
+  "decisionReason": "GitHub's documented REST endpoint fully covers this task, so UI compilation is unnecessary",
+  "authentication": "none-required-for-this-public-request",
+  "evidence": {
+    "apiRequests": 1,
+    "browserNavigations": 0,
+    "uiCompilerInvocations": 0,
+    "modelCalls": 0,
+    "durationMs": 352.1435,
+    "exactResult": true
+  },
+  "traffic": {
+    "externalRequestsBeforeRun": 0,
+    "runnerRequests": 1,
+    "dailyDomainCap": 10
+  },
+  "claimScope": "Routing negative control; n=1 capability evidence, not a speed benchmark",
+  "summary": {
+    "passed": 1,
+    "total": 1,
+    "falseSuccesses": 0
+  }
+}

@@ -296,3 +296,19 @@ remaining journeys cannot fit a clean two-demonstration-plus-replay run. This
 row therefore contributes **no pass**, no speed number, and no coverage credit.
 The sanitized failure report is
 [`bench/runs/2026-09-04/nextcloud-trial-holdout.json`](../bench/runs/2026-09-04/nextcloud-trial-holdout.json).
+
+## API-first negative control — 2026-09-04
+
+Public metadata for `yail259/clapping-hands` is fully covered by
+[GitHub's documented REST API](https://docs.github.com/en/rest/repos/repos#get-a-repository).
+The correct benchmark decision was therefore to decline UI compilation.
+
+| Task | Integration decision | API requests | Browser navigations | UI compiler calls | Model calls | Exact result |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| Read public repository metadata | official API | 1 | 0 | 0 | 0 | repository identity matched |
+
+The public request needed no API key and took 352 ms in one observation. That
+latency is not a speed benchmark; this row tests routing discipline. It prevents
+the corpus from rewarding Clapping Hands for automating a UI when a supported,
+task-complete first-party API is already available. The sanitized report is
+[`bench/runs/2026-09-04/github-api-first-control.json`](../bench/runs/2026-09-04/github-api-first-control.json).

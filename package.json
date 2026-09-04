@@ -14,6 +14,7 @@
     "benchmark:corpus": "tsx scripts/validate-benchmark-corpus.ts",
     "benchmark:controlled": "tsx scripts/benchmark-controlled-general.ts",
     "benchmark:discourse": "tsx scripts/benchmark-discourse.ts",
+    "benchmark:api-control": "tsx scripts/benchmark-api-control.ts",
     "benchmark:marketplace": "tsx scripts/benchmark-marketplace.ts",
     "benchmark:moodle": "tsx scripts/benchmark-moodle.ts",
     "benchmark:nextcloud": "tsx scripts/benchmark-nextcloud.ts",

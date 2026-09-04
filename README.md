@@ -190,6 +190,11 @@ exact `/c/support/50` path, and used zero model calls. No shared content was
 created. This is a corpus-v2 candidate capability result (`n=1`), not a speed
 or 80–90% coverage claim.
 
+The API-first negative control also passed: for public repository metadata on
+GitHub, the benchmark selected the documented REST endpoint and invoked the UI
+compiler zero times. Clapping Hands is the fallback for a missing or
+task-incomplete API, not a reason to ignore a good first-party integration.
+
 Restart Codex after adding the server so these tools are discovered:
 
 - `clapping_hands_compile_dom`
