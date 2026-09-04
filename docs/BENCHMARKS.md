@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 68 passing tests and the built MCP server
+cross-site speed claim. The current suite has 69 passing tests and the built MCP server
 advertises ten management/Marketplace tools before any generated workflow tools
 are loaded.
 
@@ -155,3 +155,32 @@ is [`bench/runs/2026-09-04/the-internet-live-smoke.json`](../bench/runs/2026-09-
 This adds a second public domain and three browser mechanisms to the evidence,
 but still does not satisfy the frozen-corpus or unseen-holdout gates. In
 particular, it supports no “80–90% of websites” claim and no speed ratio.
+
+## Authenticated SPA capability smoke — 2026-09-04
+
+Compiler checkpoint [`2dce968`](https://github.com/yail259/clapping-hands/commit/2dce968)
+was exercised against SauceDemo / Swag Labs. [Sauce Labs' own Selenium
+documentation](https://docs.saucelabs.com/web-apps/automated-testing/selenium/)
+uses this app for its automated login example. The harness read the public
+fixture credentials from the login page at runtime and did not persist or
+report them.
+
+| Workflow | Mechanism | Effect path | Compiled model calls | Exact result | Verdict |
+| --- | --- | --- | ---: | --- | --- |
+| Login profile restart | authenticated SPA state | fixture auth handoff | 0 | inventory survived clean restart | pass |
+| Inventory sort | client-only select state | read DOM | 0 | independently checked A→Z ordering | pass |
+| Add cart item | reversible local cart mutation | prepare/commit | 0 | cart empty at prepare; one item at commit | pass |
+
+The first A→Z replay failed closed because A→Z was already selected after the
+fresh navigation, so there was correctly no DOM delta. The runtime now accepts
+only a narrow idempotency proof for select/check/uncheck controls whose current
+state already equals the requested state; arbitrary clicks still require fresh
+output. The successful run used nine page journeys, created no orders, and
+removed its test cart item. The failed development attempt used five additional
+journeys. The sanitized report is
+[`bench/runs/2026-09-04/saucedemo-live-smoke.json`](../bench/runs/2026-09-04/saucedemo-live-smoke.json).
+
+This is the third public domain and the first externally hosted authenticated
+SPA in the evidence. It remains guided, `n=1` per task, and outside the unseen
+holdout denominator; it supports capability claims, not a speed or 80–90%
+generality claim.

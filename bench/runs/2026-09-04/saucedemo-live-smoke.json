@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "kind": "live-purpose-built-smoke",
+  "generatedAt": "2026-09-04T08:41:32.622Z",
+  "compilerCommit": "2dce9682dd85231860d9d114a4eb339edf2955f8",
+  "application": "SauceDemo / Swag Labs",
+  "origin": "https://www.saucedemo.com",
+  "policyBasis": "Sauce Labs documentation uses Swag Labs as its automated login example",
+  "credentialHandling": "Read public fixture credentials from the login page; did not persist or report them",
+  "traffic": {
+    "pageJourneys": 9,
+    "realOrders": 0,
+    "cartItemsLeftBehind": 0
+  },
+  "intervention": "guided",
+  "claimScope": "Capability smoke only; n=1 compiled run per task, not a speed benchmark",
+  "developmentHistory": [
+    {
+      "attempt": 1,
+      "task": "inventory-sort",
+      "result": "failed-closed",
+      "reason": "Selecting the already-default A-to-Z state produced no DOM delta for the freshness gate.",
+      "fix": "Allow freshly navigated select/check controls to prove that the requested state was already satisfied.",
+      "journeys": 5
+    }
+  ],
+  "rows": [
+    {
+      "task": "login-profile-restart",
+      "effect": "read",
+      "path": "auth-handoff-fixture",
+      "exactResult": true,
+      "compiledModelCalls": 0
+    },
+    {
+      "task": "inventory-sort",
+      "effect": "read",
+      "path": "browser-dom",
+      "exactResult": true,
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 162.2075420000001
+    },
+    {
+      "task": "add-cart-item",
+      "effect": "write",
+      "path": "prepare-commit",
+      "exactResult": true,
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 168.31166600000006,
+      "preparedCartEmpty": true,
+      "receiptStatus": "committed"
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "total": 3,
+    "falseSuccesses": 0
+  }
+}

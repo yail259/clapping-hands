@@ -161,6 +161,11 @@ capability probes—delayed DOM output, JavaScript confirmation, and a quarantin
 download—with exact results and zero compiled model calls. It is `n=1` per task
 and is not presented as a speed benchmark or a cross-site success-rate claim.
 
+A third bounded smoke on SauceDemo passed 3/3 guided probes: authenticated
+profile restart, independently checked client-side sorting, and a reversible
+cart write whose prepare phase left the cart empty. The test created no order
+and removed its cart item. This is also capability evidence, not a speed ratio.
+
 Restart Codex after adding the server so these tools are discovered:
 
 - `clapping_hands_compile_dom`
