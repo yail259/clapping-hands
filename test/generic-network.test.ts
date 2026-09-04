@@ -23,7 +23,7 @@ function exchange(
   url: string,
   input: NetworkInput,
   response: unknown,
-  options: { method?: string; requestBody?: unknown; contentType?: string } = {},
+  options: { method?: string; requestBody?: unknown; contentType?: string; responseHeaders?: Record<string, string> } = {},
 ): GenericNetworkDemonstration {
   const method = options.method ?? "GET";
   const contentType = options.contentType ?? (options.requestBody ? "application/json" : "");
@@ -36,6 +36,7 @@ function exchange(
       ? typeof options.requestBody === "string" ? options.requestBody : JSON.stringify(options.requestBody)
       : "",
     responseStatus: 200,
+    ...(options.responseHeaders ? { responseHeaders: options.responseHeaders } : {}),
     responseBody: JSON.stringify(response),
   };
   return { input, exchange: captured };
@@ -108,6 +109,20 @@ async function apiFixture(): Promise<{ server: Server; origin: string }> {
       }));
       return;
     }
+    if (url.pathname === "/api/header-pages") {
+      const query = url.searchParams.get("q") ?? "";
+      const page = Number(url.searchParams.get("page") ?? "1");
+      const totalPages = query === "header-change" && page > 1
+        ? 4
+        : query === "header-over-limit"
+          ? 41
+          : 3;
+      response.setHeader("x-total-pages", String(totalPages));
+      response.end(JSON.stringify({
+        items: [{ id: `${query}-${page}`, title: `${query} page ${page}` }],
+      }));
+      return;
+    }
     if (url.pathname === "/api/link-state") {
       const query = url.searchParams.get("q") ?? "";
       const state = url.searchParams.get("state") ?? "";
@@ -159,6 +174,8 @@ async function apiFixture(): Promise<{ server: Server; origin: string }> {
       return;
     }
     if (url.pathname === "/api/status") {
+      response.setHeader("x-total-pages", "3");
+      response.setHeader("x-secret-token", "must-not-be-captured");
       response.end(JSON.stringify({ status: "ok", checked: true }));
       return;
     }
@@ -336,6 +353,18 @@ function nextUrlTrace(origin: string, query: string) {
         { items: [{ id: `${query}-opaque-z`, title: `${query} opaque-z` }] },
       ).exchange,
     ],
+  };
+}
+
+function headerPageTrace(origin: string, query: string) {
+  return {
+    input: { query },
+    exchanges: [1, 2, 3].map((page) => exchange(
+      `${origin}/api/header-pages?q=${query}&page=${page}`,
+      { query },
+      { items: [{ id: `${query}-${page}`, title: `${query} page ${page}` }] },
+      { responseHeaders: { "X-Total-Pages": "3", "set-cookie": "must-not-be-captured" } },
+    ).exchange),
   };
 }
 
@@ -619,6 +648,43 @@ test("infers response-driven next URLs and constrains them to the bound endpoint
   }
 });
 
+test("infers total-page response headers and rejects header drift", async () => {
+  const { server, origin } = await apiFixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-total-pages-"));
+  let context: BrowserContext | null = null;
+  try {
+    const plan = compileGenericJsonFromTraces("header_page_search", [
+      headerPageTrace(origin, "sofa"),
+      headerPageTrace(origin, "chair"),
+    ]).plan;
+    assert.deepEqual(plan.request.pagination, {
+      strategy: "increment",
+      requestSource: "query",
+      requestPath: ["page", 0],
+      firstContinuationValue: 2,
+      increment: 1,
+      termination: { type: "total-pages-header", header: "x-total-pages" },
+      maximumPages: 40,
+    });
+
+    context = await chromium.launchPersistentContext(directory, { executablePath: CHROME, headless: true });
+    const replay = await replayGenericJsonPlan(context, plan, { query: "lamp" });
+    assert.equal(replay.requests, 3);
+    await assert.rejects(
+      () => replayGenericJsonPlan(context!, plan, { query: "header-change" }),
+      /total-pages header changed/,
+    );
+    await assert.rejects(
+      () => replayGenericJsonPlan(context!, plan, { query: "header-over-limit" }),
+      /invalid total-pages header/,
+    );
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("infers JSON body bindings while retaining safe constants", async () => {
   const { server, origin } = await apiFixture();
   const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-post-"));
@@ -762,6 +828,7 @@ test("recorder captures only explicitly allowed cross-origin API responses", asy
     const captured = await allowed.since(allowedMark);
     assert.equal(captured.length, 1);
     assert.equal(new URL(captured[0]!.url).origin, api.origin);
+    assert.deepEqual(captured[0]!.responseHeaders, { "x-total-pages": "3" });
   } finally {
     await context?.close();
     await new Promise<void>((resolvePromise, reject) => pageServer.close((error) => error ? reject(error) : resolvePromise()));

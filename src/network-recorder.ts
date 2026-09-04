@@ -3,6 +3,13 @@ import type { CapturedExchange } from "./network-plan.js";
 
 const MAX_EXCHANGES = 200;
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+const SAFE_RESPONSE_HEADERS = new Set([
+  "content-range",
+  "link",
+  "x-pagination-pages",
+  "x-total-pages",
+  "x-wp-totalpages",
+]);
 
 export type NetworkRecorderMark = {
   exchangeIndex: number;
@@ -64,6 +71,12 @@ function boundedHeaders(headers: Record<string, string>): Record<string, string>
     output[lower] = value;
   }
   return output;
+}
+
+function boundedResponseHeaders(headers: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(headers)
+    .map(([name, value]) => [name.toLowerCase(), value] as const)
+    .filter(([name, value]) => SAFE_RESPONSE_HEADERS.has(name) && value.length <= 4_096));
 }
 
 export class NetworkRecorder {
@@ -175,6 +188,7 @@ export class NetworkRecorder {
       requestHeaders: boundedHeaders(await request.allHeaders()),
       requestBody: request.postData() ?? "",
       responseStatus: response.status(),
+      responseHeaders: boundedResponseHeaders(response.headers()),
       responseBody: body.toString("utf8"),
     };
     this.exchanges.push(exchange);

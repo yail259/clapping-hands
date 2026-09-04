@@ -12,6 +12,7 @@ export type CapturedExchange = {
   requestHeaders: Record<string, string>;
   requestBody: string;
   responseStatus: number;
+  responseHeaders?: Record<string, string>;
   responseBody: string;
 };
 

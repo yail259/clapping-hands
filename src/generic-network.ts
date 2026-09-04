@@ -46,7 +46,8 @@ export type GenericJsonPlan = {
       termination:
         | { type: "has-next"; responsePath: Path }
         | { type: "next-value"; responsePath: Path }
-        | { type: "short-page"; responsePath: Path; pageSize: number };
+        | { type: "short-page"; responsePath: Path; pageSize: number }
+        | { type: "total-pages-header"; header: string };
       maximumPages: number;
     } | {
       strategy: "next-url";
@@ -88,6 +89,7 @@ const HAS_NEXT_FIELD_NAME = /(?:has.?next|more)/i;
 const NEXT_VALUE_FIELD_NAME = /(?:next|more)/i;
 const INCREMENT_FIELD_NAME = /^(?:page(?:[_-]?(?:number|index|no))?|offset|start(?:[_-]?(?:at|index))?|skip(?:[_-]?count)?|from)$/i;
 const PAGE_ITEMS_FIELD_NAME = /(?:items|results|topics|posts|edges|records|entries)/i;
+const TOTAL_PAGES_HEADER_NAME = /^(?:x-wp-totalpages|x-total-pages|x-pagination-pages)$/;
 
 function hash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -408,9 +410,15 @@ export function assertGenericJsonPlanSafety(plan: GenericJsonPlan): void {
           !Number.isSafeInteger(pagination.increment) || pagination.increment < 1 || pagination.increment > 1_000_000) {
           throw new Error("Compiled increment pagination values are invalid.");
         }
-        assertTemplatePath(pagination.termination.responsePath, "Compiled pagination termination path");
-        if (!new Set(["has-next", "next-value", "short-page"]).has(pagination.termination.type)) {
+        if (!new Set(["has-next", "next-value", "short-page", "total-pages-header"]).has(pagination.termination.type)) {
           throw new Error("Compiled pagination termination strategy is invalid.");
+        }
+        if (pagination.termination.type === "total-pages-header") {
+          if (!TOTAL_PAGES_HEADER_NAME.test(pagination.termination.header)) {
+            throw new Error("Compiled pagination total-pages header is invalid.");
+          }
+        } else {
+          assertTemplatePath(pagination.termination.responsePath, "Compiled pagination termination path");
         }
         if (pagination.termination.type === "short-page" &&
           (!Number.isSafeInteger(pagination.termination.pageSize) || pagination.termination.pageSize < 1 ||
@@ -480,6 +488,7 @@ function responseScalars(value: unknown): string[] {
 type ParsedPaginationExchange = {
   request: ReturnType<typeof parseRequest>;
   response: unknown;
+  responseHeaders: Record<string, string>;
 };
 
 type PaginationPlan = NonNullable<GenericJsonPlan["request"]["pagination"]>;
@@ -535,7 +544,12 @@ function paginationSequence(
     }
     if (exchangeSignature !== signature) continue;
     try {
-      sequence.push({ request: parseRequest(exchange), response: parseJson(exchange.responseBody) });
+      sequence.push({
+        request: parseRequest(exchange),
+        response: parseJson(exchange.responseBody),
+        responseHeaders: Object.fromEntries(Object.entries(exchange.responseHeaders ?? {})
+          .map(([name, value]) => [name.toLowerCase(), value])),
+      });
     } catch {
       return [];
     }
@@ -736,6 +750,15 @@ function inferIncrementPagination(
         sequence.slice(0, -1).every((page) => continuingNextValue(valueAt(page.response, path))) &&
         terminalNextValue(valueAt(sequence.at(-1)!.response, path))));
 
+    const totalPagesHeader = Object.keys(sequences[0]![0]!.responseHeaders)
+      .filter((name) => TOTAL_PAGES_HEADER_NAME.test(name))
+      .sort()
+      .find((name) => sequences.every((sequence) => {
+        const values = sequence.map((page) => finiteInteger(page.responseHeaders[name]));
+        return values.every((value) => value !== null && value > 0 && value <= 40) &&
+          new Set(values).size === 1 && values[0] === sequence.length;
+      }));
+
     const shortPage = nestedEntries(sequences[0]![0]!.response)
       .filter((entry) => Array.isArray(entry.value) && entry.value.length > 0 &&
         PAGE_ITEMS_FIELD_NAME.test(lastNamedSegment(entry.path)))
@@ -753,9 +776,11 @@ function inferIncrementPagination(
       ? { type: "has-next", responsePath: hasNextPath }
       : nextValuePath
         ? { type: "next-value", responsePath: nextValuePath }
-        : shortPage
-          ? { type: "short-page", responsePath: shortPage.path, pageSize: shortPage.pageSize }
-          : null;
+        : totalPagesHeader
+          ? { type: "total-pages-header", header: totalPagesHeader }
+          : shortPage
+            ? { type: "short-page", responsePath: shortPage.path, pageSize: shortPage.pageSize }
+            : null;
     if (!termination) continue;
     const responses = sequences.flatMap((sequence) => sequence.map((page) => page.response));
     return {
@@ -1119,6 +1144,7 @@ export async function replayGenericJsonPlan(
   const seenRequestUrls = new Set<string>();
   let nextCursor: string | number | undefined;
   let nextPageUrl: string | undefined;
+  let totalPagesFromHeader: number | undefined;
   let totalBytes = 0;
   let status = 0;
 
@@ -1212,6 +1238,27 @@ export async function replayGenericJsonPlan(
     }
 
     if (pagination.strategy === "increment") {
+      if (pagination.termination.type === "total-pages-header") {
+        const totalPages = finiteInteger(response.headers()[pagination.termination.header]);
+        if (totalPages === null || totalPages < 1 || totalPages > pagination.maximumPages) {
+          throw new Error("Compiled pagination returned an invalid total-pages header.");
+        }
+        totalPagesFromHeader ??= totalPages;
+        if (totalPagesFromHeader !== totalPages) {
+          throw new Error("Compiled pagination total-pages header changed during replay.");
+        }
+        if (pages.length >= totalPages) {
+          return {
+            data: pages,
+            status,
+            durationMs: performance.now() - startedAt,
+            requests: pages.length,
+            navigations: 0,
+            complete: true,
+          };
+        }
+        continue;
+      }
       const terminationValue = valueAt(parsed, pagination.termination.responsePath);
       let terminal = false;
       if (pagination.termination.type === "has-next") {
