@@ -76,6 +76,16 @@ async function apiFixture(): Promise<{ server: Server; origin: string }> {
       }));
       return;
     }
+    if (url.pathname === "/api/numbered") {
+      const query = url.searchParams.get("q") ?? "";
+      const page = Number(url.searchParams.get("page") ?? "0");
+      const terminal = query === "endless-numbered" ? false : page >= 2;
+      response.end(JSON.stringify({
+        items: terminal ? [] : [{ id: `${query}-${page}`, title: `${query} page ${page + 1}` }],
+        ...(terminal ? {} : { nextPageUrl: `/api/numbered?q=${query}&page=${page + 1}` }),
+      }));
+      return;
+    }
     if (url.pathname === "/api/html-json") {
       response.setHeader("content-type", "text/html");
       response.end(JSON.stringify({ items: [{ title: "looks structured" }] }));
@@ -137,6 +147,36 @@ function cursorTrace(origin: string, query: string) {
           items: [{ id: `${query}-1`, title: `${query} page 2` }],
           pageInfo: { hasNextPage: false, endCursor: null },
         },
+      ).exchange,
+    ],
+  };
+}
+
+function incrementTrace(origin: string, query: string) {
+  return {
+    input: { query },
+    outputText: `${query} page 1 ${query} page 2`,
+    exchanges: [
+      exchange(
+        `${origin}/api/numbered?q=${query}`,
+        { query },
+        {
+          items: [{ id: `${query}-0`, title: `${query} page 1` }],
+          nextPageUrl: `/api/numbered?q=${query}&page=1`,
+        },
+      ).exchange,
+      exchange(
+        `${origin}/api/numbered?q=${query}&page=1`,
+        { query },
+        {
+          items: [{ id: `${query}-1`, title: `${query} page 2` }],
+          nextPageUrl: `/api/numbered?q=${query}&page=2`,
+        },
+      ).exchange,
+      exchange(
+        `${origin}/api/numbered?q=${query}&page=2`,
+        { query },
+        { items: [] },
       ).exchange,
     ],
   };
@@ -222,6 +262,56 @@ test("infers terminal cursor pagination from traces and replays every unseen pag
     await assert.rejects(
       () => replayGenericJsonPlan(context!, overwriting, { query: "lamp" }),
       /cannot overwrite a user input binding/,
+    );
+  } finally {
+    await context?.close();
+    await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("infers omitted-first numbered pagination and replays to the terminal page", async () => {
+  const { server, origin } = await apiFixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-increment-pagination-"));
+  let context: BrowserContext | null = null;
+  try {
+    const compiled = compileGenericJsonFromTraces("numbered_search", [
+      incrementTrace(origin, "sofa"),
+      incrementTrace(origin, "chair"),
+    ]);
+    const plan = compiled.plan;
+    assert.deepEqual(plan.request.pagination, {
+      strategy: "increment",
+      requestSource: "query",
+      requestPath: ["page", 0],
+      firstContinuationValue: 1,
+      increment: 1,
+      termination: { type: "next-value", responsePath: ["nextPageUrl"] },
+      maximumPages: 40,
+    });
+    assert.equal("page" in plan.request.queryTemplate, false);
+    assert.doesNotMatch(JSON.stringify(plan), /sofa|chair/);
+
+    context = await chromium.launchPersistentContext(directory, { executablePath: CHROME, headless: true });
+    const replay = await replayGenericJsonPlan(context, plan, { query: "lamp" });
+    assert.equal(replay.requests, 3);
+    assert.deepEqual(replay.data, [
+      {
+        items: [{ id: "lamp-0", title: "lamp page 1" }],
+        nextPageUrl: "/api/numbered?q=lamp&page=1",
+      },
+      {
+        items: [{ id: "lamp-1", title: "lamp page 2" }],
+        nextPageUrl: "/api/numbered?q=lamp&page=2",
+      },
+      { items: [] },
+    ]);
+
+    const bounded = structuredClone(plan);
+    bounded.request.pagination!.maximumPages = 2;
+    await assert.rejects(
+      () => replayGenericJsonPlan(context!, bounded, { query: "endless-numbered" }),
+      /page limit before a terminal response/,
     );
   } finally {
     await context?.close();

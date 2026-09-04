@@ -6,6 +6,11 @@ image. It creates one synthetic administrator, three synthetic categories, and
 three synthetic topics. All benchmark-created topics and drafts are removed or
 reset after each run.
 
+The pagination regression temporarily adds 65 synthetic topics, captures three
+real `/latest.json` pages twice, replaces every demonstrated topic identifier,
+and checks that generic compiled replay returns each replacement topic exactly
+once. Those extra topics are always removed after the run.
+
 The pinned 2026-09-04 fixture is:
 
 - Discourse source commit `4cefc8c471e4fb40aa1ce5710198bed2f1706474`

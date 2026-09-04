@@ -15,6 +15,7 @@
     "benchmark:controlled": "tsx scripts/benchmark-controlled-general.ts",
     "benchmark:discourse": "tsx scripts/benchmark-discourse.ts",
     "benchmark:discourse:local": "tsx scripts/benchmark-discourse-local.ts",
+    "benchmark:discourse:pagination": "tsx scripts/benchmark-discourse-pagination-local.ts",
     "benchmark:api-control": "tsx scripts/benchmark-api-control.ts",
     "benchmark:ato": "tsx scripts/benchmark-ato-simulator.ts",
     "benchmark:invoiceplane:local": "tsx scripts/benchmark-invoiceplane-local.ts",

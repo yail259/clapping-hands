@@ -5,6 +5,7 @@ require "json"
 USERNAME = "benchmark-admin"
 EMAIL = "benchmark-admin@example.invalid"
 TOPIC_PREFIX = "Clapping Hands Benchmark"
+PAGINATION_PREFIX = "Clapping Hands Pagination Fixture"
 
 def benchmark_user
   User.find_by(username: USERNAME) || raise("Synthetic Discourse user is missing; run seed first")
@@ -108,6 +109,35 @@ result =
   when "clear-drafts"
     Draft.where(user_id: benchmark_user.id).destroy_all
     { count: Draft.where(user_id: benchmark_user.id).count }
+  when "seed-pagination"
+    count = Integer(ENV.fetch("CH_DISCOURSE_PAGINATION_COUNT", "65"), 10)
+    raise "Pagination fixture count must be between 31 and 100" unless count.between?(31, 100)
+
+    Topic.with_deleted.where("title LIKE ?", "#{PAGINATION_PREFIX}%").find_each do |topic|
+      permanently_remove_topic(topic)
+    end
+    category = Category.find_by(name: "Clapping Alpha") || raise("Synthetic Discourse category is missing; run seed first")
+    topics = count.times.map do |index|
+      title = format("%s %03d", PAGINATION_PREFIX, index + 1)
+      post = PostCreator.create!(
+        benchmark_user,
+        title: title,
+        raw: "Synthetic pagination body #{index + 1}.",
+        category: category.id,
+        skip_validations: true,
+      )
+      { id: post.topic_id, title: title }
+    end
+    Category.update_stats
+    { count: topics.length, topics: topics }
+  when "pagination-snapshot"
+    topics = Topic.where("title LIKE ?", "#{PAGINATION_PREFIX}%").order(:id).pluck(:id, :title)
+    { count: topics.length, topics: topics.map { |id, title| { id: id, title: title } } }
+  when "clear-pagination"
+    Topic.with_deleted.where("title LIKE ?", "#{PAGINATION_PREFIX}%").find_each do |topic|
+      permanently_remove_topic(topic)
+    end
+    { count: Topic.where("title LIKE ?", "#{PAGINATION_PREFIX}%").count }
   when "inspect"
     {
       userId: benchmark_user.id,
