@@ -478,7 +478,8 @@ only winners.
 5. Add generic offset, page-number, cursor, and state-transition strategies.
    Cursor, positive numeric page/offset, and response-next-URL inference are
    implemented; numbered pagination is covered by a real Discourse regression.
-   Header-only strategies remain.
+   Total-page response headers are implemented and covered by a WordPress REST
+   protocol control; RFC `Link` traversal remains.
 6. Build the machine-readable corpus, runner, independent oracle/effect-proof
    interface, reset hooks, and Markdown table generator.
 7. Complete the controlled fixture matrix, including ambiguous commits and

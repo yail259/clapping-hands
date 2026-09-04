@@ -109,7 +109,7 @@ Current execution ledger for those eight application rows:
 | Row | Evidence completed | Highest-value missing workflow |
 | --- | --- | --- |
 | osTicket | local search, public create, and private note: 3/3 regression; qualifying search distribution | a second staff-side state transition distinct from rich-text notes |
-| WordPress | Playground iframe search regression; qualifying local post-search distribution; Redirection 5.10.0 plugin write: 1/1 regression | an isolated core create/edit draft workflow, reported as architecture coverage rather than a no-API win |
+| WordPress | Playground iframe search regression; qualifying local post-search distribution; Redirection 5.10.0 plugin write: 1/1; REST total-pages-header control adapted from three to four pages and found one unseen post exactly once | an isolated core create/edit draft workflow, reported as architecture coverage rather than a no-API win |
 | Moodle | local unseen course navigation, exact teacher grade write, and exact student assignment submission across separate persistent roles: 3/3; qualifying authenticated course-search distribution | an allowlisted assignment upload or a branching quiz attempt, selected before demonstrations |
 | Discourse | official-demo category read; local search/create/edit: 3/3; generic three-page JSON replay returned 65 unseen replacement topics exactly once | a permission/role transition or allowlisted upload |
 | Nextcloud | local folder, upload, download artifact, and public share: 4/4 | a user-targeted share or permission transition distinct from public links |

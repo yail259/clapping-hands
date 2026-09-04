@@ -36,7 +36,8 @@ page/offset increments, or response-provided next URLs from repeated traces,
 including an omitted first `page` parameter or initial cursor. Replay stops only
 on a demonstrated terminal signal within strict page and aggregate-size limits;
 next URLs must retain the exact endpoint, user inputs, stable query values, and
-demonstrated mutable-query shape. Experimental write workflows use a separate prepare/commit
+demonstrated mutable-query shape. Numeric pagination can also terminate from a
+small allowlist of total-page response headers. Experimental write workflows use a separate prepare/commit
 lifecycle. Preparation validates and journals an expiring intent without
 navigating or touching the browser; after confirmation, the receipt enters its
 one-shot `committing` state before any navigation or UI action. This protects
@@ -259,6 +260,16 @@ all 65 unseen replacement topics exactly once, with no duplicate IDs. Cleanup
 removed every pagination fixture topic. This is capability evidence on one
 pinned self-hosted application, not a general speed claim. The sanitized report
 is [`discourse-local-pagination-capability.json`](bench/runs/2026-09-05/discourse-local-pagination-capability.json).
+
+A separate WordPress 7.1 protocol control passed at checkpoint
+[`94b7b26`](https://github.com/yail259/clapping-hands/commit/94b7b26): the
+generic recorder retained only the allowlisted `X-WP-TotalPages` header, the
+compiler learned three documented REST pages, and replay adapted to four pages
+after one unseen synthetic post was published. Four fresh requests returned the
+post exactly once in 71.41 ms with zero navigations/model calls; cleanup removed
+it. Because WordPress already documents this API, this is response-header and
+API-routing evidence—not a UI-compilation win or speed row. The report is
+[`wordpress-local-header-pagination-capability.json`](bench/runs/2026-09-05/wordpress-local-header-pagination-capability.json).
 
 A pinned, loopback-only Nextcloud 33.0.8 regression then passed 4/4: it opened
 an unseen folder, uploaded and downloaded an allowlisted synthetic file, and

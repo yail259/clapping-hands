@@ -91,7 +91,9 @@ every response against the combined demonstrated shape, applies the demonstrated
 terminal signal, rejects repeated cursors/URLs, and enforces page-count and
 aggregate-response-size limits. A response-driven URL must remain on the exact
 endpoint, preserve bound and stable query values, and change only demonstrated
-pagination-state paths.
+pagination-state paths. The recorder retains only explicitly allowlisted
+pagination response headers; numeric replay can use a demonstrated total-pages
+header while rejecting missing, changing, or over-cap values.
 
 An accelerator is eligible only when its response contains non-input evidence
 visible in the demonstrated output. It is promoted after two distinct-input

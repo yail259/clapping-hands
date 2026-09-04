@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 96 passing tests and the built MCP
+cross-site speed claim. The current suite has 97 passing tests and the built MCP
 server advertises ten management/Marketplace tools before any generated
 workflow tools are loaded.
 
@@ -84,8 +84,8 @@ New regression coverage includes:
 - bounded multi-page JSON replay inferred from repeated traces: opaque cursors,
   omitted-first query or nested-GraphQL cursors, numeric page/offset parameters,
   response-provided next URLs, boolean/next-value/short-page terminal signals,
-  repeated-cursor/URL rejection, exact endpoint and query-shape validation, and
-  aggregate response-size limits;
+  allowlisted total-pages response headers, repeated-cursor/URL rejection,
+  exact endpoint/query-shape validation, and aggregate response-size limits;
 - rejection of input-bound telemetry/config requests unless response values are
   also evidenced in the rendered task output;
 - compilation of learned Stagehand actions into redacted selector/argument
@@ -357,6 +357,25 @@ This is one guided capability observation on one pinned plugin version. Its
 single replay duration is deliberately not promoted as a speed result. The
 sanitized report is
 [`bench/runs/2026-09-04/wordpress-redirection-local-capability.json`](../bench/runs/2026-09-04/wordpress-redirection-local-capability.json).
+
+### WordPress REST response-header pagination control
+
+Compiler checkpoint
+[`94b7b26`](https://github.com/yail259/clapping-hands/commit/94b7b26)
+was frozen before exercising WordPress's documented public posts REST resource.
+Two independent three-page traces with `per_page=1` taught the generic compiler
+the numeric `page` progression and allowlisted `X-WP-TotalPages` terminal
+header. The runner then published one synthetic post through WordPress's own PHP
+API, increasing the total from three pages to four.
+
+Compiled replay adapted to the new header, made four fresh requests with zero
+navigations/model calls, and returned the unseen post exactly once with no
+duplicate IDs. The single replay took 71.41 ms. The application-side oracle
+verified the post before replay, and cleanup permanently removed it; a public
+REST search then returned zero matches. This is a real response-header protocol
+regression and API-first negative control—not a UI-compilation win, paired speed
+result, or reason to wrap WordPress's task-complete API. The sanitized report is
+[`bench/runs/2026-09-05/wordpress-local-header-pagination-capability.json`](../bench/runs/2026-09-05/wordpress-local-header-pagination-capability.json).
 
 ## ATO educational simulator attempt — 2026-09-05
 

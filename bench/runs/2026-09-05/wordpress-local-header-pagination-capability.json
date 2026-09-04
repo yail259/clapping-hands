@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "kind": "self-hosted-application-protocol-regression",
+  "generatedAt": "2026-09-04T17:05:45.902Z",
+  "compilerCommit": "94b7b2641f4cbad35efe08cee6c55db461e41ddd",
+  "application": "Self-hosted WordPress 7.1",
+  "origin": "http://127.0.0.1:18090",
+  "containerImages": {
+    "application": {
+      "image": "wordpress:7.1.0-php8.3-apache",
+      "digest": "sha256:5a93c470ae8220fddf71f6ebe3bc94e615ddc2ae4d9810f795b830fb11c41a17"
+    },
+    "database": {
+      "image": "mariadb:11.4",
+      "digest": "sha256:611a2fcc5fa7c6ceb8644c6f74b25ede004ff6c3a6b38c8f8c23d3bbf6c26430"
+    }
+  },
+  "intervention": "scripted capture of documented REST responses plus an application-side synthetic post oracle",
+  "policyBasis": "Loopback-only official WordPress image with disposable synthetic content",
+  "apiDisposition": "Documented first-party API negative control; applications should call it directly when task-complete",
+  "claimScope": "Generic response-header pagination capability on one pinned self-hosted application; not a UI-compilation or speed claim",
+  "workflow": {
+    "id": "wordpress-rest-total-pages-header",
+    "engine": "json-request-v1",
+    "compileMs": 76.24,
+    "pagination": {
+      "strategy": "increment",
+      "requestSource": "query",
+      "requestPath": [
+        "page",
+        0
+      ],
+      "firstContinuationValue": 2,
+      "increment": 1,
+      "termination": {
+        "type": "total-pages-header",
+        "header": "x-wp-totalpages"
+      },
+      "maximumPages": 40
+    },
+    "initialTotalPages": 3,
+    "expectedRequests": 4,
+    "insertedPostFoundExactlyOnce": true,
+    "duplicateIds": 0,
+    "requests": 4,
+    "navigations": 0,
+    "complete": true,
+    "compiledDurationMs": 71.41,
+    "modelCalls": 0
+  }
+}
