@@ -13,6 +13,7 @@
     "benchmark:live": "tsx scripts/benchmark-live-forms.ts",
     "benchmark:corpus": "tsx scripts/validate-benchmark-corpus.ts",
     "benchmark:corpus:v2": "tsx scripts/validate-benchmark-corpus.ts bench/corpus-v2.json",
+    "benchmark:result": "tsx scripts/validate-benchmark-result.ts",
     "benchmark:controlled": "tsx scripts/benchmark-controlled-general.ts",
     "benchmark:discourse": "tsx scripts/benchmark-discourse.ts",
     "benchmark:discourse:local": "tsx scripts/benchmark-discourse-local.ts",

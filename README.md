@@ -124,6 +124,7 @@ npm test
 npm run build
 npm run benchmark:corpus
 npm run benchmark:corpus:v2
+npm run benchmark:result -- bench/runs/2026-09-05/nopcommerce-v2-order-status.json
 npm run benchmark:controlled
 npm run benchmark:wordpress-playground -- --live
 npm run smoke:general
