@@ -936,23 +936,68 @@ async function guidedFileSelection(
     typeof value === "string" && value.length > 0 && instruction.includes(value));
   if (mentionedFiles.length === 0 || !/\b(?:upload|attach|choose|select|set)\b/i.test(instruction)) return null;
   if (mentionedFiles.length !== 1) throw new Error("A file-selection instruction must mention exactly one compiled file input.");
-  const selector = 'input[type="file"]';
-  const matches: Frame[] = [];
+  const genericSelector = 'input[type="file"]';
+  const candidates: Array<{ frame: Frame; selector: string | null; descriptor: string; score: number }> = [];
+  let totalInputs = 0;
   for (const frame of page.frames()) {
-    const count = await frame.locator(selector).count().catch(() => 0);
-    if (count > 1) throw new Error("Guided file selection found multiple file inputs in one frame.");
-    if (count === 1) matches.push(frame);
+    const inputs = frame.locator(genericSelector);
+    const count = await inputs.count().catch(() => 0);
+    totalInputs += count;
+    for (let index = 0; index < count; index += 1) {
+      const attributes = await inputs.nth(index).evaluate((element) =>
+        Object.fromEntries(Array.from(element.attributes, (attribute) => [attribute.name, attribute.value])));
+      const descriptor = Object.entries(attributes)
+        .filter(([name]) => /^(?:id|name|class|aria-label|title|data-[a-z0-9_-]+)$/i.test(name))
+        .flatMap(([name, value]) => [name, value])
+        .join(" ")
+        .toLowerCase();
+      const intent = /\battach\b/i.test(instruction) ? "attach" : /\bupload\b/i.test(instruction) ? "upload" : null;
+      let score = /\b(?:file|picker|choose|select)\b/.test(descriptor) ? 1 : 0;
+      if (intent && new RegExp(`\\b${intent}\\b`).test(descriptor)) score += 8;
+      if (intent === "upload" && /\battach(?:ment)?\b/.test(descriptor)) score -= 3;
+      if (intent === "attach" && /\bupload\b/.test(descriptor)) score -= 3;
+
+      const selectorAttributes = Object.entries(attributes)
+        .filter(([name, value]) => /^(?:id|name|aria-label|title|data-[a-z0-9_-]+)$/i.test(name) &&
+          name !== "data-v-owner" && value.length <= 200)
+        .sort(([leftName, leftValue], [rightName, rightValue]) => {
+          const rank = (name: string, value: string) =>
+            /(?:upload|attach|file|picker)/i.test(`${name} ${value}`) ? 0 : name.startsWith("data-") ? 1 : 2;
+          return rank(leftName, leftValue) - rank(rightName, rightValue);
+        });
+      let selector: string | null = null;
+      for (const [name, value] of selectorAttributes) {
+        const proposed = value === ""
+          ? `${genericSelector}[${name}]`
+          : `${genericSelector}[${name}=${JSON.stringify(value)}]`;
+        if (await frame.locator(proposed).count().catch(() => 0) === 1) {
+          selector = proposed;
+          break;
+        }
+      }
+      candidates.push({ frame, selector, descriptor, score });
+    }
   }
-  if (matches.length !== 1) {
-    throw new Error(`Guided file selection requires exactly one file input; found ${matches.length}.`);
+  let selected = candidates[0];
+  if (totalInputs === 1 && selected) {
+    selected.selector = genericSelector;
+  } else {
+    const ranked = candidates.filter((candidate): candidate is {
+      frame: Frame; selector: string; descriptor: string; score: number;
+    } => candidate.selector !== null).sort((left, right) => right.score - left.score);
+    if (!ranked[0] || ranked[0].score < 8 || ranked[0].score === ranked[1]?.score) {
+      throw new Error(`Guided file selection could not safely disambiguate ${totalInputs} file inputs.`);
+    }
+    selected = ranked[0];
   }
+  if (!selected?.selector) throw new Error(`Guided file selection could not safely disambiguate ${totalInputs} file inputs.`);
   const file = String(mentionedFiles[0]![1]);
-  await matches[0]!.locator(selector).setInputFiles(await resolveUploadFiles([file]));
+  await selected.frame.locator(selected.selector).setInputFiles(await resolveUploadFiles([file]));
   return {
     success: true,
     message: "Selected an operator-allowlisted file without a model call.",
     actions: [{
-      selector,
+      selector: selected.selector,
       description: "Select operator-allowlisted upload file",
       method: "setInputFiles",
       arguments: [file],

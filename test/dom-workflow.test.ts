@@ -225,6 +225,23 @@ async function fixture(): Promise<{ server: Server; origin: string }> {
         };</script></main>`);
       return;
     }
+    if (url.pathname === "/upload-learning-multiple") {
+      response.end(`<!doctype html><main>
+        <input data-cy-upload-picker-input type="file"><input data-text-el="attachment-file-input" type="file">
+        <output id="result">Ready</output><script>
+          document.querySelector('[data-cy-upload-picker-input]').onchange = event => {
+            document.querySelector('#result').textContent = 'Uploaded ' + event.target.files[0].name;
+          };
+          document.querySelector('[data-text-el="attachment-file-input"]').onchange = event => {
+            document.querySelector('#result').textContent = 'Attached ' + event.target.files[0].name;
+          };
+        </script></main>`);
+      return;
+    }
+    if (url.pathname === "/upload-learning-ambiguous") {
+      response.end(`<!doctype html><main><input type="file"><input type="file"><output id="result">Ready</output></main>`);
+      return;
+    }
     if (url.pathname === "/idempotent-select") {
       response.end(`<!doctype html><main><select id="sort"><option value="az" selected>A to Z</option><option value="za">Z to A</option></select>
         <output id="result">Inventory ready</output></main>`);
@@ -1121,6 +1138,39 @@ test("learns a single allowlisted file input without asking Stagehand for an uns
     });
     assert.equal(plan.effect.commitActionIndex, 0);
     assert.doesNotMatch(JSON.stringify(plan), /first\.txt|second\.txt/);
+    await page.close();
+  } finally {
+    if (previousUploadRoot === undefined) delete process.env.CLAPPING_HANDS_UPLOAD_ROOT;
+    else process.env.CLAPPING_HANDS_UPLOAD_ROOT = previousUploadRoot;
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("disambiguates semantically named upload and attachment file inputs", async () => {
+  const { server, origin } = await fixture();
+  const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-multiple-upload-"));
+  const uploadRoot = resolve(directory, "uploads");
+  const file = resolve(uploadRoot, "fixture.txt");
+  const previousUploadRoot = process.env.CLAPPING_HANDS_UPLOAD_ROOT;
+  let browser: Browser | null = null;
+  try {
+    await mkdir(uploadRoot);
+    await writeFile(file, "fixture");
+    process.env.CLAPPING_HANDS_UPLOAD_ROOT = uploadRoot;
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    const demonstration = await demonstrateDomWorkflow({
+      act: async () => { throw new Error("Stagehand should not be asked to synthesize file selection."); },
+    }, page, `${origin}/upload-learning-multiple`, { file }, [`Upload ${file}`], "#result");
+    assert.equal(demonstration.modelCalls, 0);
+    assert.equal(demonstration.actions[0]!.selector, 'input[type="file"][data-cy-upload-picker-input]');
+    assert.equal(demonstration.output.text, "Uploaded fixture.txt");
+    await assert.rejects(() => demonstrateDomWorkflow({
+      act: async () => { throw new Error("Stagehand should not be asked to synthesize file selection."); },
+    }, page, `${origin}/upload-learning-ambiguous`, { file }, [`Upload ${file}`], "#result"),
+    /could not safely disambiguate 2 file inputs/);
     await page.close();
   } finally {
     if (previousUploadRoot === undefined) delete process.env.CLAPPING_HANDS_UPLOAD_ROOT;
