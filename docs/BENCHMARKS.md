@@ -270,6 +270,45 @@ the row above, not “websites are 16× faster.” The report retains every timi
 sample in
 [`bench/runs/2026-09-04/osticket-local-performance.json`](../bench/runs/2026-09-04/osticket-local-performance.json).
 
+## Self-hosted WordPress warm performance — 2026-09-04
+
+Compiler checkpoint
+[`a5d3889`](https://github.com/yail259/clapping-hands/commit/a5d3889)
+was exercised against a loopback-only WordPress 7.1 fixture with three
+synthetic posts. The application, database, and setup CLI images are recorded
+by digest in the report. The runner temporarily rotated the disposable admin
+password in memory; no credential, cookie, response body, or submitted search
+term was persisted in the plan or report.
+
+The workflow used WordPress's authenticated Posts search form. Demonstrations
+searched for `Printer` and `VPN`; timed replay cycled those inputs plus the
+unseen `Invoice` input. An independent oracle required the exact expected post
+title and rejected unrelated titles.
+
+| Workflow | Engine | n | Browser p50 / p95 | Compiled p50 / p95 | Median speedup | Correctness | Requests; navigations |
+| --- | --- | ---: | ---: | ---: | ---: | --- | --- |
+| Authenticated post search | `html-form-v2` | 20 pairs | 860.74 / 971.67 ms | 122.08 / 144.44 ms | **7.05×** | UI 20/20 + compiled 20/20 | UI 2; 2 → compiled 2; 0 |
+
+Three warmups preceded 20 interleaved pairs; even samples ran browser first and
+odd samples ran compiled first. Compile time was 1,739.4 ms and is excluded
+from warm replay timings. The compiled plan retained the search field and
+browser defaults, but no dynamic result-row checkbox names or post IDs.
+
+The first compiler attempt exposed two general form defects. A read-only POST
+button in the Screen Options panel had been classified as effectful from its
+method alone, while dynamic `post[]` result checkboxes were being mistaken for
+reusable inputs. Read semantics now require an explicit conservative submitter
+allowlist, and form signatures/projected steps exclude unanswered result-row
+controls. Repeated result-page URLs with a query string are also recognized as
+terminal results when an empty form action resolves back to that URL. The full
+81-test suite covers these cases.
+
+This supports only the pinned WordPress version and post-search workflow above;
+it is not a claim that all WordPress tasks—or websites generally—are 7× faster.
+The report retains all samples, image digests, environment metadata, and the
+exact code revision in
+[`bench/runs/2026-09-04/wordpress-local-performance.json`](../bench/runs/2026-09-04/wordpress-local-performance.json).
+
 ## Discourse official-demo holdout — 2026-09-04
 
 Compiler checkpoint [`2ed9448`](https://github.com/yail259/clapping-hands/commit/2ed9448)

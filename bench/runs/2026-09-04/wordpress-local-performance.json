@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-04T10:52:19.441Z",
+  "gitSha": "a5d3889748812fb4bed0dc1138823bfddc28c537",
+  "runner": "scripts/benchmark-wordpress-performance.ts",
+  "runClass": "self-hosted-application-performance",
+  "intervention": "guided form demonstrations plus an independent exact post-title oracle",
+  "application": "Self-hosted WordPress 7.1",
+  "origin": "http://127.0.0.1:18090",
+  "containerImages": {
+    "application": "sha256:5a93c470ae8220fddf71f6ebe3bc94e615ddc2ae4d9810f795b830fb11c41a17",
+    "database": "sha256:611a2fcc5fa7c6ceb8644c6f74b25ede004ff6c3a6b38c8f8c23d3bbf6c26430",
+    "setupCli": "sha256:2b5e9d4d3e51909dca1aaa4732e9f5e5bf0377c2114dbd8ff39f060bff202586"
+  },
+  "environment": {
+    "browserVersion": "151.0.7922.138",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "credentialHandling": "Read a synthetic loopback-only fixture credential from the process environment; persisted no credential in plans or results",
+  "protocol": {
+    "warmups": 3,
+    "pairedSamples": 20,
+    "order": "interleaved; browser first on even samples and compiled first on odd samples",
+    "queryCycle": [
+      "Printer",
+      "VPN",
+      "Invoice"
+    ]
+  },
+  "workflow": {
+    "id": "wordpress-search-posts",
+    "engine": "html-form-v2",
+    "compileMs": 1739.4,
+    "persistedControlNames": [
+      "s",
+      "post_status",
+      "post_type",
+      "_wpnonce",
+      "_wp_http_referer"
+    ],
+    "browser": {
+      "p50Ms": 860.74,
+      "p95Ms": 971.67,
+      "slowestMs": 978.8,
+      "samplesMs": [
+        893.15,
+        842.03,
+        971.67,
+        849.42,
+        906.2,
+        860.74,
+        860.4,
+        904.91,
+        978.8,
+        847.98,
+        872.67,
+        835.21,
+        865.38,
+        854.19,
+        852.29,
+        833.08,
+        917.7,
+        865.41,
+        840.26,
+        916.55
+      ],
+      "correctness": "20/20",
+      "requestsPerRun": 2,
+      "navigationsPerRun": 2,
+      "modelCallsPerRun": 0
+    },
+    "compiled": {
+      "p50Ms": 122.08,
+      "p95Ms": 144.44,
+      "slowestMs": 174.56,
+      "samplesMs": [
+        113.16,
+        127.92,
+        144.44,
+        114.86,
+        117.27,
+        126.92,
+        132.05,
+        121.36,
+        141.61,
+        120.49,
+        113.25,
+        141.55,
+        113.41,
+        112.6,
+        174.56,
+        132.63,
+        132.81,
+        122.08,
+        135,
+        121.88
+      ],
+      "correctness": "20/20",
+      "requestsPerRun": 2,
+      "navigationsPerRun": 0,
+      "modelCallsPerRun": 0
+    },
+    "medianSpeedup": 7.05
+  },
+  "claimScope": "One pinned self-hosted WordPress version and one read workflow; not a general website speed claim"
+}

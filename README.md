@@ -183,14 +183,22 @@ form submission, rich-editor synchronization, role-separated profiles, and
 input-bound same-origin start URLs. This is regression evidence, not an
 untouched holdout or speed result.
 
-The first qualifying warm distribution on that pinned self-hosted application
-measured the authenticated ticket-search workflow over 20 interleaved pairs:
-browser replay p50/p95 **626.06/643.56 ms**, compiled direct replay
-**42.74/61.09 ms**, or **14.65× median speedup**, with 20/20 exact results on
-both paths, two fresh requests per run, and browser navigations reduced from
-2 to 0. This is one real application/workflow—not a general speed claim. The
-raw sanitized samples are in
-[`bench/runs/2026-09-04/osticket-local-performance.json`](bench/runs/2026-09-04/osticket-local-performance.json).
+Two pinned, self-hosted application workflows now have qualifying warm
+distributions. Each result uses 20 interleaved browser/compiled pairs after
+three warmups and requires an exact result on every run:
+
+| Application workflow | Browser p50 / p95 | Compiled p50 / p95 | Median speedup | Correctness | Browser → compiled navigations |
+| --- | ---: | ---: | ---: | --- | ---: |
+| **WordPress 7.1 post search** | 860.74 / 971.67 ms | 122.08 / 144.44 ms | **7.05×** | 20/20 + 20/20 | 2 → 0 |
+| osTicket ticket search | 626.06 / 643.56 ms | 42.74 / 61.09 ms | **14.65×** | 20/20 + 20/20 | 2 → 0 |
+
+Both paths made two fresh requests per run; compilation removed browser
+navigation and rendering, not network freshness. These are two real
+applications and one read workflow per application—not a general website speed
+claim. Raw sanitized samples are in
+[`wordpress-local-performance.json`](bench/runs/2026-09-04/wordpress-local-performance.json)
+and
+[`osticket-local-performance.json`](bench/runs/2026-09-04/osticket-local-performance.json).
 
 An untouched read-only smoke on Discourse's official demo then passed 1/1:
 after demonstrations on the `general` and `tech` categories, the compiled tool
