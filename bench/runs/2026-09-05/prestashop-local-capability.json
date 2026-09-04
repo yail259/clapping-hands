@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "kind": "self-hosted-application-capability-regression",
+  "generatedAt": "2026-09-04T19:52:58.209Z",
+  "compilerCommit": "509907f1a7a2783d7859a4009a5da3ba1c5b116c",
+  "application": "PrestaShop 9.1.5",
+  "origin": "http://127.0.0.1:18103",
+  "containerImages": {
+    "application": {
+      "image": "prestashop/prestashop:9",
+      "digest": "sha256:c8cb26ace9dbf8100b9307b815ed9c61dd06c732a31c93e1583954e5a28aac76"
+    },
+    "database": {
+      "image": "mariadb:11.4",
+      "digest": "sha256:611a2fcc5fa7c6ceb8644c6f74b25ede004ff6c3a6b38c8f8c23d3bbf6c26430"
+    }
+  },
+  "intervention": "guided demonstrations",
+  "policyBasis": "Loopback-only official containers with bundled sample products and orders, exact restoration, and an inert synthetic order status",
+  "credentialHandling": "Generated a synthetic administrator password in process memory and restored the exact prior hash; persisted no credential, session value, or tokenized back-office URL",
+  "claimScope": "Three post-v2 capability regressions; not untouched holdouts or latency distributions",
+  "distinctMechanisms": [
+    "Vue stock management with asynchronous menu hydration and inline quantity adjustment",
+    "server-rendered tokenized back-office navigation replayed through live DOM links without persisting route tokens",
+    "prepare/commit receipt enforcement with independent inventory and order-history oracles"
+  ],
+  "authSurvivedBrowserRestart": true,
+  "compileMs": {
+    "search": 7.07,
+    "stock": 0.51,
+    "order": 0.34
+  },
+  "effectBoundaryActionIndexes": {
+    "stock": 3,
+    "order": 3
+  },
+  "demonstrationOracles": {
+    "stock": [
+      {
+        "productId": 6,
+        "expected": 302,
+        "observed": 302,
+        "exact": true
+      },
+      {
+        "productId": 7,
+        "expected": 303,
+        "observed": 303,
+        "exact": true
+      }
+    ],
+    "order": [
+      {
+        "orderId": 2,
+        "expected": 28,
+        "observed": 28,
+        "exact": true
+      },
+      {
+        "orderId": 4,
+        "expected": 28,
+        "observed": 28,
+        "exact": true
+      }
+    ]
+  },
+  "apiRoutingControl": {
+    "backOfficeWebserviceEnabled": false
+  },
+  "rows": [
+    {
+      "id": "search-stock-for-unseen-product",
+      "effect": "read",
+      "engine": "stagehand-action-v1",
+      "exactResult": true,
+      "modelCalls": 0,
+      "compiledDurationMs": 6776.97,
+      "oracle": {
+        "visibleResultCount": 1,
+        "expectedProductFound": true,
+        "seededDecoysExcluded": true,
+        "applicationStateUnchanged": true
+      }
+    },
+    {
+      "id": "adjust-unseen-product-stock",
+      "effect": "write",
+      "engine": "stagehand-action-v1",
+      "exactResult": true,
+      "preparedWithoutEffect": true,
+      "repeatedCommitRejected": true,
+      "modelCalls": 0,
+      "compiledDurationMs": 7040.98,
+      "oracle": {
+        "before": 300,
+        "afterCommit": 305,
+        "physicalMovedExactly": true,
+        "reservedUnchanged": true,
+        "afterRejectedRepeatUnchanged": true
+      }
+    },
+    {
+      "id": "advance-unseen-order-once",
+      "effect": "commit",
+      "engine": "stagehand-action-v1",
+      "exactResult": true,
+      "preparedWithoutEffect": true,
+      "repeatedCommitRejected": true,
+      "modelCalls": 0,
+      "compiledDurationMs": 11121.31,
+      "oracle": {
+        "priorStatePreservedUntilCommit": true,
+        "targetStateReached": true,
+        "exactlyOneHistoryRowAdded": true,
+        "afterRejectedRepeatUnchanged": true
+      }
+    }
+  ],
+  "cleanupVerified": true,
+  "summary": {
+    "passed": 3,
+    "total": 3,
+    "falseSuccesses": 0,
+    "duplicateCommits": 0
+  }
+}

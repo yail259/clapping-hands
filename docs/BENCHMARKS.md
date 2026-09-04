@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-cross-site speed claim. The current suite has 102 passing tests and the built MCP
+cross-site speed claim. The current suite has 104 passing tests and the built MCP
 server advertises ten management/Marketplace tools before any generated
 workflow tools are loaded.
 
@@ -844,6 +844,43 @@ not untouched holdout credit or a latency distribution. Compiler checkpoint
 [`f5c3b8c`](https://github.com/yail259/clapping-hands/commit/f5c3b8c) and the
 sanitized report is
 [`bench/runs/2026-09-05/odoo-local-capability.json`](../bench/runs/2026-09-05/odoo-local-capability.json).
+
+## Self-hosted PrestaShop capability regression — 2026-09-05
+
+PrestaShop 9.1.5 and MariaDB 11.4 ran from pinned official images on loopback.
+The fixture used the bundled sample catalog and orders, rotated only a synthetic
+administrator credential, and created a temporary inert order status with all
+email, invoice, payment, shipping, and delivery flags disabled.
+
+| Workflow | Mechanism | Effect path | Compiled model calls | Exact result | Verdict |
+| --- | --- | --- | ---: | --- | --- |
+| Filter stock for an unseen product | Vue search and asynchronous row replacement | read DOM after restart | 0 | one expected product; two decoys excluded; database unchanged | pass after compiler fix |
+| Adjust unseen product stock | filtered inline quantity editor | browser-idle prepare, then one-shot commit | 0 | prepare retained 300; commit wrote 305; physical moved exactly; reserved unchanged; repeat rejected | pass |
+| Advance unseen order | live tokenized navigation plus server status history | browser-idle prepare, then one-shot commit | 0 | prepare retained prior state; commit added exactly one history row; repeat rejected | pass |
+
+The compiled plans began at the back-office dashboard and followed current DOM
+links into Catalog, Stock, Orders, and the input-bound order detail. PrestaShop's
+ephemeral route token therefore remained in the live browser only; it was not a
+plan constant, input, report field, or credential surrogate. Authentication
+survived two clean Chrome restarts.
+
+The stock replay found a general readiness defect. Immediately after clicking
+the Vue search button, the next quantity selector temporarily matched every
+visible row. The old runtime rejected that transient many-match state at once,
+even though it converged to one row. Compiled action readiness now requires the
+selector to become uniquely matched for a short stability window within its
+existing bound. A permanently ambiguous selector still times out and fails
+closed; controlled tests cover both outcomes without a PrestaShop-specific
+branch.
+
+Cleanup restored every stock quantity, physical quantity, reserved quantity,
+and order state; removed new stock movements and order-history rows; deleted the
+temporary status; and restored the exact prior password hash. This is 3/3
+post-v2 capability regression evidence, not untouched holdout credit or a
+latency distribution. Compiler checkpoint
+[`509907f`](https://github.com/yail259/clapping-hands/commit/509907f) and the
+sanitized report is
+[`bench/runs/2026-09-05/prestashop-local-capability.json`](../bench/runs/2026-09-05/prestashop-local-capability.json).
 
 ## API-first negative control — 2026-09-04
 

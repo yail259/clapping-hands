@@ -279,6 +279,21 @@ Compiler checkpoint
 report:
 [`odoo-local-capability.json`](bench/runs/2026-09-05/odoo-local-capability.json).
 
+A pinned, loopback-only PrestaShop 9.1.5 regression adds a hybrid commerce
+back office: Vue stock management plus server-rendered, tokenized order routes.
+It passed 3/3 on an unseen product filter, exact stock adjustment, and one-time
+order-state transition. Both writes prepared without effect, committed once,
+rejected receipt reuse, survived two clean browser restarts, and were restored
+exactly. No route token or credential was compiled or persisted: replay followed
+fresh live DOM links. The stock flow exposed a general readiness defect where a
+selector can temporarily match every row while an SPA filter is resolving. The
+runtime now waits for bounded, stable uniqueness and still fails closed when
+ambiguity persists. This is post-fix capability evidence, not untouched holdout
+credit or a speed claim. Compiler checkpoint
+[`509907f`](https://github.com/yail259/clapping-hands/commit/509907f); sanitized
+report:
+[`prestashop-local-capability.json`](bench/runs/2026-09-05/prestashop-local-capability.json).
+
 The generic JSON compiler also passed a real Discourse numbered-pagination
 regression at checkpoint
 [`8478ea1`](https://github.com/yail259/clapping-hands/commit/8478ea1): two
