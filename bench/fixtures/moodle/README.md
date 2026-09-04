@@ -12,11 +12,12 @@ and PostgreSQL 17. Follow that project's installation instructions, bind the
 web server to loopback port `18092`, and install Moodle before running this
 fixture.
 
-Copy `clapping_hands_seed.php` and `clapping_hands_grade.php` into the root of
-the local Moodle checkout. The benchmark calls them inside the web container:
-the first creates or resets three synthetic courses, one teacher, one student,
-and three manual grade items; the second is the independent grade oracle and
-cleanup path.
+Copy `clapping_hands_seed.php`, `clapping_hands_grade.php`, and
+`clapping_hands_submission.php` into the root of the local Moodle checkout. The
+benchmark calls them inside the web container: the first creates or resets
+three synthetic courses, one teacher, one student, three manual grade items,
+and three online-text assignments. The other two are the independent grade and
+submission oracle/cleanup paths.
 
 Run with newly generated local-only credentials:
 
@@ -28,6 +29,7 @@ unset CLAPPING_HANDS_MOODLE_TEACHER_PASSWORD
 unset CLAPPING_HANDS_MOODLE_STUDENT_PASSWORD
 ```
 
-The runner refuses non-loopback origins. It clears every synthetic grade before
-and after the run and does not place credentials, session keys, plans, or page
-bodies in the report.
+The runner refuses non-loopback origins. It clears every synthetic grade and
+assignment response before and after the run and does not place credentials,
+session keys, plans, or page bodies in the report. Student email notifications
+are contained by the fixture's local Mailpit service.

@@ -47,6 +47,9 @@ type Course = {
   shortname: string;
   gradeitemid: number;
   gradeitem: string;
+  assignmentid: number;
+  assignmentcmid: number;
+  assignment: string;
 };
 
 type SeedResult = {
@@ -61,8 +64,19 @@ type GradeResult = {
   finalgrade: number | null;
 };
 
+type SubmissionResult = {
+  assignmentid: number;
+  userid: number;
+  submissionid: number | null;
+  status: string | null;
+  attemptnumber: number | null;
+  text: string | null;
+  format: number | null;
+};
+
 type CourseTabInput = DomInput & { courseName: string; tabName: string };
 type GradeInput = DomInput & { courseId: number; gradeItemId: number; grade: number };
+type SubmissionInput = DomInput & { assignmentCmid: number; responseText: string };
 
 const composeEnvironment = {
   ...process.env,
@@ -106,6 +120,8 @@ function seedFixture(): SeedResult {
       ...course,
       id: Number(course.id),
       gradeitemid: Number(course.gradeitemid),
+      assignmentid: Number(course.assignmentid),
+      assignmentcmid: Number(course.assignmentcmid),
     })),
   };
   if (result.courses.length < 3) throw new Error("The synthetic Moodle fixture requires three courses.");
@@ -119,11 +135,30 @@ function grade(itemId: number, operation?: "clear", value?: number): GradeResult
   return parseLastJson<GradeResult>(phpFixture("clapping_hands_grade.php", arguments_));
 }
 
-async function authenticate(page: Page, courseNames: string[]): Promise<void> {
+function submission(assignmentId: number, operation?: "clear"): SubmissionResult {
+  const arguments_ = [`--assignmentid=${assignmentId}`];
+  if (operation === "clear") arguments_.push("--clear");
+  const raw = parseLastJson<SubmissionResult>(phpFixture("clapping_hands_submission.php", arguments_));
+  return {
+    ...raw,
+    assignmentid: Number(raw.assignmentid),
+    userid: Number(raw.userid),
+    submissionid: raw.submissionid === null ? null : Number(raw.submissionid),
+    attemptnumber: raw.attemptnumber === null ? null : Number(raw.attemptnumber),
+    format: raw.format === null ? null : Number(raw.format),
+  };
+}
+
+async function authenticate(
+  page: Page,
+  username: "benchmark-teacher" | "benchmark-student",
+  password: string,
+  courseNames: string[],
+): Promise<void> {
   await page.goto(COURSE_INDEX, { waitUntil: "domcontentloaded", timeout: 30_000 });
   if (await page.locator("#username").isVisible().catch(() => false)) {
-    await page.locator("#username").fill("benchmark-teacher");
-    await page.locator("#password").fill(teacherPassword!);
+    await page.locator("#username").fill(username);
+    await page.locator("#password").fill(password);
     await page.locator("#loginbtn").click();
     await page.waitForURL((url) => !url.pathname.includes("/login/"), { timeout: 30_000 });
     await page.goto(COURSE_INDEX, { waitUntil: "domcontentloaded", timeout: 30_000 });
@@ -131,7 +166,7 @@ async function authenticate(page: Page, courseNames: string[]): Promise<void> {
   await page.locator(OUTPUT_SELECTOR).waitFor({ state: "visible", timeout: 30_000 });
   const body = await page.locator("body").innerText();
   if (!courseNames.every((courseName) => body.includes(courseName))) {
-    throw new Error("The synthetic Moodle teacher session did not expose all seeded courses.");
+    throw new Error(`The synthetic Moodle ${username} session did not expose all seeded courses.`);
   }
 }
 
@@ -210,6 +245,56 @@ async function demonstrateGrade(page: Page, input: GradeInput): Promise<DomWorkf
   ], OUTPUT_SELECTOR);
 }
 
+function assignmentStartUrl(input: SubmissionInput): string {
+  return `${ORIGIN}/mod/assign/view.php?id=${input.assignmentCmid}`;
+}
+
+async function demonstrateSubmission(page: Page, input: SubmissionInput): Promise<DomWorkflowDemonstration> {
+  let step = 0;
+  const responseInput = 'textarea[name="onlinetext_editor[text]"]';
+  return demonstrateDomWorkflow({
+    act: async () => {
+      step += 1;
+      if (step === 1) {
+        const selector = 'button:has-text("Add submission")';
+        await Promise.all([
+          page.waitForURL((url) => url.pathname === "/mod/assign/view.php" &&
+            url.searchParams.get("id") === String(input.assignmentCmid) &&
+            url.searchParams.get("action") === "editsubmission", { timeout: 30_000 }),
+          page.locator(selector).click(),
+        ]);
+        await page.locator(responseInput).waitFor({ state: "visible", timeout: 15_000 });
+        return guidedAction({ selector, description: "Add a synthetic assignment submission", method: "click" });
+      }
+      if (step === 2) {
+        await page.locator(responseInput).fill(input.responseText);
+        return guidedAction({
+          selector: responseInput,
+          description: "Enter the requested synthetic response",
+          method: "fill",
+          arguments: [input.responseText],
+        });
+      }
+      const selector = "#id_submitbutton";
+      await Promise.all([
+        page.waitForURL((url) => url.pathname === "/mod/assign/view.php" &&
+          url.searchParams.get("id") === String(input.assignmentCmid) &&
+          url.searchParams.get("action") === "view", { timeout: 30_000 }),
+        page.locator(selector).click(),
+      ]);
+      await page.locator(OUTPUT_SELECTOR).filter({ hasText: input.responseText }).waitFor({
+        state: "visible",
+        timeout: 15_000,
+      });
+      return guidedAction({ selector, description: "Save the synthetic assignment submission", method: "click" });
+    },
+  }, page, assignmentStartUrl(input), input, [
+    "Add a synthetic assignment submission",
+    "Enter the requested synthetic response",
+    "Save the synthetic assignment submission",
+  ], OUTPUT_SELECTOR);
+}
+
 const fixture = seedFixture();
 const allCourseNames = fixture.courses.map((course) => course.fullname);
 const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-moodle-local-"));
@@ -217,7 +302,10 @@ const journal = new EffectJournal(resolve(directory, "effect-journal.json"));
 let browser: PersistentWorkflowBrowser | null = null;
 let cleanupVerified = false;
 try {
-  for (const course of fixture.courses) grade(course.gradeitemid, "clear");
+  for (const course of fixture.courses) {
+    grade(course.gradeitemid, "clear");
+    submission(course.assignmentid, "clear");
+  }
   browser = new PersistentWorkflowBrowser({
     allowedOrigins: [ORIGIN],
     profileDirectory: resolve(directory, "profile"),
@@ -225,7 +313,7 @@ try {
     headless: true,
   });
   let page = await browser.page();
-  await authenticate(page, allCourseNames);
+  await authenticate(page, "benchmark-teacher", teacherPassword, allCourseNames);
 
   const readDemonstrations = [
     await demonstrateCourseTab(page, { courseName: fixture.courses[0]!.fullname, tabName: "Participants" }),
@@ -263,7 +351,7 @@ try {
     headless: true,
   });
   page = await browser.page();
-  const restoredCookies = (await (await browser.context()).cookies([ORIGIN])).length;
+  const restoredTeacherCookies = (await (await browser.context()).cookies([ORIGIN])).length;
 
   const readReplayInput: CourseTabInput = {
     courseName: fixture.courses[2]!.fullname,
@@ -296,7 +384,126 @@ try {
     committed.receipt.status === "committed" && committed.result.modelCalls === 0 && repeatedCommitRejected;
 
   for (const course of fixture.courses) grade(course.gradeitemid, "clear");
-  cleanupVerified = fixture.courses.every((course) => grade(course.gradeitemid).finalgrade === null);
+
+  await browser.close();
+  browser = new PersistentWorkflowBrowser({
+    allowedOrigins: [ORIGIN],
+    profileDirectory: resolve(directory, "student-profile"),
+    executablePath: CHROME,
+    headless: true,
+  });
+  page = await browser.page();
+  await authenticate(page, "benchmark-student", studentPassword, allCourseNames);
+
+  const submissionDemoInputs: SubmissionInput[] = [
+    {
+      assignmentCmid: fixture.courses[1]!.assignmentcmid,
+      responseText: "Clapping Hands reliability observation alpha.",
+    },
+    {
+      assignmentCmid: fixture.courses[2]!.assignmentcmid,
+      responseText: "Clapping Hands effect observation beta.",
+    },
+  ];
+  const submissionDemonstrations: DomWorkflowDemonstration[] = [];
+  const submissionDemonstrationOracles: Array<{
+    assignmentId: number;
+    expected: string;
+    observed: string | null;
+    status: string | null;
+  }> = [];
+  for (let index = 0; index < submissionDemoInputs.length; index += 1) {
+    const input = submissionDemoInputs[index]!;
+    const course = fixture.courses[index + 1]!;
+    submission(course.assignmentid, "clear");
+    submissionDemonstrations.push(await demonstrateSubmission(page, input));
+    const observed = submission(course.assignmentid);
+    submissionDemonstrationOracles.push({
+      assignmentId: course.assignmentid,
+      expected: input.responseText,
+      observed: observed.text,
+      status: observed.status,
+    });
+    if (observed.text !== input.responseText || observed.status !== "submitted") {
+      throw new Error("A guided Moodle submission demonstration failed its server-side oracle.");
+    }
+    submission(course.assignmentid, "clear");
+  }
+  const submissionPlan = compileDomWorkflow(
+    "moodle_submit_synthetic_assignment",
+    assignmentStartUrl(submissionDemoInputs[0]!),
+    submissionDemonstrations,
+    {
+      effect: "write",
+      confirmation: "Submit one synthetic response in the loopback-only Moodle fixture",
+    },
+  );
+  if (submissionPlan.actions.length !== 3 || submissionPlan.effect.commitActionIndex !== 0 ||
+    !submissionPlan.validation.inputEvidenceNames?.includes("responseText") ||
+    submissionDemoInputs.some((input) => JSON.stringify(submissionPlan).includes(input.responseText))) {
+    throw new Error("The Moodle submission plan did not retain the frozen effect, output, and redaction contract.");
+  }
+
+  await browser.close();
+  browser = new PersistentWorkflowBrowser({
+    allowedOrigins: [ORIGIN],
+    profileDirectory: resolve(directory, "student-profile"),
+    executablePath: CHROME,
+    headless: true,
+  });
+  page = await browser.page();
+  const restoredStudentCookies = (await (await browser.context()).cookies([ORIGIN])).length;
+  const submissionReplayCourse = fixture.courses[0]!;
+  const submissionReplayInput: SubmissionInput = {
+    assignmentCmid: submissionReplayCourse.assignmentcmid,
+    responseText: "Clapping Hands compiler observation gamma.",
+  };
+  submission(submissionReplayCourse.assignmentid, "clear");
+  const beforeSubmission = submission(submissionReplayCourse.assignmentid);
+  const submissionPrepareUrl = page.url();
+  const submissionReceipt = await prepareDomWorkflowWrite(
+    page,
+    journal,
+    submissionPlan,
+    submissionReplayInput,
+  );
+  const afterSubmissionPrepare = submission(submissionReplayCourse.assignmentid);
+  const submissionPrepareLeftBrowserUntouched = page.url() === submissionPrepareUrl;
+  const committedSubmission = await commitPreparedDomWorkflowWrite(
+    page,
+    journal,
+    submissionReceipt.id,
+    submissionPlan,
+    submissionReplayInput,
+  );
+  const afterSubmissionCommit = submission(submissionReplayCourse.assignmentid);
+  const repeatedSubmissionCommitRejected = await commitPreparedDomWorkflowWrite(
+    page,
+    journal,
+    submissionReceipt.id,
+    submissionPlan,
+    submissionReplayInput,
+  ).then(() => false, () => true);
+  const afterRejectedSubmissionRepeat = submission(submissionReplayCourse.assignmentid);
+  const submissionExact = beforeSubmission.submissionid === null &&
+    afterSubmissionPrepare.submissionid === null && submissionPrepareLeftBrowserUntouched &&
+    afterSubmissionCommit.submissionid !== null &&
+    afterSubmissionCommit.status === "submitted" &&
+    afterSubmissionCommit.text === submissionReplayInput.responseText &&
+    afterRejectedSubmissionRepeat.submissionid === afterSubmissionCommit.submissionid &&
+    afterRejectedSubmissionRepeat.text === submissionReplayInput.responseText &&
+    committedSubmission.receipt.status === "committed" &&
+    committedSubmission.result.modelCalls === 0 && repeatedSubmissionCommitRejected &&
+    committedSubmission.result.text.includes(submissionReplayInput.responseText) &&
+    committedSubmission.result.text.includes("Submitted for grading");
+
+  for (const course of fixture.courses) {
+    grade(course.gradeitemid, "clear");
+    submission(course.assignmentid, "clear");
+  }
+  cleanupVerified = fixture.courses.every((course) =>
+    grade(course.gradeitemid).finalgrade === null && submission(course.assignmentid).submissionid === null
+  );
 
   const rows = [
     {
@@ -323,6 +530,27 @@ try {
         gradeAfterRejectedRepeat: afterRejectedRepeat.finalgrade,
       },
     },
+    {
+      task: "submit-unseen-student-assignment",
+      effect: "write",
+      mechanism: "role-separated-input-bound-activity-plus-prepare-commit",
+      exactResult: submissionExact,
+      preparedWithoutEffect: afterSubmissionPrepare.submissionid === null,
+      prepareLeftBrowserUntouched: submissionPrepareLeftBrowserUntouched,
+      repeatedCommitRejected: repeatedSubmissionCommitRejected,
+      compiledModelCalls: committedSubmission.result.modelCalls,
+      compiledDurationMs: committedSubmission.result.durationMs,
+      oracle: {
+        expectedStatus: "submitted",
+        statusAfterCommit: afterSubmissionCommit.status,
+        exactTextAfterCommit: afterSubmissionCommit.text === submissionReplayInput.responseText,
+        unchangedAfterRejectedRepeat: afterRejectedSubmissionRepeat.submissionid ===
+          afterSubmissionCommit.submissionid &&
+          afterRejectedSubmissionRepeat.text === submissionReplayInput.responseText,
+        renderedResultMatched: committedSubmission.result.text.includes(submissionReplayInput.responseText) &&
+          committedSubmission.result.text.includes("Submitted for grading"),
+      },
+    },
   ];
   const report = {
     schemaVersion: 1,
@@ -334,7 +562,7 @@ try {
     sources: { moodle: MOODLE_SOURCE_COMMIT, moodleDocker: MOODLE_DOCKER_COMMIT },
     containerImages: { application: APP_IMAGE_DIGEST, database: DB_IMAGE_DIGEST },
     intervention: "guided",
-    policyBasis: "Loopback-only official Moodle developer environment with synthetic users, courses, and grades",
+    policyBasis: "Loopback-only official Moodle developer environment with synthetic users, courses, grades, assignments, and responses",
     credentialHandling: "Read rotated synthetic credentials from the process environment; persisted no credential or Moodle session key in plans or reports",
     claimScope: "Capability regression on one pinned self-hosted application; not a speed or untouched-holdout result",
     developmentHistory: [{
@@ -349,36 +577,51 @@ try {
       reason: "Moodle formats numeric grades with decimal places, while the first harness assertion required the unformatted input string.",
       correction: "Compare the rendered grade numerically and continue to require the independent server-side gradebook oracle.",
       compilerChanged: false,
+    }, {
+      stage: "fixture-email-debugging",
+      result: "corrected-before-compiled-run",
+      reason: "Moodle developer debugging disables an automatic post-submission redirect when a synthetic .invalid email address triggers a notification warning.",
+      correction: "Use example.com fixture addresses with delivery contained by the local Mailpit service, then clear the discovery submission.",
+      compilerChanged: false,
     }],
     demonstrationOracles,
+    submissionDemonstrationOracles,
     environment: {
       browserVersion: await page.context().browser()?.version(),
       platform: process.platform,
       architecture: process.arch,
     },
-    authSurvivedBrowserRestart: restoredCookies > 0,
+    authSurvivedBrowserRestart: restoredTeacherCookies > 0 && restoredStudentCookies > 0,
+    roleAuth: {
+      teacherSurvivedBrowserRestart: restoredTeacherCookies > 0,
+      studentSurvivedBrowserRestart: restoredStudentCookies > 0,
+    },
     fixtureCleanupVerified: cleanupVerified,
     rows,
     summary: {
       passed: rows.filter((row) => row.exactResult && row.compiledModelCalls === 0).length,
       total: rows.length,
       falseSuccesses: rows.filter((row) => !row.exactResult).length,
-      duplicateCommits: repeatedCommitRejected ? 0 : 1,
+      duplicateCommits: (repeatedCommitRejected ? 0 : 1) +
+        (repeatedSubmissionCommitRejected ? 0 : 1),
     },
   };
   if (report.summary.passed !== report.summary.total || report.summary.duplicateCommits !== 0 ||
     !report.authSurvivedBrowserRestart || !cleanupVerified) {
     throw new Error(`Moodle local capability run failed: ${JSON.stringify(report.summary)}.`);
   }
-  const reportDirectory = resolve(process.cwd(), "bench/runs/2026-09-04");
+  const reportDirectory = resolve(process.cwd(), "bench/runs/2026-09-05");
   await mkdir(reportDirectory, { recursive: true });
-  const reportPath = resolve(reportDirectory, "moodle-local-capability.json");
+  const reportPath = resolve(reportDirectory, "moodle-local-expanded-capability.json");
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify({ reportPath, ...report.summary }, null, 2));
 } finally {
   await browser?.close().catch(() => {});
   if (!cleanupVerified) {
-    for (const course of fixture.courses) grade(course.gradeitemid, "clear");
+    for (const course of fixture.courses) {
+      grade(course.gradeitemid, "clear");
+      submission(course.assignmentid, "clear");
+    }
   }
   await rm(directory, { recursive: true, force: true });
 }
