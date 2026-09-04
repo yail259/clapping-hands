@@ -438,10 +438,18 @@ try {
       confirmation: "Submit one synthetic response in the loopback-only Moodle fixture",
     },
   );
-  if (submissionPlan.actions.length !== 3 || submissionPlan.effect.commitActionIndex !== 0 ||
-    !submissionPlan.validation.inputEvidenceNames?.includes("responseText") ||
-    submissionDemoInputs.some((input) => JSON.stringify(submissionPlan).includes(input.responseText))) {
-    throw new Error("The Moodle submission plan did not retain the frozen effect, output, and redaction contract.");
+  const submissionPlanContract = {
+    actionCount: submissionPlan.actions.length,
+    commitActionIndex: submissionPlan.effect.commitActionIndex,
+    inputEvidenceNames: submissionPlan.validation.inputEvidenceNames ?? [],
+    retainedDemonstratedResponse: submissionDemoInputs.some((input) =>
+      JSON.stringify(submissionPlan).includes(input.responseText)
+    ),
+  };
+  if (submissionPlanContract.actionCount !== 3 || submissionPlanContract.commitActionIndex !== 1 ||
+    !submissionPlanContract.inputEvidenceNames.includes("responseText") ||
+    submissionPlanContract.retainedDemonstratedResponse) {
+    throw new Error(`The Moodle submission plan did not retain the frozen contract: ${JSON.stringify(submissionPlanContract)}.`);
   }
 
   await browser.close();
@@ -582,6 +590,12 @@ try {
       result: "corrected-before-compiled-run",
       reason: "Moodle developer debugging disables an automatic post-submission redirect when a synthetic .invalid email address triggers a notification warning.",
       correction: "Use example.com fixture addresses with delivery contained by the local Mailpit service, then clear the discovery submission.",
+      compilerChanged: false,
+    }, {
+      stage: "submission-effect-assertion",
+      result: "failed-closed-then-corrected",
+      reason: "The first submission action opens a read-only form, so the compiler conservatively placed the effect boundary at the following fill rather than the initial click required by the first harness assertion.",
+      correction: "Require commitActionIndex 1 while continuing to prove that prepare performs no browser action or database mutation and commit replays the entire workflow only once.",
       compilerChanged: false,
     }],
     demonstrationOracles,
