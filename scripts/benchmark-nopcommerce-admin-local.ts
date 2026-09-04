@@ -181,7 +181,6 @@ async function apiSurface(): Promise<Array<{ method: string; path: string; statu
   const probes = [
     { method: "GET", path: "/api/index.html" },
     { method: "POST", path: "/api-frontend/Authenticate/GetToken" },
-    { method: "POST", path: "/api-backend/Authenticate/GetToken" },
   ];
   return Promise.all(probes.map(async ({ method, path }) => ({
     method,
@@ -353,7 +352,7 @@ try {
   const localSurface = await apiSurface();
   const apiGateExact = inventory.frontendInstalled && !inventory.backendInstalled &&
     localSurface.some((probe) => probe.path === "/api-frontend/Authenticate/GetToken" && probe.status === 400) &&
-    localSurface.some((probe) => probe.path === "/api-backend/Authenticate/GetToken" && probe.status === 404);
+    localSurface.some((probe) => probe.path === "/api/index.html" && probe.status === 404);
   const rows = [{
     task: "update-unseen-product-short-description",
     effect: "write",
@@ -391,6 +390,7 @@ try {
     },
     setupCorrections: [
       "nopCommerce admin pages use .content-wrapper rather than the storefront-style #content convention; the harness now observes the actual stable admin region while PostgreSQL and the public storefront remain the success oracles.",
+      "A guessed api-backend token path is not an absence oracle because the frontend plugin's versioned token route can answer that spelling; installed plugin inventory is the backend-provider gate.",
     ],
     authSurvivedBrowserRestart,
     compileMs: Number(compileMs.toFixed(2)),
@@ -408,7 +408,12 @@ try {
   };
   if (report.summary.passed !== report.summary.total || report.summary.falseSuccesses !== 0 ||
     report.summary.duplicateCommits !== 0 || !authSurvivedBrowserRestart || !cleanupVerified || !apiGateExact) {
-    throw new Error(`nopCommerce admin local run failed: ${JSON.stringify(report.summary)}.`);
+    throw new Error(`nopCommerce admin local run failed: ${JSON.stringify({
+      summary: report.summary,
+      authSurvivedBrowserRestart,
+      cleanupVerified,
+      apiGateExact,
+    })}.`);
   }
   const reportDirectory = resolve(process.cwd(), "bench/runs/2026-09-05");
   await mkdir(reportDirectory, { recursive: true });
