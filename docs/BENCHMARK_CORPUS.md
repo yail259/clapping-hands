@@ -27,11 +27,12 @@ a realistic application row.
 
 ## Narrow representative sample
 
-The machine-readable candidate is
+The machine-readable corpus is
 [`bench/corpus-v1.json`](../bench/corpus-v1.json). It declares 32 tasks up
 front; `npm run benchmark:corpus` verifies the minimum application, holdout,
-architecture, effect, policy, and traffic-budget coverage before the corpus can
-be frozen to a compiler Git SHA.
+architecture, effect, policy, and traffic-budget coverage. It was frozen on
+2026-09-04 to compiler Git SHA
+`054bf03d80bf5401e26267e2a7c6d59931670876`, before any holdout task was run.
 
 | Site | Ownership / policy basis | Archetype | Representative tasks | Expected compiler path | Role |
 | --- | --- | --- | --- | --- | --- |

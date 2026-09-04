@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "status": "candidate",
-  "compilerFreezeSha": null,
+  "status": "frozen",
+  "compilerFreezeSha": "054bf03d80bf5401e26267e2a7c6d59931670876",
   "applications": [
     {
       "id": "controlled-fixture",
