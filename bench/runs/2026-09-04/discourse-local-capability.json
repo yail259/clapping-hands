@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "kind": "self-hosted-application-capability-regression",
+  "generatedAt": "2026-09-04T13:54:01.920Z",
+  "compilerCommit": "ba829c58db8838a4fef7f57120b5e952a1c225c9",
+  "application": "Self-hosted Discourse development fixture",
+  "origin": "http://127.0.0.1:18121",
+  "sources": {
+    "discourse": "4cefc8c471e4fb40aa1ce5710198bed2f1706474"
+  },
+  "containerImages": {
+    "application": "discourse/discourse_dev:20260812-0036",
+    "digest": "sha256:ed44e808f7430432712745da7245d6e256c0c417d4c874772ca5b1b3d311242"
+  },
+  "intervention": "guided",
+  "policyBasis": "Loopback-only official Discourse source and developer image with one synthetic user and synthetic topics",
+  "credentialHandling": "Read a rotated synthetic credential from the process environment; persisted no credential, cookie, topic body, or draft body in plans or reports",
+  "claimScope": "Capability regression on one pinned self-hosted application; not a speed or untouched-holdout result",
+  "apiDisposition": "Prefer Discourse's first-party API when an operator has configured API credentials; this regression covers the authenticated UI fallback and rich-composer behavior",
+  "developmentHistory": [
+    {
+      "stage": "reactive-composer-preparation",
+      "result": "hidden-mutation-found-and-runtime-corrected",
+      "reason": "Filling Discourse's composer produced POST /drafts.json before the visible Create Topic action.",
+      "fix": "Prepare now creates a durable receipt without browser activity; the complete UI replay begins only after the receipt enters the one-shot committing state."
+    }
+  ],
+  "runnerCorrections": [
+    "Require confirmation before the first rich-composer fill, not merely before the visible publish button, because a reactive fill can autosave."
+  ],
+  "createDemonstrationOracles": [
+    {
+      "ordinal": 1,
+      "count": 1,
+      "bodyMatched": true
+    },
+    {
+      "ordinal": 2,
+      "count": 1,
+      "bodyMatched": true
+    }
+  ],
+  "editDemonstrationOracles": [
+    {
+      "ordinal": 1,
+      "bodyMatched": true
+    },
+    {
+      "ordinal": 2,
+      "bodyMatched": true
+    }
+  ],
+  "environment": {
+    "browserVersion": "151.0.7922.138",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "authSurvivedBrowserRestart": true,
+  "fixtureCleanupVerified": true,
+  "rows": [
+    {
+      "task": "search-unseen-topic",
+      "effect": "read",
+      "mechanism": "ember-spa-json-search",
+      "exactResult": true,
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 3373.7271670000046,
+      "navigations": 2
+    },
+    {
+      "task": "create-unseen-topic",
+      "effect": "write",
+      "mechanism": "rich-composer-autosave-plus-prepare-commit",
+      "exactResult": true,
+      "preparedWithoutPublishedTopic": true,
+      "preparedWithoutDraft": true,
+      "prepareLeftBrowserUntouched": true,
+      "repeatedCommitRejected": true,
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 5319.472249999992,
+      "oracle": {
+        "topicCountAfterCommit": 1,
+        "unchangedAfterRejectedRepeat": true
+      }
+    },
+    {
+      "task": "edit-unseen-topic",
+      "effect": "write",
+      "mechanism": "input-bound-topic-route-plus-rich-composer",
+      "exactResult": true,
+      "preparedWithoutContentChange": true,
+      "preparedWithoutDraft": true,
+      "prepareLeftBrowserUntouched": true,
+      "repeatedCommitRejected": true,
+      "compiledModelCalls": 0,
+      "compiledDurationMs": 5392.693375000003,
+      "oracle": {
+        "postVersionAfterCommit": 1,
+        "unchangedAfterRejectedRepeat": true,
+        "checks": {
+          "originalBodyBeforePrepare": true,
+          "originalBodyAfterPrepare": true,
+          "noDraftBeforePrepare": true,
+          "noDraftAfterPrepare": true,
+          "prepareLeftBrowserUntouched": true,
+          "expectedBodyAfterCommit": true,
+          "expectedBodyAfterRejectedRepeat": true,
+          "versionUnchangedAfterRejectedRepeat": true,
+          "receiptCommitted": true,
+          "noCompiledModelCalls": true,
+          "repeatedCommitRejected": true
+        }
+      }
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "total": 3,
+    "falseSuccesses": 0,
+    "duplicateCommits": 0
+  }
+}
