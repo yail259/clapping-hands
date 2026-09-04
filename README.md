@@ -26,6 +26,13 @@ Good initial workflows are:
 The first release is not a bulk scraper, an anti-bot bypass, a general RPA
 suite, or a system for autonomous purchases, messages, and destructive actions.
 
+The longer-term scope is not limited to scraping or retrieval. Clapping Hands is
+intended to compile demonstrated UI interactions—including reversible edits,
+uploads, and explicitly approved submissions—into typed tools. Effectful actions
+are not implemented in the current prototype. They require prepared intent,
+confirmation, an effect journal, independent postcondition checks, duplicate
+protection, and safe handling of ambiguous outcomes before they can be enabled.
+
 ## Responsible use
 
 Clapping Hands is experimental, local developer software for low-volume,
@@ -74,6 +81,7 @@ In short: **first compile away the model; then compile away the UI.**
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — staged path to a convincing prototype
 - [`docs/decisions/0001-stagehand.md`](docs/decisions/0001-stagehand.md) — why Stagehand is a replaceable dependency
 - [`docs/decisions/0002-marketplace-network-promotion.md`](docs/decisions/0002-marketplace-network-promotion.md) — auth, promotion gates, and measurable acceptance criteria
+- [`docs/decisions/0003-effectful-actions.md`](docs/decisions/0003-effectful-actions.md) — proposed safety contract for reversible writes and commits
 - [`docs/WEBPIPE_SPEC_v0.2.md`](docs/WEBPIPE_SPEC_v0.2.md) — preserved original proposal
 
 ## Naming
