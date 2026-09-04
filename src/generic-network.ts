@@ -50,6 +50,7 @@ export type GenericNetworkDemonstration = {
 export type GenericNetworkTrace = {
   input: NetworkInput;
   exchanges: CapturedExchange[];
+  outputText?: string;
 };
 
 const SENSITIVE_NAME = /(?:authorization|cookie|password|passwd|secret|token|csrf|xsrf|session|api[_-]?key|jazoest|dtsg|\blsd\b)/i;
@@ -229,6 +230,32 @@ function shapeWeight(shape: JsonShape): number {
   return 1;
 }
 
+function normalizedEvidenceText(value: string): string {
+  return value.replace(/<[^>]+>/g, " ").replace(/\\u[0-9a-f]{4}/gi, " ").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function responseScalars(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(responseScalars);
+  if (value && typeof value === "object") return Object.values(value).flatMap(responseScalars);
+  if (typeof value === "string" || typeof value === "number") return [String(value)];
+  return [];
+}
+
+export function jsonResponseSupportsOutput(responseBody: string, outputText: string, input: NetworkInput): boolean {
+  let parsed: unknown;
+  try {
+    parsed = parseJson(responseBody);
+  } catch {
+    return false;
+  }
+  const output = normalizedEvidenceText(outputText);
+  const inputValues = new Set(Object.values(input).map((value) => normalizedEvidenceText(String(value))));
+  return responseScalars(parsed).some((value) => {
+    const candidate = normalizedEvidenceText(value);
+    return candidate.length >= 3 && !inputValues.has(candidate) && output.includes(candidate);
+  });
+}
+
 export function compileGenericJsonFromTraces(
   action: string,
   traces: GenericNetworkTrace[],
@@ -271,6 +298,10 @@ export function compileGenericJsonFromTraces(
     for (const combination of combinations) {
       const demonstrations = combination.map((exchange, index) => ({ input: traces[index]!.input, exchange }));
       try {
+        if (traces.some((trace, index) => trace.outputText !== undefined &&
+          !jsonResponseSupportsOutput(combination[index]!.responseBody, trace.outputText, trace.input))) {
+          continue;
+        }
         const plan = compileGenericJsonPlan(action, demonstrations);
         compiled.push({
           plan,

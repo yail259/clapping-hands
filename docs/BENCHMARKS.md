@@ -42,9 +42,41 @@ revalidation window.
 | 3 | An HTTP-200 “Sign in / session expired” page was accepted as a plausible final result. | Persist only hashes of demonstrated final headings and require a match at replay. | Login-shell fixture now fails closed. |
 | 4 | A cross-origin redirect was rejected only after the unwanted destination had already been contacted. | Disable automatic redirects, validate every `Location`, bound redirect depth, and follow only same-origin redirects. | External fixture received zero requests and replay failed closed. |
 
-The final suite has 21 passing tests. Plans persist form structure, public option
-values, paths, and input hashes; they do not persist submitted answers, hidden
-field values, cookies, response bodies, or authorization headers.
+That published checkpoint had 21 passing tests. Plans persist form structure,
+public option values, paths, and input hashes; they do not persist submitted
+answers, hidden field values, cookies, response bodies, or authorization
+headers.
+
+## General compiler development gate — 2026-09-04
+
+This is controlled-fixture evidence, not another live-site benchmark and not a
+speed claim. The current suite has 42 passing tests and the built MCP server
+advertises ten management/Marketplace tools before any generated workflow tools
+are loaded.
+
+New regression coverage includes:
+
+- generic form discovery among unrelated forms, document `<base>` handling,
+  browser-default successful controls, and same-document SPA submissions;
+- same-origin JSON capture for GET/POST/PUT/PATCH/DELETE, redaction of auth and
+  CSRF-shaped headers, and capture from every attached tab;
+- rejection of input-bound telemetry/config requests unless response values are
+  also evidenced in the rendered task output;
+- compilation of learned Stagehand actions into redacted selector/argument
+  templates and zero-model Playwright replay;
+- a persistent per-origin browser profile whose cookie and local-storage state
+  survives restart without an LLM configuration;
+- two distinct shadows before network promotion, schema-drift degradation, and
+  deterministic browser fallback;
+- atomic workflow versioning and stale-evidence rejection; and
+- prepared writes, one-time effect receipts, at-most-once commit, and an
+  `uncertain` terminal state after any post-click ambiguity.
+
+The opt-in real-Stagehand local smoke found and fixed a v4 configuration bug:
+Stagehand requires an explicit model configuration instead of inferring one
+from `OPENAI_API_KEY`. Its rerun reached the provider but could not complete
+because the configured account had no API credits. This is retained as a
+blocked environment result; it is not counted as compiler success.
 
 ## Policy disposition
 

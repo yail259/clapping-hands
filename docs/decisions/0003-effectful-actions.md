@@ -1,6 +1,6 @@
 # ADR 0003: Gate effectful action compilation with prepared intent and proof
 
-**Status:** proposed
+**Status:** accepted; controlled-fixture implementation
 
 **Date:** 2026-09-04
 
@@ -11,12 +11,12 @@ not merely extract page data. Useful workflows include editing a draft,
 uploading a file, changing a status, sending a message, publishing, approving,
 or submitting a transaction.
 
-The current prototype promotes only a read workflow. Applying the same capture,
-shadow, retry, and repair behavior to mutations would risk duplicated or
-misdirected effects. A successful HTTP response is also insufficient evidence
-that the intended remote state exists.
+The first Marketplace path promoted only a read workflow. Applying the same
+capture, shadow, retry, and repair behavior to mutations would risk duplicated
+or misdirected effects. A successful HTTP response is also insufficient
+evidence that the intended remote state exists.
 
-## Proposed decision
+## Decision
 
 Every operation and action declares one of three effect classes:
 
@@ -65,6 +65,26 @@ After the fixture gate, benchmark only seeded data on operator-owned deployments
 official sandboxes that permit automation, or expressly permissioned tenants.
 Never shadow a consequential action by performing it twice.
 
+## Implemented subset
+
+The controlled DOM compiler now supports a conservative subset of this ADR:
+
+- every compiled DOM plan is explicitly declared `read` or `write`;
+- a write requires a plain-language confirmation description and treats its
+  final learned action as the effect boundary;
+- prepare executes only the deterministic prefix and creates an expiring
+  receipt containing plan/input hashes, not raw inputs;
+- commit atomically moves the receipt to `committing` before the final action;
+- a successful postcondition marks it `committed`; any error after the boundary
+  marks it `uncertain`; and
+- committed, expired, and uncertain receipts cannot be replayed.
+
+The production gate remains closed. Independent remote-ID reconciliation,
+target/account rendering, explicit `write` versus `commit` policy classes,
+verified reset for reversible writes, uploads, and target-native idempotency
+keys are not implemented yet. Until those exist, effect tests stay on controlled
+fixtures, operator-owned forms, and isolated sandboxes.
+
 ## Consequences
 
 - The benchmark can cover arbitrary UI action shapes without treating all
@@ -72,5 +92,6 @@ Never shadow a consequential action by performing it twice.
 - Commit throughput is not the primary metric; correctness, at-most-once
   execution, and proof dominate latency.
 - Some workflows will remain browser-only or require confirmation forever.
-- The current read-only prototype cannot yet support a public claim that
-  arbitrary actions are implemented.
+- The current prototype can demonstrate an at-most-once final UI action on
+  controlled targets, but cannot yet support an unqualified public claim that
+  arbitrary consequential actions are production-ready.

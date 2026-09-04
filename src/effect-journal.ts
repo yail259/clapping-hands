@@ -54,6 +54,7 @@ function planHash(plan: DomWorkflowPlan): string {
     startPath: plan.startPath,
     inputNames: plan.inputNames,
     actions: plan.actions,
+    repairInstructions: plan.repairInstructions,
     validation: plan.validation,
   });
 }
@@ -110,12 +111,12 @@ async function executeAction(page: Page, action: BrowserAction): Promise<void> {
 
 async function settle(page: Page): Promise<void> {
   await page.waitForLoadState("domcontentloaded", { timeout: 2_000 }).catch(() => {});
-  await page.waitForLoadState("networkidle", { timeout: 1_000 }).catch(() => {});
 }
 
 async function outputTextIfPresent(page: Page, selector: string): Promise<string | null> {
   const locator = page.locator(selector);
   if (await locator.count() !== 1) return null;
+  if (!await locator.isVisible().catch(() => false)) return null;
   const text = (await locator.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
   return text || null;
 }

@@ -2,7 +2,7 @@ import { createServer } from "node:net";
 import { readlink } from "node:fs/promises";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { localBrowser, Stagehand, type Action } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand, type Action, type ModelName } from "@browserbasehq/stagehand";
 
 export type BrowserLaunchRequest = {
   executablePath: string;
@@ -37,6 +37,28 @@ export type BrowserActResult = {
 
 export interface BrowserLearner {
   launch(request: BrowserLaunchRequest): Promise<BrowserLearnerLease>;
+}
+
+const PROVIDER_KEYS: Record<string, string[]> = {
+  openai: ["OPENAI_API_KEY"],
+  anthropic: ["ANTHROPIC_API_KEY"],
+  google: ["GOOGLE_GENERATIVE_AI_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY"],
+  groq: ["GROQ_API_KEY"],
+  cerebras: ["CEREBRAS_API_KEY"],
+};
+
+export function resolveStagehandModel(environment: NodeJS.ProcessEnv = process.env): { modelName: ModelName; apiKey: string } {
+  const modelName = environment.CLAPPING_HANDS_MODEL ?? "openai/gpt-5.4-mini";
+  const provider = modelName.split("/", 1)[0] ?? "";
+  const candidates = PROVIDER_KEYS[provider];
+  if (!candidates) {
+    throw new Error(`Unsupported Stagehand model provider ${provider || "unknown"}.`);
+  }
+  const keyName = candidates.find((name) => environment[name]);
+  if (!keyName) {
+    throw new Error(`Stagehand model ${modelName} requires one of: ${candidates.join(", ")}.`);
+  }
+  return { modelName: modelName as ModelName, apiKey: environment[keyName]! };
 }
 
 async function availablePort(): Promise<number> {
@@ -106,6 +128,7 @@ export class StagehandBrowserLearner implements BrowserLearner {
     try {
       stagehand = await Stagehand.create({
         browser,
+        model: resolveStagehandModel(),
         selfHeal: true,
         cache: false,
         logging: { level: "off" },

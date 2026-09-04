@@ -208,3 +208,20 @@ test("selects the input-bound operation from noisy browser traces", () => {
   assert.equal(compiled.plan.request.endpointPath, "/api/search");
   assert.deepEqual(Object.keys(compiled.plan.request.bindings), ["query"]);
 });
+
+test("selects only a request whose response is evidenced in the rendered output", () => {
+  const origin = "https://example.test";
+  const traces = [
+    { query: "sofa", title: "Oak daybed", telemetryId: "event-one" },
+    { query: "chair", title: "Blue armchair", telemetryId: "event-two" },
+  ].map(({ query, title, telemetryId }) => ({
+    input: { query },
+    outputText: `Search results ${title}`,
+    exchanges: [
+      exchange(`${origin}/telemetry?q=${query}`, { query }, { event: telemetryId }).exchange,
+      exchange(`${origin}/api/search?q=${query}`, { query }, { items: [{ title }] }).exchange,
+    ],
+  }));
+  const compiled = compileGenericJsonFromTraces("search", traces);
+  assert.equal(compiled.plan.request.endpointPath, "/api/search");
+});

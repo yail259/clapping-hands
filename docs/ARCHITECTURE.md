@@ -37,6 +37,10 @@ Clapping Hands compiler
 Stagehand owns exploration, semantic element discovery, first-run execution, and
 browser-assisted recovery. It does not define the durable product artifact.
 
+Stagehand is initialized only for semantic compilation or repair. Manual
+authentication and cached execution use a separate persistent Playwright
+browser, so a funded model key is not a runtime or login dependency.
+
 Clapping Hands owns:
 
 - action names and input/output schemas;
@@ -74,6 +78,13 @@ secrets. Validate response shape and preserve L2/L0 fallbacks.
 Promotion is per operation, not per website. A single action may mix network and
 browser steps.
 
+The current implementation stores a deterministic form or DOM baseline plus an
+optional JSON-request accelerator. An accelerator is eligible only when its
+response contains non-input evidence visible in the demonstrated output. It is
+promoted after two distinct runtime shadows, degraded on drift, and bypassed in
+favor of the baseline. A deterministic DOM failure may invoke the redacted
+semantic repair recipe for reads; semantic repair cannot cross a write boundary.
+
 ## Action IR sketch
 
 ```json
@@ -106,4 +117,3 @@ of Stagehand's internal cache representation.
 - Never log cookies, authorization headers, tokens, or sensitive form values.
 - Respect site terms, access controls, rate limits, and applicable law.
 - Do not market network promotion as a mechanism for bypassing protections.
-

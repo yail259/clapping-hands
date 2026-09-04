@@ -42,6 +42,7 @@ export type DomWorkflowDemonstration = {
   actions: BrowserAction[];
   output: DomOutputSnapshot;
   modelCalls: number;
+  instructions?: string[];
 };
 
 export type DomWorkflowPlan = {
@@ -59,6 +60,7 @@ export type DomWorkflowPlan = {
   status: "candidate" | "provisional" | "stable" | "degraded";
   inputNames: string[];
   actions: DomActionTemplate[];
+  repairInstructions: TemplatePart[][];
   validation: {
     maximumActions: number;
     outputSelector: string;
@@ -77,7 +79,7 @@ export type DomWorkflowPlan = {
 export type DomWorkflowResult = DomOutputSnapshot & {
   actions: number;
   navigations: number;
-  modelCalls: 0;
+  modelCalls: number;
   durationMs: number;
 };
 
@@ -134,9 +136,12 @@ function splitByInputs(
   demonstrations: DomWorkflowDemonstration[],
   inputNames: string[],
   bound: Set<string>,
+  rejectHighEntropyConstant = false,
 ): TemplatePart[] {
   if (new Set(values).size === 1) {
-    if (looksHighEntropy(values[0]!)) throw new Error("Refusing to persist a high-entropy DOM action constant.");
+    if (rejectHighEntropyConstant && looksHighEntropy(values[0]!)) {
+      throw new Error("Refusing to persist a high-entropy DOM action argument constant.");
+    }
     return [values[0]!];
   }
 
@@ -226,11 +231,25 @@ export function compileDomWorkflow(
         demonstrations,
         inputNames,
         bound,
+        true,
       )),
     });
   }
   const unbound = inputNames.filter((name) => !bound.has(name));
   if (unbound.length > 0) throw new Error(`Could not bind DOM inputs: ${unbound.join(", ")}.`);
+
+  let repairInstructions: TemplatePart[][] = [];
+  if (demonstrations.every((demo) => demo.instructions)) {
+    const instructionCounts = demonstrations.map((demo) => demo.instructions!.length);
+    if (new Set(instructionCounts).size !== 1) throw new Error("DOM demonstrations used different repair instruction counts.");
+    repairInstructions = Array.from({ length: instructionCounts[0]! }, (_unused, index) => splitByInputs(
+      demonstrations.map((demo) => demo.instructions![index]!),
+      demonstrations,
+      inputNames,
+      new Set<string>(),
+      true,
+    ));
+  }
 
   const outputSelector = demonstrations[0]!.output.selector;
   const outputTagName = demonstrations[0]!.output.tagName;
@@ -262,6 +281,7 @@ export function compileDomWorkflow(
     status: "provisional",
     inputNames,
     actions: templates,
+    repairInstructions,
     validation: {
       maximumActions: MAX_ACTIONS,
       outputSelector,
@@ -300,6 +320,7 @@ export async function captureDomOutput(page: Page, selector: string): Promise<Do
   const locator = page.locator(selector);
   const count = await locator.count();
   if (count !== 1) throw new Error(`Expected one DOM output region for ${selector}, found ${count}.`);
+  if (!await locator.isVisible()) throw new Error(`DOM output region ${selector} was not visible.`);
   const text = normalizedText(await locator.innerText());
   if (!text) throw new Error("DOM output region was empty.");
   const tagName = await locator.evaluate((element) => element.tagName.toLowerCase());
@@ -308,12 +329,12 @@ export async function captureDomOutput(page: Page, selector: string): Promise<Do
 
 async function settle(page: Page): Promise<void> {
   await page.waitForLoadState("domcontentloaded", { timeout: 2_000 }).catch(() => {});
-  await page.waitForLoadState("networkidle", { timeout: 1_000 }).catch(() => {});
 }
 
 async function outputTextIfPresent(page: Page, selector: string): Promise<string | null> {
   const locator = page.locator(selector);
   if (await locator.count() !== 1) return null;
+  if (!await locator.isVisible().catch(() => false)) return null;
   return normalizedText(await locator.innerText().catch(() => "")) || null;
 }
 
@@ -327,7 +348,7 @@ async function waitForOutputChange(page: Page, selector: string, before: string 
 }
 
 export async function demonstrateDomWorkflow(
-  lease: BrowserLearnerLease,
+  lease: Pick<BrowserLearnerLease, "act">,
   page: Page,
   startUrl: string,
   input: DomInput,
@@ -347,7 +368,7 @@ export async function demonstrateDomWorkflow(
     await settle(page);
     assertSameOrigin(page.url(), origin, "DOM demonstration");
   }
-  return { input, actions, output: await captureDomOutput(page, outputSelector), modelCalls };
+  return { input, actions, output: await captureDomOutput(page, outputSelector), modelCalls, instructions };
 }
 
 async function executePlaywrightAction(page: Page, action: BrowserAction): Promise<void> {
@@ -369,7 +390,7 @@ async function executePlaywrightAction(page: Page, action: BrowserAction): Promi
   }
 }
 
-function validateOutput(plan: DomWorkflowPlan, output: DomOutputSnapshot): void {
+export function validateDomOutput(plan: DomWorkflowPlan, output: DomOutputSnapshot): void {
   assertSameOrigin(output.url, plan.origin, "Compiled DOM replay");
   if (output.tagName !== plan.validation.outputTagName) {
     throw new Error("Compiled DOM output changed element type.");
@@ -411,7 +432,7 @@ export async function replayDomWorkflow(
     if (page.url() !== beforeUrl) navigations += 1;
   }
   const output = await captureDomOutput(page, plan.validation.outputSelector);
-  validateOutput(plan, output);
+  validateDomOutput(plan, output);
   return {
     ...output,
     actions: plan.actions.length,
@@ -452,8 +473,39 @@ export async function replayDomWorkflowWithStagehand(
     if (page.url() !== beforeUrl) navigations += 1;
   }
   const output = await captureDomOutput(page, plan.validation.outputSelector);
-  validateOutput(plan, output);
+  validateDomOutput(plan, output);
   return { ...output, actions: plan.actions.length, navigations, modelCalls: 0, durationMs: performance.now() - startedAt };
+}
+
+export async function repairDomWorkflow(
+  lease: Pick<BrowserLearnerLease, "act">,
+  page: Page,
+  plan: DomWorkflowPlan,
+  input: DomInput,
+): Promise<DomWorkflowResult> {
+  if (plan.effect.level !== "read") throw new Error("Semantic repair cannot cross a write effect boundary.");
+  if (plan.repairInstructions.length === 0) throw new Error("This workflow has no redacted semantic repair recipe.");
+  if (JSON.stringify(Object.keys(input).sort()) !== JSON.stringify(plan.inputNames)) {
+    throw new Error(`Compiled input keys must be exactly: ${plan.inputNames.join(", ")}.`);
+  }
+  const startedAt = performance.now();
+  await page.goto(new URL(plan.startPath, plan.origin).href, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  let modelCalls = 0;
+  let actions = 0;
+  let navigations = 1;
+  for (const instruction of plan.repairInstructions) {
+    const beforeUrl = page.url();
+    const result = await lease.act(materialize(instruction, input));
+    if (!result.success) throw new Error(`Semantic repair failed: ${result.message}`);
+    modelCalls += result.modelCalls;
+    actions += result.actions.length;
+    await settle(page);
+    assertSameOrigin(page.url(), plan.origin, "Semantic DOM repair");
+    if (page.url() !== beforeUrl) navigations += 1;
+  }
+  const output = await captureDomOutput(page, plan.validation.outputSelector);
+  validateDomOutput(plan, output);
+  return { ...output, actions, navigations, modelCalls, durationMs: performance.now() - startedAt };
 }
 
 export function recordDomShadow(plan: DomWorkflowPlan, input: DomInput, matches: boolean): DomWorkflowPlan {

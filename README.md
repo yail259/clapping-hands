@@ -1,7 +1,7 @@
 # Clapping Hands
 
 **Product:** Clapping Hands 👏  
-**Status:** working local MCP prototype
+**Status:** working local MCP compiler prototype
 
 > Compile browser workflows into APIs for sites that do not have one.
 
@@ -26,12 +26,13 @@ Good initial workflows are:
 The first release is not a bulk scraper, an anti-bot bypass, a general RPA
 suite, or a system for autonomous purchases, messages, and destructive actions.
 
-The longer-term scope is not limited to scraping or retrieval. Clapping Hands is
-intended to compile demonstrated UI interactions—including reversible edits,
-uploads, and explicitly approved submissions—into typed tools. Effectful actions
-are not implemented in the current prototype. They require prepared intent,
-confirmation, an effect journal, independent postcondition checks, duplicate
-protection, and safe handling of ambiguous outcomes before they can be enabled.
+The scope is not limited to scraping or retrieval. The prototype compiles
+demonstrated DOM interactions and same-origin HTML forms, and it can learn an
+authenticated JSON request accelerator when that response is evidenced in the
+rendered result. Experimental write workflows use a separate prepare/commit
+lifecycle: the final action is withheld behind an expiring receipt, journaled
+before execution, and never retried after an ambiguous outcome. File uploads
+and cross-origin commits remain separately gated.
 
 ## Responsible use
 
@@ -77,6 +78,7 @@ In short: **first compile away the model; then compile away the UI.**
 - [`docs/PRODUCT_BRIEF.md`](docs/PRODUCT_BRIEF.md) — wedge, user, promise, and MVP
 - [`docs/MCP_DOGFOOD.md`](docs/MCP_DOGFOOD.md) — Marketplace tool, authentication, and safety boundary
 - [`docs/BENCHMARK_PLAN.md`](docs/BENCHMARK_PLAN.md) — multi-site corpus, verification protocol, and claim gates
+- [`docs/BENCHMARK_CORPUS.md`](docs/BENCHMARK_CORPUS.md) — broad site inventory and narrowed representative sample
 - [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) — live smoke results, failed rows, and iteration evidence
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — proposed system boundaries
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — staged path to a convincing prototype
@@ -98,6 +100,7 @@ context requires. No trademark or domain clearance has been completed.
 npm install
 npm test
 npm run build
+npm run smoke:general
 npm run auth:marketplace
 npm run dogfood:marketplace
 codex mcp add clapping-hands \
@@ -105,6 +108,13 @@ codex mcp add clapping-hands \
   --env CLAPPING_HANDS_HEADLESS=false \
   -- "$(command -v node)" "$PWD/dist/src/server.js"
 ```
+
+`smoke:general` is an opt-in local Stagehand smoke. First-time semantic
+compilation needs an LLM provider key. The default is
+`openai/gpt-5.4-mini` via `OPENAI_API_KEY`; select another Stagehand-supported
+model with `CLAPPING_HANDS_MODEL` and provide its provider key. Authentication,
+compiled DOM/form replay, and promoted network replay do **not** call the model
+and do not require a funded model account.
 
 `auth:marketplace` opens the dedicated profile for a manual Facebook login,
 closes it, and proves the authenticated state survives a clean restart.
@@ -132,6 +142,13 @@ claim. See [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
 Restart Codex after adding the server so these tools are discovered:
 
+- `clapping_hands_compile_dom`
+- `clapping_hands_compile_form`
+- `clapping_hands_list`
+- `clapping_hands_run`
+- `clapping_hands_auth_open`
+- `clapping_hands_commit`
+- generated `clapping_hands_do_<action>` tools with plan-specific input schemas
 - `facebook_marketplace_auth_open`
 - `facebook_marketplace_auth_status`
 - `facebook_marketplace_compilation_status`

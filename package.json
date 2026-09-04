@@ -16,6 +16,7 @@
     "dev": "tsx src/server.ts",
     "dogfood:marketplace": "tsx scripts/dogfood-marketplace.ts",
     "inspect:mcp": "tsx scripts/inspect-mcp.ts",
+    "smoke:general": "CLAPPING_HANDS_HEADLESS=true tsx scripts/smoke-general-compiler.ts",
     "test": "tsx --test test/**/*.test.ts"
   },
   "dependencies": {

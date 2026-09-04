@@ -103,7 +103,14 @@ export class WorkflowBrowser {
       this.driverContext.on("page", attach);
       const pages = this.driverContext.pages();
       pages.forEach(attach);
-      this.driverPage = pages.find((page) => !page.url().startsWith("chrome-extension://")) ?? pages[0] ?? null;
+      this.driverPage = pages.find((page) => {
+        if (page.url() === "about:blank") return true;
+        try {
+          return this.allowedOrigins.includes(new URL(page.url()).origin);
+        } catch {
+          return false;
+        }
+      }) ?? null;
       if (!this.driverPage) {
         this.driverPage = await this.driverContext.newPage();
         attach(this.driverPage);

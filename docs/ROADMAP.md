@@ -1,5 +1,11 @@
 # Prototype roadmap
 
+Implementation snapshot: Milestone 0 is complete. The controlled-fixture parts
+of Milestones 1–3 are implemented (versioned product-owned plans, zero-model DOM
+and form replay, response-linked JSON promotion, drift degradation, and browser
+fallback). The representative-corpus and live evidence gates are still open;
+see [`BENCHMARK_CORPUS.md`](BENCHMARK_CORPUS.md).
+
 ## Milestone 0 — contract
 
 - Define the minimal action IR.
@@ -50,4 +56,3 @@ lower latency while returning equivalent fresh results.
 
 Exit condition: the demonstration proves the compiler thesis rather than merely
 showing a browser agent.
-
