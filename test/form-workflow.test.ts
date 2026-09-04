@@ -145,6 +145,11 @@ test("rejects cross-origin form actions", () => {
   );
 });
 
+test("credential forms are excluded from generic form compilation", () => {
+  const html = `<main><h1>Sign in</h1><form method="post"><input name="username"><input type="password" name="password"><button>Sign in</button></form></main>`;
+  assert.deepEqual(inspectFormCandidates(html, "https://example.test/login"), []);
+});
+
 test("discovers a generic form among unrelated forms and honors document base URLs", () => {
   const html = page(`<base href="/base/"><form id="search" action="search"><input name="q"><button>Go</button></form>
     <form id="checkout" action="result" method="post"><input required name="name"><button name="intent" value="save">Save</button></form>`);

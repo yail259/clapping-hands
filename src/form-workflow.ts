@@ -153,6 +153,10 @@ export function inspectFormCandidates(html: string, currentUrl: string): Observe
 
   $("form").each((formIndex, element) => {
     const form = $(element);
+    // Authentication is a manual profile handoff. Compiling credential fields
+    // would turn passwords into tool inputs and risks persisting or replaying
+    // them outside the browser's normal login surface.
+    if (form.find('input[type="password"]').length > 0) return;
     const submitters = form.find('button[type="submit"], input[type="submit"], button:not([type]), input[type="image"]');
     const editable = form.find("input[name], select[name], textarea[name]").filter((_index, control) => {
       const candidate = $(control);

@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "status": "candidate",
+  "compilerFreezeSha": null,
+  "applications": [
+    {
+      "id": "controlled-fixture",
+      "name": "Controlled local fixture",
+      "role": "development",
+      "architecture": ["html-form", "spa", "json", "session-auth"],
+      "policy": "repository-owned",
+      "trafficBudget": "unlimited local fault injection",
+      "tasks": [
+        { "id": "multi-step-form", "effect": "read", "expectedPath": "form" },
+        { "id": "json-search-promotion", "effect": "read", "expectedPath": "network" },
+        { "id": "auth-restart", "effect": "read", "expectedPath": "network" },
+        { "id": "response-drift-fallback", "effect": "read", "expectedPath": "dom-fallback" },
+        { "id": "prepared-write-at-most-once", "effect": "commit", "expectedPath": "prepare-commit" }
+      ]
+    },
+    {
+      "id": "the-internet",
+      "name": "The Internet",
+      "role": "development",
+      "architecture": ["dynamic-dom", "multi-window"],
+      "policy": "purpose-built acceptance-test application",
+      "trafficBudget": "human-scale smoke; warm distributions only with local deployment",
+      "tasks": [
+        { "id": "delayed-element-insertion", "effect": "read", "expectedPath": "dom" },
+        { "id": "dynamic-controls", "effect": "read", "expectedPath": "dom" },
+        { "id": "dropdown-and-checkbox", "effect": "read", "expectedPath": "dom" },
+        { "id": "multiple-windows", "effect": "read", "expectedPath": "dom" }
+      ]
+    },
+    {
+      "id": "saucedemo",
+      "name": "SauceDemo",
+      "role": "development",
+      "architecture": ["authenticated-spa", "client-state"],
+      "policy": "public demo used in Sauce Labs automation documentation",
+      "trafficBudget": "human-scale smoke; warm distributions only with local equivalent",
+      "tasks": [
+        { "id": "login-profile-handoff", "effect": "read", "expectedPath": "auth-handoff" },
+        { "id": "inventory-sort", "effect": "read", "expectedPath": "dom" },
+        { "id": "add-cart-item", "effect": "write", "expectedPath": "prepare-commit" },
+        { "id": "mock-checkout", "effect": "commit", "expectedPath": "prepare-commit" }
+      ]
+    },
+    {
+      "id": "gias",
+      "name": "Get Information about Schools",
+      "role": "development",
+      "architecture": ["production-hybrid", "ajax-autocomplete"],
+      "policy": "transient low-volume human-like automation only; no bulk UI extraction",
+      "trafficBudget": "one bounded result page per approved smoke input; no crawl",
+      "tasks": [
+        { "id": "establishment-name-search", "effect": "read", "expectedPath": "network-or-dom" },
+        { "id": "establishment-location-search", "effect": "read", "expectedPath": "network-or-dom" }
+      ]
+    },
+    {
+      "id": "wordpress-playground",
+      "name": "WordPress Playground",
+      "role": "holdout",
+      "architecture": ["iframe", "admin-spa", "rich-editor"],
+      "policy": "official isolated browser sandbox",
+      "trafficBudget": "local browser sandbox",
+      "tasks": [
+        { "id": "search-posts", "effect": "read", "expectedPath": "dom" },
+        { "id": "create-draft", "effect": "write", "expectedPath": "prepare-commit" },
+        { "id": "edit-draft-title", "effect": "write", "expectedPath": "prepare-commit" },
+        { "id": "publish-test-post", "effect": "commit", "expectedPath": "prepare-commit" }
+      ]
+    },
+    {
+      "id": "owned-google-form",
+      "name": "Operator-owned Google Form",
+      "role": "holdout",
+      "architecture": ["hosted-multi-step-form"],
+      "policy": "operator-owned form and synthetic responses only",
+      "trafficBudget": "five synthetic responses, then reset",
+      "tasks": [
+        { "id": "single-page-validation", "effect": "read", "expectedPath": "dom" },
+        { "id": "prepare-multi-step-response", "effect": "write", "expectedPath": "prepare-commit" },
+        { "id": "submit-response-once", "effect": "commit", "expectedPath": "prepare-commit" }
+      ]
+    },
+    {
+      "id": "self-hosted-osticket",
+      "name": "Self-hosted osTicket",
+      "role": "holdout",
+      "architecture": ["legacy-server-ui", "session-auth", "csrf"],
+      "policy": "repository-controlled installation with synthetic tickets",
+      "trafficBudget": "local installation; reset every mutation",
+      "tasks": [
+        { "id": "search-ticket", "effect": "read", "expectedPath": "form-or-dom" },
+        { "id": "create-test-ticket", "effect": "write", "expectedPath": "prepare-commit" },
+        { "id": "add-internal-test-note", "effect": "write", "expectedPath": "prepare-commit" }
+      ]
+    },
+    {
+      "id": "nopcommerce-api-control",
+      "name": "Self-hosted nopCommerce with Web API",
+      "role": "control",
+      "architecture": ["api-first-commerce"],
+      "policy": "repository-controlled installation",
+      "trafficBudget": "local installation",
+      "tasks": [
+        { "id": "product-search", "effect": "read", "expectedPath": "recommend-api" },
+        { "id": "cart-operation", "effect": "write", "expectedPath": "recommend-api" }
+      ]
+    }
+  ]
+}

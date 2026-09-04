@@ -1,10 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import type { Page } from "playwright-core";
 import {
   captureDomOutput,
+  waitForDomOutputChange,
   type DomInput,
   type DomWorkflowPlan,
   type DomWorkflowResult,
@@ -119,15 +119,6 @@ async function outputTextIfPresent(page: Page, selector: string): Promise<string
   if (!await locator.isVisible().catch(() => false)) return null;
   const text = (await locator.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
   return text || null;
-}
-
-async function waitForOutputChange(page: Page, selector: string, before: string | null): Promise<void> {
-  const deadline = Date.now() + 5_000;
-  while (Date.now() < deadline) {
-    const current = await outputTextIfPresent(page, selector);
-    if (current && current !== before) return;
-    await delay(50);
-  }
 }
 
 async function executePrefix(page: Page, plan: DomWorkflowPlan, input: DomInput, finalIndex: number): Promise<void> {
@@ -267,7 +258,12 @@ export async function commitPreparedDomWorkflowWrite(
     const beforeOutput = await outputTextIfPresent(page, plan.validation.outputSelector);
     await executeAction(page, materializeAction(plan, finalIndex, input));
     await settle(page);
-    await waitForOutputChange(page, plan.validation.outputSelector, beforeOutput);
+    await waitForDomOutputChange(
+      page,
+      plan.validation.outputSelector,
+      beforeOutput,
+      plan.validation.outputChangeTimeoutMs,
+    );
     if (new URL(page.url()).origin !== plan.origin) throw new Error("Committed write workflow left its allowed origin.");
     const output = await captureDomOutput(page, plan.validation.outputSelector);
     if (output.tagName !== plan.validation.outputTagName) throw new Error("Committed DOM output changed element type.");

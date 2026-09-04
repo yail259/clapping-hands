@@ -172,3 +172,52 @@ test("allows generated DOM identifiers but rejects high-entropy constant action 
     { input: { query: "chair" }, actions: [{ selector: "#query", description: "", method: "fill", arguments: ["chair", opaque] }], output, modelCalls: 1 },
   ]), /high-entropy DOM action argument/);
 });
+
+test("effectful language cannot be understated as a read workflow", () => {
+  const output = { selector: "main", tagName: "main", text: "Done", textHash: "hash", url: "https://example.test/result" };
+  const demo = (value: string): DomWorkflowDemonstration => ({
+    input: { note: value },
+    actions: [
+      { selector: "#note", description: "Fill note", method: "fill", arguments: [value] },
+      { selector: "#publish", description: "Publish note", method: "click" },
+    ],
+    output,
+    modelCalls: 1,
+  });
+  assert.throws(
+    () => compileDomWorkflow("publish_note", "https://example.test", [demo("one"), demo("two")]),
+    /appears effectful/,
+  );
+  assert.doesNotThrow(
+    () => compileDomWorkflow("publish_note", "https://example.test", [demo("one"), demo("two")], {
+      effect: "write",
+      confirmation: "Publish this note",
+    }),
+  );
+});
+
+test("fails closed when a final action leaves stale output in place", async () => {
+  const { server, origin } = await fixture();
+  let browser: Browser | null = null;
+  try {
+    const output = { selector: "#result", tagName: "output", text: "Ready", textHash: "ready", url: origin };
+    const demo = (query: string): DomWorkflowDemonstration => ({
+      input: { query },
+      actions: [{ selector: "#query", description: `Fill ${query}`, method: "fill", arguments: [query] }],
+      output,
+      modelCalls: 1,
+    });
+    const plan = compileDomWorkflow("stale_output", origin, [demo("sofa"), demo("chair")]);
+    plan.validation.outputChangeTimeoutMs = 100;
+    browser = await chromium.launch({ executablePath: CHROME, headless: true });
+    const page = await browser.newPage();
+    await assert.rejects(
+      () => replayDomWorkflow(page, plan, { query: "lamp" }),
+      /did not change after the final action/,
+    );
+    await page.close();
+  } finally {
+    await browser?.close();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});

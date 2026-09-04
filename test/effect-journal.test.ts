@@ -108,6 +108,7 @@ test("a post-click validation failure becomes uncertain and is never retried", a
       demonstration(origin, "second"),
     ], { effect: "write", confirmation: "Publish this note to the site" });
     plan.validation.outputSelector = "#missing-after-commit";
+    plan.validation.outputChangeTimeoutMs = 100;
     browser = await chromium.launch({ executablePath: CHROME, headless: true });
     const page = await browser.newPage();
     const journal = new EffectJournal(resolve(directory, "journal.json"));
@@ -115,7 +116,7 @@ test("a post-click validation failure becomes uncertain and is never retried", a
     const receipt = await prepareDomWorkflowWrite(page, journal, plan, input);
     await assert.rejects(
       () => commitPreparedDomWorkflowWrite(page, journal, receipt.id, plan, input),
-      /Expected one DOM output region/,
+      /did not change after the final action/,
     );
     assert.equal(commits(), 1);
     assert.equal((await journal.get(receipt.id))?.status, "uncertain");

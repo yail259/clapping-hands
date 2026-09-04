@@ -146,7 +146,7 @@ server.registerTool(
   {
     title: "Compile a form workflow",
     description:
-      "Compile two user-authorized demonstrations of a same-origin HTML form journey into direct validated requests, with deterministic browser fallback for same-document apps.",
+      "Compile two user-authorized demonstrations of a same-origin read-only HTML form journey into direct validated requests, with deterministic browser fallback for same-document apps. Credential and write forms are excluded; use manual auth or the DOM prepare/commit compiler.",
     inputSchema: {
       action: z.string().regex(/^[a-z][a-z0-9_]{1,62}$/),
       startUrl: z.string().url(),

@@ -63,6 +63,7 @@ export type DomWorkflowPlan = {
   repairInstructions: TemplatePart[][];
   validation: {
     maximumActions: number;
+    outputChangeTimeoutMs?: number;
     outputSelector: string;
     outputTagName: string;
     outputMode: "one-of" | "present";
@@ -95,7 +96,9 @@ const SUPPORTED_METHODS = new Set<DomActionMethod>([
   "scrollIntoViewIfNeeded",
 ]);
 const SENSITIVE_INPUT_NAME = /(?:password|passwd|secret|token|csrf|xsrf|session|cookie|authorization|api[_-]?key)/i;
+const EFFECTFUL_LANGUAGE = /\b(?:publish|send|purchase|buy|checkout|place (?:an )?order|delete|post|message|save|create|approve|transfer|pay|book|reserve|subscribe|unsubscribe|follow|like|upload|add to cart)\b/i;
 const MAX_ACTIONS = 30;
+const DEFAULT_OUTPUT_CHANGE_TIMEOUT_MS = 10_000;
 
 function hash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -260,6 +263,13 @@ export function compileDomWorkflow(
   const outputMode = outputTextHashes.length === 1 ? "one-of" : "present";
   const effectLevel = options.effect ?? "read";
   const confirmation = options.confirmation?.trim() || null;
+  const demonstratedLanguage = demonstrations.flatMap((demo) => [
+    ...(demo.instructions ?? []),
+    ...demo.actions.map((candidate) => candidate.description),
+  ]).join(" ");
+  if (effectLevel === "read" && EFFECTFUL_LANGUAGE.test(demonstratedLanguage)) {
+    throw new Error("This demonstration appears effectful; declare it as a write workflow with an explicit confirmation description.");
+  }
   if (effectLevel === "write" && !confirmation) {
     throw new Error("Write workflows require a plain-language confirmation description.");
   }
@@ -284,6 +294,7 @@ export function compileDomWorkflow(
     repairInstructions,
     validation: {
       maximumActions: MAX_ACTIONS,
+      outputChangeTimeoutMs: DEFAULT_OUTPUT_CHANGE_TIMEOUT_MS,
       outputSelector,
       outputTagName,
       outputMode,
@@ -338,13 +349,19 @@ async function outputTextIfPresent(page: Page, selector: string): Promise<string
   return normalizedText(await locator.innerText().catch(() => "")) || null;
 }
 
-async function waitForOutputChange(page: Page, selector: string, before: string | null): Promise<void> {
-  const deadline = Date.now() + 5_000;
+export async function waitForDomOutputChange(
+  page: Page,
+  selector: string,
+  before: string | null,
+  timeoutMs = DEFAULT_OUTPUT_CHANGE_TIMEOUT_MS,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const current = await outputTextIfPresent(page, selector);
     if (current && current !== before) return;
     await delay(50);
   }
+  throw new Error(`DOM output ${selector} did not change after the final action.`);
 }
 
 export async function demonstrateDomWorkflow(
@@ -426,7 +443,12 @@ export async function replayDomWorkflow(
     await executePlaywrightAction(page, materializeAction(template, input));
     await settle(page);
     if (index === plan.actions.length - 1) {
-      await waitForOutputChange(page, plan.validation.outputSelector, beforeOutput);
+      await waitForDomOutputChange(
+        page,
+        plan.validation.outputSelector,
+        beforeOutput,
+        plan.validation.outputChangeTimeoutMs,
+      );
     }
     assertSameOrigin(page.url(), plan.origin, "Compiled DOM replay");
     if (page.url() !== beforeUrl) navigations += 1;
@@ -467,7 +489,12 @@ export async function replayDomWorkflowWithStagehand(
     if (result.modelCalls !== 0) throw new Error("Compiled DOM replay unexpectedly invoked a model.");
     await settle(page);
     if (index === plan.actions.length - 1) {
-      await waitForOutputChange(page, plan.validation.outputSelector, beforeOutput);
+      await waitForDomOutputChange(
+        page,
+        plan.validation.outputSelector,
+        beforeOutput,
+        plan.validation.outputChangeTimeoutMs,
+      );
     }
     assertSameOrigin(page.url(), plan.origin, "Compiled DOM replay");
     if (page.url() !== beforeUrl) navigations += 1;

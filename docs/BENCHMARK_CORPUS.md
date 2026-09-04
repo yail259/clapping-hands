@@ -23,12 +23,18 @@ use SauceDemo/Swag Labs for an automated login example.
 
 ## Narrow representative sample
 
+The machine-readable candidate is
+[`bench/corpus-v1.json`](../bench/corpus-v1.json). It declares 27 tasks up
+front; `npm run benchmark:corpus` verifies the minimum application, holdout,
+architecture, effect, policy, and traffic-budget coverage before the corpus can
+be frozen to a compiler Git SHA.
+
 | Site | Ownership / policy basis | Archetype | Representative tasks | Expected compiler path | Role |
 | --- | --- | --- | --- | --- | --- |
 | Controlled local fixture | repository-owned | SPA + JSON fetch | search with varied inputs; response drift; multi-tab request | learned DOM → shadowed JSON → network; forced fallback | development |
 | The Internet | purpose-built automation app | hostile/dynamic DOM | dynamic controls, delayed loading, multiple windows, dropdown/checkbox | learned DOM | development |
 | SauceDemo | public test app used in Sauce Labs automation documentation | authenticated SPA commerce | login handoff, filter inventory, add cart, mock checkout | DOM; prepare/commit for checkout | development |
-| GIAS | policy allows transient low-volume automation resembling normal browsing; bulk use must use downloads | real production server UI | one bounded establishment search with no pagination crawl | HTML form request | development, strict traffic budget |
+| GIAS | policy allows transient low-volume automation resembling normal browsing; bulk use must use downloads | real production hybrid UI | one bounded establishment search with no pagination crawl | learned DOM → captured request candidate → DOM fallback | development, strict traffic budget |
 | WordPress Playground | official isolated browser sandbox intended for experimenting and testing | iframe + admin CRUD | create draft, edit title, explicitly publish | DOM; prepare/commit | unseen holdout |
 | Owned Google Form | form owned by the benchmark operator | hosted multi-step submission | vary answers, prepare, submit once, independently verify response | form/DOM; prepare/commit | unseen holdout |
 | Self-hosted osTicket | repository-controlled installation | authenticated legacy app | search ticket; create ticket; add internal test reply | form/DOM; prepare/commit | unseen holdout |
@@ -39,6 +45,14 @@ auth persistence, dynamic DOM, multi-window behavior, iframes, reversible edits,
 externally visible commits, and the crucial “do not compile the UI when a good
 API exists” decision. InvoicePlane is the first reserve if osTicket proves too
 similar to the form cohort.
+
+The initial read-only inspection changed the GIAS classification: choosing a
+search mode reveals a JavaScript-controlled ARIA combobox and autocomplete, so
+it is a hybrid DOM/network task rather than the plain HTML-form case originally
+assumed. SauceDemo's inventory sort is client-only and therefore provides a
+useful DOM-only result rather than a forced network-speedup win. The Internet's
+delayed element appears about five seconds after the final click, which is now
+an explicit stale-output regression case for the runtime.
 
 ## Claim gates
 

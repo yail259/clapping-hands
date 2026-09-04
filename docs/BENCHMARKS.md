@@ -50,7 +50,7 @@ headers.
 ## General compiler development gate — 2026-09-04
 
 This is controlled-fixture evidence, not another live-site benchmark and not a
-speed claim. The current suite has 42 passing tests and the built MCP server
+speed claim. The current suite has 45 passing tests and the built MCP server
 advertises ten management/Marketplace tools before any generated workflow tools
 are loaded.
 
@@ -70,7 +70,9 @@ New regression coverage includes:
   deterministic browser fallback;
 - atomic workflow versioning and stale-evidence rejection; and
 - prepared writes, one-time effect receipts, at-most-once commit, and an
-  `uncertain` terminal state after any post-click ambiguity.
+  `uncertain` terminal state after any post-click ambiguity; and
+- fail-closed output freshness: a cached DOM path cannot report unchanged,
+  pre-action content as a successful fresh result.
 
 The opt-in real-Stagehand local smoke found and fixed a v4 configuration bug:
 Stagehand requires an explicit model configuration instead of inferring one
