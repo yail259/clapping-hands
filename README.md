@@ -40,6 +40,7 @@ In short: **first compile away the model; then compile away the UI.**
 
 - [`docs/PRODUCT_BRIEF.md`](docs/PRODUCT_BRIEF.md) — wedge, user, promise, and MVP
 - [`docs/MCP_DOGFOOD.md`](docs/MCP_DOGFOOD.md) — Marketplace tool, authentication, and safety boundary
+- [`docs/BENCHMARK_PLAN.md`](docs/BENCHMARK_PLAN.md) — multi-site corpus, verification protocol, and claim gates
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — proposed system boundaries
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — staged path to a convincing prototype
 - [`docs/decisions/0001-stagehand.md`](docs/decisions/0001-stagehand.md) — why Stagehand is a replaceable dependency
