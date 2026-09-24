@@ -1,0 +1,800 @@
+{
+  "kind": "alpha-ten-site-runtime",
+  "complete": true,
+  "version": "0.1.0-alpha.1",
+  "rows": [
+    {
+      "site": "yahoo",
+      "definition": {
+        "action": "yahoo_read",
+        "startUrl": "https://finance.yahoo.com/",
+        "goal": "Use quote search to open the ticker in query. Return the exact main company heading including ticker, not its price.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "string"
+        }
+      },
+      "model": "gpt-6-astra",
+      "learning": {
+        "registered": true,
+        "executions": [
+          {
+            "outcome": {
+              "status": "completed",
+              "data": "Apple Inc. (AAPL)"
+            },
+            "engine": "browser-use",
+            "durationMs": 41550.615792,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 4
+          },
+          {
+            "outcome": {
+              "status": "completed",
+              "data": "Microsoft Corporation (MSFT)"
+            },
+            "engine": "browser-use",
+            "durationMs": 34561.904666,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 4
+          }
+        ],
+        "compilation": "unavailable",
+        "wallMs": 77634.422333
+      },
+      "calls": [
+        {
+          "input": {
+            "query": "AMZN"
+          },
+          "restarted": false,
+          "result": {
+            "outcome": {
+              "status": "completed",
+              "data": "Amazon.com, Inc. (AMZN)"
+            },
+            "engine": "browser-use",
+            "durationMs": 43812.931167,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 4
+          },
+          "wallMs": 63050.48666600001,
+          "oracle": {
+            "exact": true,
+            "expected": "Amazon.com, Inc. (AMZN)"
+          }
+        },
+        {
+          "input": {
+            "query": "NVDA"
+          },
+          "restarted": true,
+          "result": {
+            "outcome": {
+              "status": "completed",
+              "data": "NVIDIA Corporation (NVDA)"
+            },
+            "engine": "browser-use",
+            "durationMs": 43857.5165,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 4
+          },
+          "wallMs": 49823.405042,
+          "oracle": {
+            "exact": true,
+            "expected": "NVIDIA Corporation (NVDA)"
+          }
+        }
+      ],
+      "phase": "restart-unseen",
+      "benchmarkKind": "rewritten-runtime",
+      "authProfile": "new-isolated-profile",
+      "finalCompilation": "unavailable",
+      "finished": true,
+      "wallMs": 190509.16475
+    },
+    {
+      "site": "openlibrary",
+      "definition": {
+        "action": "openlibrary_read",
+        "startUrl": "https://openlibrary.org/",
+        "goal": "Search the book catalog for query. Return the exact first book result title in default order. Do not open or borrow it.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "string"
+        }
+      },
+      "model": "gpt-6-astra",
+      "learning": {
+        "registered": true,
+        "executions": [
+          {
+            "outcome": {
+              "status": "completed",
+              "data": "The Hobbit"
+            },
+            "engine": "browser-use",
+            "durationMs": 60733.213082999995,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 9
+          },
+          {
+            "outcome": {
+              "status": "completed",
+              "data": "Pride and Prejudice"
+            },
+            "engine": "browser-use",
+            "durationMs": 42040.301457999994,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 9
+          }
+        ],
+        "compilation": "unavailable",
+        "wallMs": 104363.16820900001
+      },
+      "calls": [
+        {
+          "input": {
+            "query": "dune"
+          },
+          "restarted": false,
+          "result": {
+            "outcome": {
+              "status": "completed",
+              "data": "Dune"
+            },
+            "engine": "browser-use",
+            "durationMs": 43221.963249999986,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 8
+          },
+          "wallMs": 65414.287083,
+          "oracle": {
+            "exact": true,
+            "expected": "Dune"
+          }
+        },
+        {
+          "input": {
+            "query": "moby dick"
+          },
+          "restarted": true,
+          "result": {
+            "outcome": {
+              "status": "completed",
+              "data": "Moby Dick"
+            },
+            "engine": "browser-use",
+            "durationMs": 46530.657542,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 9
+          },
+          "wallMs": 53535.116290999984,
+          "oracle": {
+            "exact": true,
+            "expected": "Moby Dick"
+          }
+        }
+      ],
+      "phase": "restart-unseen",
+      "benchmarkKind": "rewritten-runtime",
+      "authProfile": "new-isolated-profile",
+      "finalCompilation": "unavailable",
+      "finished": true,
+      "wallMs": 223313.330834
+    },
+    {
+      "site": "rba",
+      "definition": {
+        "action": "rba_read",
+        "startUrl": "https://www.rba.gov.au/calculator/",
+        "goal": "Use the Calendar Year inflation calculator. Enter amount, start_year and end_year and Calculate. Return adjusted_amount as a number, preserving the displayed cents of the computed equivalent basket cost. Do not calculate independently or use Financial Year or Quarterly tabs.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "amount": {
+              "type": "number"
+            },
+            "start_year": {
+              "type": "integer"
+            },
+            "end_year": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "amount",
+            "start_year",
+            "end_year"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "adjusted_amount": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "adjusted_amount"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "model": "gpt-6-astra",
+      "learning": {
+        "registered": true,
+        "executions": [
+          {
+            "outcome": {
+              "status": "completed",
+              "data": {
+                "adjusted_amount": 150.66
+              }
+            },
+            "engine": "browser-use",
+            "durationMs": 41644.070125,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 2
+          },
+          {
+            "outcome": {
+              "status": "completed",
+              "data": {
+                "adjusted_amount": 366.15
+              }
+            },
+            "engine": "browser-use",
+            "durationMs": 34354.47104199999,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 2
+          }
+        ],
+        "compilation": "unavailable",
+        "wallMs": 77009.990375
+      },
+      "calls": [
+        {
+          "input": {
+            "amount": 75.25,
+            "start_year": 2000,
+            "end_year": 2016
+          },
+          "restarted": false,
+          "result": {
+            "outcome": {
+              "status": "completed",
+              "data": {
+                "adjusted_amount": 114.83
+              }
+            },
+            "engine": "browser-use",
+            "durationMs": 31500.56908300001,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 2
+          },
+          "wallMs": 32571.05916600005,
+          "oracle": {
+            "exact": null,
+            "reason": "independent-oracle-not-implemented"
+          }
+        },
+        {
+          "input": {
+            "amount": 125.5,
+            "start_year": 2001,
+            "end_year": 2015
+          },
+          "restarted": true,
+          "result": {
+            "outcome": {
+              "status": "completed",
+              "data": {
+                "adjusted_amount": 181.12
+              }
+            },
+            "engine": "browser-use",
+            "durationMs": 29904.17216700001,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 2
+          },
+          "wallMs": 30407.338999999978,
+          "oracle": {
+            "exact": null,
+            "reason": "independent-oracle-not-implemented"
+          }
+        }
+      ],
+      "phase": "restart-unseen",
+      "benchmarkKind": "rewritten-runtime",
+      "authProfile": "new-isolated-profile",
+      "finalCompilation": "unavailable",
+      "finished": true,
+      "wallMs": 139988.980875
+    },
+    {
+      "site": "govuk",
+      "definition": {
+        "action": "govuk_read",
+        "startUrl": "https://www.gov.uk/search/all",
+        "goal": "Search for query. Return the exact title of the first main result in default relevance order.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "string"
+        }
+      },
+      "model": "gpt-6-astra",
+      "learning": {
+        "registered": true,
+        "executions": [
+          {
+            "outcome": {
+              "status": "completed",
+              "data": "Income Tax: introduction"
+            },
+            "engine": "browser-use",
+            "durationMs": 52942.78350000002,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 3
+          },
+          {
+            "outcome": {
+              "status": "completed",
+              "data": "Plan your retirement income"
+            },
+            "engine": "browser-use",
+            "durationMs": 38023.144541000016,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 7
+          }
+        ],
+        "compilation": "unavailable",
+        "wallMs": 91590.584
+      },
+      "calls": [
+        {
+          "input": {
+            "query": "passport"
+          },
+          "restarted": false,
+          "result": {
+            "outcome": {
+              "status": "completed",
+              "data": "Renew or replace your adult passport"
+            },
+            "engine": "browser-use",
+            "durationMs": 45915.659167000034,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 8
+          },
+          "wallMs": 50219.750499999966,
+          "oracle": {
+            "exact": true,
+            "expected": "Renew or replace your adult passport"
+          }
+        },
+        {
+          "input": {
+            "query": "driving licence"
+          },
+          "restarted": true,
+          "result": {
+            "outcome": {
+              "status": "completed",
+              "data": "Driving licences"
+            },
+            "engine": "browser-use",
+            "durationMs": 31654.392209000012,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 15
+          },
+          "wallMs": 34905.35795800004,
+          "oracle": {
+            "exact": true,
+            "expected": "Driving licences"
+          }
+        }
+      ],
+      "phase": "restart-unseen",
+      "benchmarkKind": "rewritten-runtime",
+      "authProfile": "new-isolated-profile",
+      "finalCompilation": "unavailable",
+      "finished": true,
+      "wallMs": 176716.42641600003
+    },
+    {
+      "site": "transport",
+      "definition": {
+        "action": "transport_read",
+        "startUrl": "https://transportnsw.info/trip",
+        "goal": "Plan a public transport trip departing now from Central Station Sydney to the Sydney station in query. Choose matching station suggestions. Return the exact duration text of the first suggested journey.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "string"
+        }
+      },
+      "model": "gpt-6-astra",
+      "learning": {
+        "registered": false,
+        "executions": [
+          {
+            "outcome": {
+              "status": "timeout"
+            },
+            "engine": "browser-use",
+            "durationMs": 180019.44929199998,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 24
+          }
+        ],
+        "compilation": "unavailable",
+        "wallMs": 190570.53266600007
+      },
+      "calls": [],
+      "phase": "learning",
+      "benchmarkKind": "rewritten-runtime",
+      "authProfile": "new-isolated-profile",
+      "finished": true,
+      "wallMs": 190570.638041
+    },
+    {
+      "site": "ikea",
+      "definition": {
+        "action": "ikea_read",
+        "startUrl": "https://www.ikea.com/au/en/",
+        "goal": "Search for query and return the first product name. Do not add to cart.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "string"
+        }
+      },
+      "model": "gpt-6-astra",
+      "learning": {
+        "registered": false,
+        "executions": [
+          {
+            "outcome": {
+              "status": "access-restricted"
+            },
+            "engine": "browser-use",
+            "durationMs": 14551.371540999971,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 1
+          }
+        ],
+        "compilation": "unavailable",
+        "wallMs": 15404.308749999967
+      },
+      "calls": [],
+      "phase": "learning",
+      "benchmarkKind": "rewritten-runtime",
+      "authProfile": "new-isolated-profile",
+      "finished": true,
+      "wallMs": 15404.357874999987
+    },
+    {
+      "site": "bunnings",
+      "definition": {
+        "action": "bunnings_read",
+        "startUrl": "https://www.bunnings.com.au/",
+        "goal": "Search for query and return the first product title. Do not add to cart.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "string"
+        }
+      },
+      "model": "gpt-6-astra",
+      "learning": {
+        "registered": false,
+        "executions": [
+          {
+            "outcome": {
+              "status": "access-restricted"
+            },
+            "engine": "browser-use",
+            "durationMs": 44692.56024999998,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 1
+          }
+        ],
+        "compilation": "unavailable",
+        "wallMs": 46608.469291000045
+      },
+      "calls": [],
+      "phase": "learning",
+      "benchmarkKind": "rewritten-runtime",
+      "authProfile": "new-isolated-profile",
+      "finished": true,
+      "wallMs": 46608.564916
+    },
+    {
+      "site": "bom",
+      "definition": {
+        "action": "bom_read",
+        "startUrl": "https://www.bom.gov.au/",
+        "goal": "Find the weather forecast for query. Return today’s displayed maximum temperature together with its date.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "string"
+        }
+      },
+      "model": "gpt-6-astra",
+      "learning": {
+        "registered": false,
+        "executions": [
+          {
+            "outcome": {
+              "status": "access-restricted"
+            },
+            "engine": "browser-use",
+            "durationMs": 13142.881333000027,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 1
+          }
+        ],
+        "compilation": "unavailable",
+        "wallMs": 13744.80008299998
+      },
+      "calls": [],
+      "phase": "learning",
+      "benchmarkKind": "rewritten-runtime",
+      "authProfile": "new-isolated-profile",
+      "finished": true,
+      "wallMs": 13744.834750000038
+    },
+    {
+      "site": "ebay",
+      "definition": {
+        "action": "ebay_read",
+        "startUrl": "https://www.ebay.com.au/",
+        "goal": "Search for query and return the first non-sponsored product title. Do not bid, buy or save anything.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "string"
+        }
+      },
+      "model": "gpt-6-astra",
+      "learning": {
+        "registered": true,
+        "executions": [
+          {
+            "outcome": {
+              "status": "completed",
+              "data": "Artiss Modular Sofa Bed with Ottoman Sectional Boneless Couch Corduroy Sofa"
+            },
+            "engine": "browser-use",
+            "durationMs": 87918.98895799997,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 17
+          },
+          {
+            "outcome": {
+              "status": "completed",
+              "data": "ALFORDSON Office Chair Gaming Executive Computer Footrest PU Leather Work Seat"
+            },
+            "engine": "browser-use",
+            "durationMs": 89763.63629199995,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 28
+          }
+        ],
+        "compilation": "unavailable",
+        "wallMs": 186649.53108399996
+      },
+      "calls": [
+        {
+          "input": {
+            "query": "cordless drill"
+          },
+          "restarted": false,
+          "result": {
+            "outcome": {
+              "status": "completed",
+              "data": "36V CORDLESS DRILL HEAVY DUTY IMPACT DRIVER KIT BRUSHLESS HAMMER +2 BATTERY KIT"
+            },
+            "engine": "browser-use",
+            "durationMs": 97645.00004199997,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 21
+          },
+          "wallMs": 98468.38041700004,
+          "oracle": {
+            "exact": null,
+            "reason": "independent-oracle-not-implemented"
+          }
+        },
+        {
+          "input": {
+            "query": "guitar"
+          },
+          "restarted": true,
+          "result": {
+            "outcome": {
+              "status": "completed",
+              "data": "Alpha 38” Inch Full-Size Acoustic Guitar Wooden Folk Classical Cutaway Steel"
+            },
+            "engine": "browser-use",
+            "durationMs": 74678.94112500001,
+            "modelCalls": null,
+            "fallback": false,
+            "capturedResponses": 22
+          },
+          "wallMs": 83570.79462499998,
+          "oracle": {
+            "exact": null,
+            "reason": "independent-oracle-not-implemented"
+          }
+        }
+      ],
+      "phase": "restart-unseen",
+      "benchmarkKind": "rewritten-runtime",
+      "authProfile": "new-isolated-profile",
+      "finalCompilation": "unavailable",
+      "finished": true,
+      "wallMs": 368689.76820899994
+    },
+    {
+      "site": "marketplace",
+      "definition": {
+        "action": "marketplace_read",
+        "startUrl": "https://www.facebook.com/marketplace/sydney/",
+        "goal": "Search Sydney Marketplace for query. Return the first listing title. Do not message, save listings or contact sellers. Use existing authentication only.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "string"
+        }
+      },
+      "model": "gpt-6-astra",
+      "learning": null,
+      "calls": [],
+      "phase": "learning",
+      "benchmarkKind": "rewritten-runtime",
+      "authProfile": "existing-user-authorized-profile",
+      "failure": {
+        "phase": "learning",
+        "category": "Error"
+      },
+      "wallMs": 215460.76954100002
+    }
+  ],
+  "limits": [
+    "Read-only tasks only",
+    "Caller schemas validated; only three sites have independent result oracles",
+    "Browser model counts unavailable (null), not zero",
+    "No access bypass",
+    "Compilation optional; no fresh-token network compilation in this alpha"
+  ]
+}

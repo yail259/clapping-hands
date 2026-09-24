@@ -1,0 +1,18 @@
+{
+  "scope": "Current source on advertised minimum Node 22.18.0, macOS, local regression fixtures; no production websites or model calls",
+  "node": "22.18.0",
+  "icu": "77.1",
+  "initialTests": 272,
+  "initialFailures": 3,
+  "cause": "Host TextDecoder windows-1252 mapped C1 bytes as ISO-8859-1, differing from Chromium",
+  "fix": "Explicit WHATWG Windows-1252 C1 mapping; independent fixture text replaces host decoder in browser differential test",
+  "reference": "https://encoding.spec.whatwg.org/index-windows-1252.txt",
+  "buildPassed": true,
+  "fixedTests": 273,
+  "fixedFailures": 0,
+  "node25TargetedTests": 20,
+  "node25TargetedFailures": 0,
+  "beforeEvidence": ".data/release-smokes/node22-2wEMnK-before.tap",
+  "afterEvidence": ".data/release-smokes/node22-2wEMnK-after.tap",
+  "limitations": ["Frozen archive predates the fix", "Not all Node/ICU distributions tested", "Full Node 25 suite was not repeated for this fix; affected browser differential tests passed", "System Node installation unchanged"]
+}

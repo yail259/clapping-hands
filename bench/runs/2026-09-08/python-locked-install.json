@@ -1,0 +1,17 @@
+{
+  "scope": "Clean macOS Python 3.12 install from universal hash-locked requirements; no production browser run",
+  "passed": true,
+  "python": "3.12.7",
+  "browserUse": "0.13.10",
+  "requirementsLockSha256": "59d90e7a08f6290f9fbc05f8983ea227cbbff8802b54f9347e6f0979443e770c",
+  "installedPackages": 107,
+  "identicalToAuditedVersions": true,
+  "hashVerificationRequired": true,
+  "compatibilityCheckPassed": true,
+  "agentBrowserSessionHttpxImportsPassed": true,
+  "auditTool": "pip-audit 2.10.1",
+  "auditService": "pypi",
+  "knownVulnerabilities": 0,
+  "skippedPackages": 0,
+  "limitations": ["Known-advisory audit only, not proof of absence of vulnerabilities", "Additional universal-lock platform branches were not installed or audited", "No Linux or Windows execution signoff", "Final packaged MCP acceptance must use the locked environment"]
+}

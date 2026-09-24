@@ -11,10 +11,10 @@ classification and confirmation are deliberately designed.
 
 ## Architectural constraints
 
-- Stagehand is a replaceable dependency behind `BrowserLearner`.
-- The action IR and persisted plans must not contain Stagehand-specific types.
+- Browser Use is the managed whole-task navigation adapter. Caller-driven demonstrations are allowed through explicit recorded-session interfaces; do not introduce a custom navigation loop.
+- Baseline task contracts must work without a compiled replay recipe.
 - Plans may be cached; dynamic output data must be freshly retrieved.
-- Optimize progressively: semantic browser, cached UI, hardened DOM, then network.
+- Promote network candidates only after held-out comparisons; browser fallback remains available.
 - Keep browser fallback and evidence for every promoted network operation.
 - Never persist or print authentication secrets.
 
@@ -24,4 +24,3 @@ classification and confirmation are deliberately designed.
 - Record material architectural choices under `docs/decisions/`.
 - Add controlled fixture tests before relying on third-party websites.
 - Measure success rate, latency, model calls, and fallback rate for every level.
-

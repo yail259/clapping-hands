@@ -1,0 +1,28 @@
+{
+  "site": "rba",
+  "sourceReport": "bench/runs/2026-09-07/alpha-ten-1788745698645-rba.json",
+  "kind": "independent-live-ui-oracle",
+  "mathematicalCorrectnessClaim": false,
+  "results": [
+    {
+      "input": {
+        "amount": 75.25,
+        "start_year": 2000,
+        "end_year": 2016
+      },
+      "expected": 114.83,
+      "actual": 114.83,
+      "exact": true
+    },
+    {
+      "input": {
+        "amount": 125.5,
+        "start_year": 2001,
+        "end_year": 2015
+      },
+      "expected": 181.12,
+      "actual": 181.12,
+      "exact": true
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "gate": "schema-first-real-provider-projection",
+  "passed": true,
+  "scenario": "numeric-source-nested-output",
+  "scope": "Synthetic evidence only. Verifies actual provider schema admission and learned translation, not browser learning or production generalization.",
+  "manualProjection": false,
+  "independentUiOrModelActivityProof": false,
+  "usage": {
+    "modelCalls": 1,
+    "inputTokens": 656,
+    "outputTokens": 18
+  },
+  "heldoutRows": 4,
+  "exact": true,
+  "currentVersusPreviousPrice": true,
+  "heldoutModelCalls": 0,
+  "providerAttempts": 1,
+  "providerStatuses": [
+    200
+  ],
+  "syntheticMappingDiagnostic": {
+    "kind": "object",
+    "fields": [
+      {
+        "name": "listings",
+        "projection": {
+          "kind": "array",
+          "path": [
+            "records"
+          ],
+          "item": {
+            "kind": "object",
+            "fields": [
+              {
+                "name": "title",
+                "projection": {
+                  "kind": "value",
+                  "path": [
+                    "label"
+                  ],
+                  "transform": {
+                    "kind": "identity"
+                  }
+                }
+              },
+              {
+                "name": "pricing",
+                "projection": {
+                  "kind": "object",
+                  "fields": [
+                    {
+                      "name": "current",
+                      "projection": {
+                        "kind": "value",
+                        "path": [
+                          "amounts",
+                          "asking"
+                        ],
+                        "transform": {
+                          "kind": "identity"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "semanticDecision": {
+    "approved": true,
+    "reason": "semantics-supported"
+  },
+  "durationMs": 1872
+}

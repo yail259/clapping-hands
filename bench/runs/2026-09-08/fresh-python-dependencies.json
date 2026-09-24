@@ -1,0 +1,438 @@
+{
+  "scope": "Fresh isolated virtual environment, not a cross-platform lockfile or vulnerability audit",
+  "platform": "darwin",
+  "arch": "arm64",
+  "python": "3.12.7",
+  "requirement": "browser-use==0.13.10",
+  "dependencyCompatibilityCheckPassed": true,
+  "packages": [
+    {
+      "name": "aiofiles",
+      "version": "25.1.0"
+    },
+    {
+      "name": "aiohappyeyeballs",
+      "version": "2.7.1"
+    },
+    {
+      "name": "aiohttp",
+      "version": "3.14.3"
+    },
+    {
+      "name": "aiosignal",
+      "version": "1.4.0"
+    },
+    {
+      "name": "annotated-types",
+      "version": "0.8.0"
+    },
+    {
+      "name": "anthropic",
+      "version": "0.76.0"
+    },
+    {
+      "name": "anyio",
+      "version": "4.12.1"
+    },
+    {
+      "name": "attrs",
+      "version": "26.1.0"
+    },
+    {
+      "name": "backoff",
+      "version": "2.2.1"
+    },
+    {
+      "name": "beautifulsoup4",
+      "version": "4.15.0"
+    },
+    {
+      "name": "browser-harness",
+      "version": "0.1.13"
+    },
+    {
+      "name": "browser-use",
+      "version": "0.13.10"
+    },
+    {
+      "name": "browser-use-sdk",
+      "version": "3.4.2"
+    },
+    {
+      "name": "bubus",
+      "version": "1.5.6"
+    },
+    {
+      "name": "cdp-use",
+      "version": "1.4.5"
+    },
+    {
+      "name": "certifi",
+      "version": "2026.7.22"
+    },
+    {
+      "name": "cffi",
+      "version": "2.1.1"
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.5.1"
+    },
+    {
+      "name": "click",
+      "version": "8.3.3"
+    },
+    {
+      "name": "cloudpickle",
+      "version": "3.1.2"
+    },
+    {
+      "name": "cryptography",
+      "version": "50.0.1"
+    },
+    {
+      "name": "cython",
+      "version": "3.3.0"
+    },
+    {
+      "name": "distro",
+      "version": "1.9.0"
+    },
+    {
+      "name": "docstring-parser",
+      "version": "0.18.0"
+    },
+    {
+      "name": "fetch-use",
+      "version": "0.4.0"
+    },
+    {
+      "name": "frozenlist",
+      "version": "1.8.0"
+    },
+    {
+      "name": "google-api-core",
+      "version": "2.29.0"
+    },
+    {
+      "name": "google-api-python-client",
+      "version": "2.188.0"
+    },
+    {
+      "name": "google-auth",
+      "version": "2.48.0"
+    },
+    {
+      "name": "google-auth-httplib2",
+      "version": "0.4.2"
+    },
+    {
+      "name": "google-auth-oauthlib",
+      "version": "1.2.4"
+    },
+    {
+      "name": "google-genai",
+      "version": "1.65.0"
+    },
+    {
+      "name": "googleapis-common-protos",
+      "version": "1.75.3"
+    },
+    {
+      "name": "groq",
+      "version": "1.0.0"
+    },
+    {
+      "name": "h11",
+      "version": "0.16.0"
+    },
+    {
+      "name": "httpcore",
+      "version": "1.0.9"
+    },
+    {
+      "name": "httpcore2",
+      "version": "2.12.0"
+    },
+    {
+      "name": "httplib2",
+      "version": "0.32.0"
+    },
+    {
+      "name": "httpx",
+      "version": "0.28.1"
+    },
+    {
+      "name": "httpx2",
+      "version": "2.12.0"
+    },
+    {
+      "name": "idna",
+      "version": "3.19"
+    },
+    {
+      "name": "inquirerpy",
+      "version": "0.3.4"
+    },
+    {
+      "name": "jiter",
+      "version": "0.16.0"
+    },
+    {
+      "name": "jsonschema",
+      "version": "4.26.0"
+    },
+    {
+      "name": "jsonschema-specifications",
+      "version": "2025.9.1"
+    },
+    {
+      "name": "lxml",
+      "version": "6.1.3"
+    },
+    {
+      "name": "markdown-it-py",
+      "version": "4.2.0"
+    },
+    {
+      "name": "markdownify",
+      "version": "1.2.2"
+    },
+    {
+      "name": "mcp",
+      "version": "2.1.1"
+    },
+    {
+      "name": "mcp-types",
+      "version": "2.1.1"
+    },
+    {
+      "name": "mdurl",
+      "version": "0.1.2"
+    },
+    {
+      "name": "multidict",
+      "version": "6.7.1"
+    },
+    {
+      "name": "oauthlib",
+      "version": "3.3.1"
+    },
+    {
+      "name": "ollama",
+      "version": "0.6.1"
+    },
+    {
+      "name": "openai",
+      "version": "2.26.0"
+    },
+    {
+      "name": "opentelemetry-api",
+      "version": "1.44.0"
+    },
+    {
+      "name": "pfzy",
+      "version": "0.3.4"
+    },
+    {
+      "name": "pillow",
+      "version": "12.3.0"
+    },
+    {
+      "name": "portalocker",
+      "version": "4.3.0"
+    },
+    {
+      "name": "posthog",
+      "version": "7.7.0"
+    },
+    {
+      "name": "prompt-toolkit",
+      "version": "3.0.53"
+    },
+    {
+      "name": "propcache",
+      "version": "0.5.2"
+    },
+    {
+      "name": "proto-plus",
+      "version": "1.28.4"
+    },
+    {
+      "name": "protobuf",
+      "version": "6.33.6"
+    },
+    {
+      "name": "psutil",
+      "version": "7.2.2"
+    },
+    {
+      "name": "pyasn1",
+      "version": "0.6.4"
+    },
+    {
+      "name": "pyasn1-modules",
+      "version": "0.4.2"
+    },
+    {
+      "name": "pycparser",
+      "version": "3.0"
+    },
+    {
+      "name": "pydantic",
+      "version": "2.13.5"
+    },
+    {
+      "name": "pydantic-core",
+      "version": "2.46.5"
+    },
+    {
+      "name": "pydantic-settings",
+      "version": "2.15.0"
+    },
+    {
+      "name": "pygments",
+      "version": "2.21.0"
+    },
+    {
+      "name": "pyjwt",
+      "version": "2.13.0"
+    },
+    {
+      "name": "pyobjc-core",
+      "version": "12.2.2"
+    },
+    {
+      "name": "pyobjc-framework-cocoa",
+      "version": "12.2.2"
+    },
+    {
+      "name": "pyotp",
+      "version": "2.9.0"
+    },
+    {
+      "name": "pyparsing",
+      "version": "3.3.2"
+    },
+    {
+      "name": "pypdf",
+      "version": "6.16.2"
+    },
+    {
+      "name": "python-dateutil",
+      "version": "2.9.0.post0"
+    },
+    {
+      "name": "python-docx",
+      "version": "1.2.0"
+    },
+    {
+      "name": "python-dotenv",
+      "version": "1.2.2"
+    },
+    {
+      "name": "python-multipart",
+      "version": "0.0.32"
+    },
+    {
+      "name": "referencing",
+      "version": "0.37.0"
+    },
+    {
+      "name": "reportlab",
+      "version": "4.4.9"
+    },
+    {
+      "name": "requests",
+      "version": "2.33.0"
+    },
+    {
+      "name": "requests-oauthlib",
+      "version": "2.0.0"
+    },
+    {
+      "name": "rich",
+      "version": "14.3.3"
+    },
+    {
+      "name": "rpds-py",
+      "version": "2026.6.3"
+    },
+    {
+      "name": "rsa",
+      "version": "4.9.1"
+    },
+    {
+      "name": "screeninfo",
+      "version": "0.8.1"
+    },
+    {
+      "name": "six",
+      "version": "1.17.0"
+    },
+    {
+      "name": "sniffio",
+      "version": "1.3.1"
+    },
+    {
+      "name": "soupsieve",
+      "version": "2.9.2"
+    },
+    {
+      "name": "sse-starlette",
+      "version": "3.4.11"
+    },
+    {
+      "name": "starlette",
+      "version": "1.6.0"
+    },
+    {
+      "name": "tenacity",
+      "version": "9.1.4"
+    },
+    {
+      "name": "tqdm",
+      "version": "4.70.0"
+    },
+    {
+      "name": "truststore",
+      "version": "0.10.4"
+    },
+    {
+      "name": "typing-extensions",
+      "version": "4.15.0"
+    },
+    {
+      "name": "typing-inspection",
+      "version": "0.4.4"
+    },
+    {
+      "name": "uritemplate",
+      "version": "4.2.0"
+    },
+    {
+      "name": "urllib3",
+      "version": "2.7.0"
+    },
+    {
+      "name": "uuid7",
+      "version": "0.1.0"
+    },
+    {
+      "name": "uvicorn",
+      "version": "0.52.4"
+    },
+    {
+      "name": "wcwidth",
+      "version": "0.8.3"
+    },
+    {
+      "name": "websockets",
+      "version": "15.0.1"
+    },
+    {
+      "name": "yarl",
+      "version": "1.24.5"
+    }
+  ]
+}

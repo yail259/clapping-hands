@@ -1,0 +1,354 @@
+{
+  "kind": "model-authored-js-compilation-experiment",
+  "createdAt": "2026-09-07T14:09:40.561Z",
+  "browserUseInvocations": 0,
+  "rows": [
+    {
+      "site": "openlibrary",
+      "proposalId": "1788787198885-ed9d4e07-e23c-46d8-ae9c-6da3f7375578",
+      "sourceSha256": "1769283abae0475ef65167de5e962b94ecce239dde733adc3a7c7f8048b6680a",
+      "compileMs": 30174.997917,
+      "exact": 6,
+      "comparisonMismatches": 0,
+      "executionFailures": 0,
+      "restartExact": 3,
+      "independentBrowserChecks": 0,
+      "sameResponseParserChecks": 6,
+      "executionModelCalls": 0,
+      "successfulCallMs": {
+        "min": 1708.131625,
+        "median": 4085.176250000004,
+        "max": 8406.715833
+      },
+      "cohorts": [
+        {
+          "evidenceId": "1788787211854-dbef4434-a0b6-4bf7-bcc9-b590b339ee7c",
+          "transport": "network",
+          "exact": 3,
+          "attempts": 3
+        },
+        {
+          "evidenceId": "1788787234607-e9cc6164-cde4-458a-ab12-8690422d22ed",
+          "transport": "network",
+          "exact": 3,
+          "attempts": 3
+        }
+      ],
+      "tier": "network",
+      "networkRequestsPerSuccessfulCall": 1
+    },
+    {
+      "site": "yahoo",
+      "proposalId": "1788787363741-a3830872-8383-4ec5-8d09-dd58a86eb4bb",
+      "sourceSha256": "463b31e1023378dd29103790eec4643510f2c62d2a33c6d3b4e46975a422d2ab",
+      "compileMs": 19537.899458,
+      "exact": 6,
+      "comparisonMismatches": 0,
+      "executionFailures": 0,
+      "restartExact": 3,
+      "independentBrowserChecks": 0,
+      "sameResponseParserChecks": 6,
+      "executionModelCalls": 0,
+      "successfulCallMs": {
+        "min": 1192.7277500000018,
+        "median": 1959.695042,
+        "max": 2271.0954169999995
+      },
+      "cohorts": [
+        {
+          "evidenceId": "1788787368878-5919f9d4-ffe9-42dd-bee2-1422a83d6c64",
+          "transport": "network",
+          "exact": 3,
+          "attempts": 3
+        },
+        {
+          "evidenceId": "1788787486567-d40a8497-f7d4-411b-9986-143e86870830",
+          "transport": "network",
+          "exact": 3,
+          "attempts": 3
+        }
+      ],
+      "tier": "network",
+      "networkRequestsPerSuccessfulCall": 1
+    },
+    {
+      "site": "govuk",
+      "proposalId": "1788787363742-47b22bc4-1f46-4df4-90d2-78e9d8c8adde",
+      "sourceSha256": "21a9ad6d0bcacdec37c01f526b4f454078e5a130498a3bafc9463b74065ad947",
+      "compileMs": 17814.721916,
+      "exact": 6,
+      "comparisonMismatches": 0,
+      "executionFailures": 0,
+      "restartExact": 3,
+      "independentBrowserChecks": 0,
+      "sameResponseParserChecks": 6,
+      "executionModelCalls": 0,
+      "successfulCallMs": {
+        "min": 111.63908300000003,
+        "median": 2420.303291,
+        "max": 2559.298749999998
+      },
+      "cohorts": [
+        {
+          "evidenceId": "1788787371199-36b4cf41-c27c-495a-82b0-70d9e4e6c6d7",
+          "transport": "network",
+          "exact": 3,
+          "attempts": 3
+        },
+        {
+          "evidenceId": "1788787487266-d0e75578-407f-4e71-ae0e-e8ffcc0e748d",
+          "transport": "network",
+          "exact": 3,
+          "attempts": 3
+        }
+      ],
+      "tier": "network",
+      "networkRequestsPerSuccessfulCall": 1
+    },
+    {
+      "site": "rba",
+      "proposalId": "1788787389120-ad365111-402a-4a8e-8bd1-a1ca28d44acf",
+      "sourceSha256": "b01a620ef78d8f34df3153414363f0aaae6baeb0b505808881ec261c36475f38",
+      "compileMs": 17767.542790999996,
+      "exact": 6,
+      "comparisonMismatches": 0,
+      "executionFailures": 0,
+      "restartExact": 3,
+      "independentBrowserChecks": 0,
+      "sameResponseParserChecks": 6,
+      "executionModelCalls": 0,
+      "successfulCallMs": {
+        "min": 132.97675000000163,
+        "median": 207.30216700000005,
+        "max": 1280.416292
+      },
+      "cohorts": [
+        {
+          "evidenceId": "1788787389847-5fb6cfc7-391e-4a52-982b-e6c7495a501c",
+          "transport": "network",
+          "exact": 3,
+          "attempts": 3
+        },
+        {
+          "evidenceId": "1788787489093-8d1362c9-1d34-49a8-9f2b-2a4f60a36cdc",
+          "transport": "network",
+          "exact": 3,
+          "attempts": 3
+        }
+      ],
+      "tier": "network",
+      "networkRequestsPerSuccessfulCall": 1
+    },
+    {
+      "site": "bunnings",
+      "proposalId": "1788787576328-d6049435-d1ac-4b7f-87be-9b3923dc7a38",
+      "sourceSha256": "865dd46d9a13233c79a9076164da15059590eced0941b462dd6ea41a774b6df3",
+      "compileMs": 18508.482667,
+      "exact": 5,
+      "comparisonMismatches": 0,
+      "executionFailures": 1,
+      "restartExact": 3,
+      "independentBrowserChecks": 0,
+      "sameResponseParserChecks": 5,
+      "executionModelCalls": 0,
+      "successfulCallMs": {
+        "min": 1534.4684999999954,
+        "median": 1719.528583,
+        "max": 1889.5287499999977
+      },
+      "cohorts": [
+        {
+          "evidenceId": "1788787609809-1acc8fa1-3c18-4540-b5e9-837792462636",
+          "transport": "network",
+          "exact": 2,
+          "attempts": 3
+        },
+        {
+          "evidenceId": "1788787745076-caf0bfa5-cf03-49a8-87d8-96553e99a2ae",
+          "transport": "network",
+          "exact": 3,
+          "attempts": 3
+        }
+      ],
+      "tier": "network",
+      "networkRequestsPerSuccessfulCall": 1
+    },
+    {
+      "site": "ikea",
+      "proposalId": "1788788156757-6b70906e-4335-4a97-b5d8-aa41405f8ebe",
+      "sourceSha256": "dcb92287595e777873cb72ce56339190eeadba28e02f6b32139b48610c5fdd3e",
+      "compileMs": 24840.387375000002,
+      "exact": 6,
+      "comparisonMismatches": 0,
+      "executionFailures": 0,
+      "restartExact": 3,
+      "independentBrowserChecks": 6,
+      "sameResponseParserChecks": 0,
+      "executionModelCalls": 0,
+      "successfulCallMs": {
+        "min": 327.7766250000004,
+        "median": 642.0712079999998,
+        "max": 796.0285000000003
+      },
+      "cohorts": [
+        {
+          "evidenceId": "1788788162781-6c7ab07b-237b-4644-83df-60f1cd5e62d6",
+          "transport": "network",
+          "exact": 3,
+          "attempts": 3
+        },
+        {
+          "evidenceId": "1788788298622-ce7d1bb4-c949-416c-bcfe-d53dd4380ea5",
+          "transport": "network",
+          "exact": 3,
+          "attempts": 3
+        }
+      ],
+      "tier": "network",
+      "networkRequestsPerSuccessfulCall": 1
+    },
+    {
+      "site": "transport",
+      "proposalId": "1788789230058-a18e4417-fb6a-446c-9093-688ce26a9e62",
+      "sourceSha256": "1fe98eb74f36ccaf715e4be72ac9a2745858393ae00be062f9de911d50224a6c",
+      "compileMs": 29881.778541,
+      "exact": 6,
+      "comparisonMismatches": 0,
+      "executionFailures": 0,
+      "restartExact": 3,
+      "independentBrowserChecks": 6,
+      "sameResponseParserChecks": 0,
+      "executionModelCalls": 0,
+      "successfulCallMs": {
+        "min": 995.5460420000018,
+        "median": 1112.847292,
+        "max": 1207.8770829999994
+      },
+      "cohorts": [
+        {
+          "evidenceId": "1788789238758-9af0b847-721e-45ae-87ec-538be516904b",
+          "transport": "network",
+          "exact": 3,
+          "attempts": 3
+        },
+        {
+          "evidenceId": "1788789375396-f8d18534-5aa3-496b-a2da-2284988af78a",
+          "transport": "network",
+          "exact": 3,
+          "attempts": 3
+        }
+      ],
+      "tier": "network",
+      "networkRequestsPerSuccessfulCall": 3
+    },
+    {
+      "site": "marketplace",
+      "proposalId": "1788788997083-23d225da-9fc8-4b47-8456-a9dbb4c0f1ef",
+      "sourceSha256": "b67a8669a91dc24dd57f71842b549d8dcfa9079bbc39332749db5f01385d0214",
+      "compileMs": 46025.007458,
+      "exact": 6,
+      "comparisonMismatches": 0,
+      "executionFailures": 6,
+      "restartExact": 6,
+      "independentBrowserChecks": 6,
+      "sameResponseParserChecks": 0,
+      "executionModelCalls": 0,
+      "successfulCallMs": {
+        "min": 9976.471333,
+        "median": 10289.089042,
+        "max": 10985.65575
+      },
+      "cohorts": [
+        {
+          "evidenceId": "1788788998727-2888d751-e1ce-437f-a8e6-068eb7e96c23",
+          "transport": "request-context",
+          "exact": 0,
+          "attempts": 3
+        },
+        {
+          "evidenceId": "1788789102897-c98c5aeb-3d78-40c9-a14b-def986b0ab0b",
+          "transport": "browser-native",
+          "exact": 0,
+          "attempts": 3
+        },
+        {
+          "evidenceId": "1788789364537-fc4eda27-480f-4c91-ac13-9acde9669a49",
+          "transport": "browser-document",
+          "exact": 3,
+          "attempts": 3
+        },
+        {
+          "evidenceId": "1788789475995-aea00d13-16ae-4dc8-a233-2e423728ec9d",
+          "transport": "browser-document",
+          "exact": 3,
+          "attempts": 3
+        }
+      ],
+      "tier": "browser-document; network attempts failed",
+      "networkRequestsPerSuccessfulCall": null
+    },
+    {
+      "site": "tender",
+      "proposalId": "1788789613161-5852b716-fa1f-4807-b6a8-f505ce155f75",
+      "sourceSha256": "7a4f7c18b7f4022d01365fb567cf4fd5f0999cad88ecda724b733f65f206808d",
+      "compileMs": 31309.070625000004,
+      "exact": 6,
+      "comparisonMismatches": 3,
+      "executionFailures": 0,
+      "restartExact": 6,
+      "independentBrowserChecks": 9,
+      "sameResponseParserChecks": 0,
+      "executionModelCalls": 0,
+      "successfulCallMs": {
+        "min": 3304.782209000001,
+        "median": 4083.4806659999995,
+        "max": 4702.125749999999
+      },
+      "cohorts": [
+        {
+          "evidenceId": "1788789648550-1602a660-9034-4167-83ba-386e70119a55",
+          "transport": "network",
+          "exact": 0,
+          "attempts": 3
+        },
+        {
+          "evidenceId": "1788789885310-e24f435d-9d26-4f12-8eb5-f2146d2a81d1",
+          "transport": "network",
+          "exact": 3,
+          "attempts": 3
+        },
+        {
+          "evidenceId": "1788790039670-95fe6440-b038-4141-8fe8-f8c9b63809b6",
+          "transport": "network",
+          "exact": 3,
+          "attempts": 3
+        }
+      ],
+      "tier": "network",
+      "networkRequestsPerSuccessfulCall": 2
+    }
+  ],
+  "blocked": [
+    {
+      "site": "ebay",
+      "status": "access-restricted",
+      "httpStatus": 403,
+      "evidenceId": "1788788446177-a7fd4199-16d2-4c85-99da-d2a6f45726f3",
+      "compilation": "not-attempted-without-successful-response"
+    },
+    {
+      "site": "bom",
+      "status": "access-restricted",
+      "httpStatus": 403,
+      "evidenceId": "1788788447686-bbca406f-4450-4b3c-87bd-fa52404e3b0c",
+      "compilation": "not-attempted-without-successful-response"
+    }
+  ],
+  "limitations": [
+    "Explicitly supplied, previously observed read resources; not automatic request discovery or MCP integration.",
+    "First five sites use independent parsers of the same fresh response; later sites use independent plain-browser checks.",
+    "Browser-backed Marketplace makes multiple page requests; its resource-call count is not a network-request count.",
+    "Private evidence is required to reproduce saved captures; this is not a portable clean-install benchmark.",
+    "Finite tests do not establish all-input reliability or general website support."
+  ]
+}

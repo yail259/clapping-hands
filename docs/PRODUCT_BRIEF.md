@@ -2,7 +2,8 @@
 
 ## One-line promise
 
-Turn a browser workflow on a site with no usable API into a fast, typed tool.
+Turn website workflows into reusable, typed API/MCP tools—defined by what the
+caller wants, not how the website displays it.
 
 ## Initial user
 
@@ -55,12 +56,20 @@ direction from capabilities verified today.
 The smallest coherent flow is:
 
 1. The user opens or attaches an authenticated browser session.
-2. The user describes a repeated task and the desired fields.
-3. Stagehand performs the task once and gathers evidence.
-4. The compiler proposes a typed action with inputs and outputs.
+2. The user describes a repeated read-only task and supplies typed input/output
+   schemas, including field meanings and units.
+3. The browser learner performs varied demonstrations and gathers evidence.
+4. The compiler learns browser and, where supported, network projections into
+   the same caller-defined output contract.
 5. The user confirms the action.
 6. Later calls return fresh structured results through a CLI, SDK, HTTP, or MCP.
-7. When the fast path fails validation, the system falls back and repairs it.
+7. When the fast path fails validation, the system reports a validated browser
+   fallback or a clear error; it never silently returns schema-shaped guesses.
+
+The UI is evidence for learning the operation and result meanings, not the
+mandatory output format. See [ADR 0006](decisions/0006-caller-defined-contracts.md).
+The v1 commitment is read-only; effectful examples above describe the later
+product horizon, not the current release gate.
 
 Example:
 
@@ -99,7 +108,7 @@ Avoid: "a wrapper around Stagehand" or "another browser agent."
 
 Use:
 
-> Stagehand learns the browser workflow. Clapping Hands turns it into a durable,
+> Browser Use learns the browser workflow. Clapping Hands turns it into a durable,
 > typed tool and progressively optimizes away the expensive parts.
 
 Potential Show HN title:

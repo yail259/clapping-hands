@@ -1,0 +1,42 @@
+{
+  "scope": "Controlled built MCP, real Browser Use and configured model; not packaged release or production-site signoff",
+  "passed": true,
+  "usage": {
+    "requestAttempts": 1,
+    "reportedInvocations": 1,
+    "promptTokens": 9281,
+    "completionTokens": 132,
+    "cachedPromptTokens": 0,
+    "tokenCoverageComplete": true,
+    "costUSD": null
+  },
+  "persistedUsage": {
+    "unit": "tokens",
+    "requestAttempts": 1,
+    "reportedInvocations": 1,
+    "prompt": 9281,
+    "completion": 132,
+    "cachedPrompt": 0,
+    "coverageComplete": true,
+    "costUSD": null
+  },
+  "learningUsage": [
+    {
+      "requestAttempts": 1,
+      "reportedInvocations": 1,
+      "promptTokens": 9283,
+      "completionTokens": 129,
+      "cachedPromptTokens": 6912,
+      "tokenCoverageComplete": true,
+      "costUSD": null
+    }
+  ],
+  "schemasRestoredAfterMcpRestart": true,
+  "strictMcpOutputSchemaVerified": true,
+  "costEstablished": false,
+  "privateEvidenceDirectory": ".data/release-smokes/model-usage-C9xF2j",
+  "failedAttemptsRetained": [
+    ".data/release-smokes/model-usage-AGTBtE",
+    ".data/release-smokes/model-usage-cAuZy2"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "scope": "Current installed archive: offline MCP capture import and legacy decoder on minimum Node 22.18.0. Not a fresh full-model or production acceptance run.",
+  "archiveSha256": "8c5eb2edb9c1c26442fad604733795ec8bd144f549a296a4156f7bef628bf0e3",
+  "archiveBytes": 264758,
+  "shippedFiles": 115,
+  "node": "22.18.0",
+  "installedImportPassed": true,
+  "installedLegacyDecoderPassed": true,
+  "modelCalls": 0,
+  "browserRuns": 0,
+  "networkRequestsDuringBehaviorSmoke": 0,
+  "installedByteMismatches": 0,
+  "missingDocumentationLinks": 0,
+  "credentialPatternFileFlags": 0,
+  "nodeProductionKnownVulnerabilities": 0,
+  "privateArchive": ".data/release-candidates/clapping-hands-8c5eb2edb9c1c264.tgz",
+  "limitations": ["Full 273-test run describes current source, not this installed smoke", "Earlier full-model packaged run used a different archive", "No new production learning, authentication or model calls", "Credential-pattern and advisory scans are not comprehensive security proof", "Production re-recording awaits user approval"]
+}

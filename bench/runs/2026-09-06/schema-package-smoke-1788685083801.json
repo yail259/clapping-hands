@@ -1,0 +1,172 @@
+{
+  "pass": true,
+  "contract": "caller-defined-schema",
+  "scope": "local clean installation and controlled authenticated fixture; not real login/MFA or live-site generalization",
+  "packageFiles": 84,
+  "packageAllowlistPass": true,
+  "runtimeDependencies": {
+    "@ai-sdk/openai": {
+      "source": "4.0.59",
+      "installed": "4.0.59"
+    },
+    "ai": {
+      "source": "7.0.93",
+      "installed": "7.0.93"
+    },
+    "@browserbasehq/stagehand": {
+      "source": "4.0.2",
+      "installed": "4.0.2"
+    },
+    "playwright-core": {
+      "source": "1.62.1",
+      "installed": "1.62.1"
+    },
+    "zod": {
+      "source": "4.4.3",
+      "installed": "4.4.3"
+    }
+  },
+  "cleanProductionInstall": true,
+  "onboarding": {
+    "gate": "controlled-schema-first-built-mcp",
+    "passed": true,
+    "builtArtifact": true,
+    "manualSiteGlue": false,
+    "independentOracle": "Separately authored synthetic expected values; no product projection used by the oracle.",
+    "scope": "Controlled synthetic website and real configured model/Stagehand only; not production-site coverage or real login/MFA.",
+    "learningWallMs": 111528.063709,
+    "learning": {
+      "demonstrations": [
+        {
+          "modelCalls": 10,
+          "inputTokens": 22939,
+          "outputTokens": 881,
+          "durationMs": 59411
+        },
+        {
+          "modelCalls": 10,
+          "inputTokens": 25608,
+          "outputTokens": 747,
+          "durationMs": 37505
+        }
+      ],
+      "translationUsage": {},
+      "networkCandidateAvailable": true,
+      "networkPromotedAtLearning": false,
+      "modelAttemptInstrumentation": false,
+      "countsAreRuntimeReported": true
+    },
+    "explicitInputOutputSchemas": true,
+    "invalidInputsRejectedBeforeFixtureSearch": true,
+    "schemasPreservedAfterRestart": true,
+    "productPathPass": true,
+    "networkObservedBeforeAndAfterRestart": false,
+    "authentication": {
+      "syntheticBootstrap": true,
+      "bootstrapCount": 1,
+      "deniedUnauthenticatedRequests": 1,
+      "authenticatedAfterRestart": true,
+      "realLoginMfaVerified": false
+    },
+    "fixtureTraffic": {
+      "requests": 19,
+      "apiRequests": 7,
+      "authBootstraps": 1,
+      "deniedRequests": 1,
+      "budgetRejected": 0
+    },
+    "executions": [
+      {
+        "query": "lamp",
+        "restarted": false,
+        "engine": "browser-dom",
+        "accelerated": false,
+        "wallMs": 1495.1245000000054,
+        "durationMs": 1461.3600420000002,
+        "runtimeReportedModelCalls": 0,
+        "runtimeReportedActions": 2,
+        "runtimeReportedNavigations": 1,
+        "fixtureApiRequests": 1,
+        "exact": true,
+        "fallback": false
+      },
+      {
+        "query": "desk",
+        "restarted": false,
+        "engine": "browser-dom",
+        "accelerated": false,
+        "wallMs": 1416.9592919999996,
+        "durationMs": 1397.7397920000076,
+        "runtimeReportedModelCalls": 0,
+        "runtimeReportedActions": 2,
+        "runtimeReportedNavigations": 1,
+        "fixtureApiRequests": 1,
+        "exact": true,
+        "fallback": false
+      },
+      {
+        "query": "table",
+        "restarted": false,
+        "engine": "browser-dom",
+        "accelerated": false,
+        "wallMs": 1477.403124999997,
+        "durationMs": 1455.2469579999888,
+        "runtimeReportedModelCalls": 0,
+        "runtimeReportedActions": 2,
+        "runtimeReportedNavigations": 1,
+        "fixtureApiRequests": 1,
+        "exact": true,
+        "fallback": false
+      },
+      {
+        "query": "stool",
+        "restarted": true,
+        "engine": "browser-dom",
+        "accelerated": false,
+        "wallMs": 1986.2804170000018,
+        "durationMs": 1453.2805000000003,
+        "runtimeReportedModelCalls": 0,
+        "runtimeReportedActions": 2,
+        "runtimeReportedNavigations": 1,
+        "fixtureApiRequests": 1,
+        "exact": true,
+        "fallback": false
+      },
+      {
+        "query": "bench",
+        "restarted": true,
+        "engine": "browser-dom",
+        "accelerated": false,
+        "wallMs": 1455.494040999998,
+        "durationMs": 1433.42625,
+        "runtimeReportedModelCalls": 0,
+        "runtimeReportedActions": 2,
+        "runtimeReportedNavigations": 1,
+        "fixtureApiRequests": 1,
+        "exact": true,
+        "fallback": false
+      }
+    ],
+    "performance": {
+      "browser": {
+        "calls": 5,
+        "engineMs": {
+          "minimum": 1397.7397920000076,
+          "maximum": 1461.3600420000002
+        },
+        "wallMs": {
+          "minimum": 1416.9592919999996,
+          "maximum": 1986.2804170000018
+        }
+      },
+      "network": {
+        "calls": 0,
+        "engineMs": null,
+        "wallMs": null
+      },
+      "zeroWarmBrowserActionsIndependentlyVerified": false,
+      "zeroWarmModelAttemptsIndependentlyVerified": false,
+      "instrumentation": "MCP runtime reports and fixture HTTP counts only; child browser/model activity is not independently instrumented."
+    }
+  }
+}

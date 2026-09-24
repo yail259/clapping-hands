@@ -1,0 +1,25 @@
+{
+  "site": "https://openlibrary.org/",
+  "scope": "Approved rich read workflow through packaged MCP; no hand-authored compiler resources or program edits",
+  "archiveSha256": "8c5eb2edb9c1c26442fad604733795ec8bd144f549a296a4156f7bef628bf0e3",
+  "node": "22.18.0",
+  "browserUse": "0.13.10",
+  "output": "First five books: exact title, authors, publication year, absolute URL",
+  "learning": {"inputs":["tolkien","jane austen"],"completed":2,"wallMs":207420.853875,"compilation":"candidate","baselineAndPreparedEvidenceSaved":true},
+  "heldOut": [
+    {"query":"dune","engine":"browser-use","wallMs":134546.308875,"modelCalls":8,"shadowMatch":true},
+    {"query":"moby dick","engine":"browser-use","wallMs":95658.511834,"modelCalls":7,"shadowMatch":true}
+  ],
+  "restart": {"query":"sherlock holmes","modelAndBrowserUseUnavailable":true,"engine":"network","wallMs":6559.798333,"engineMs":6024.904167,"modelCalls":0,"fallback":false,"independentFreshBrowserDomExact":true,"oracleBrowserClosed":true},
+  "sameRunSnapshotOracle": {"exact":4,"total":4,"note":"Independent deterministic parser, not fresh visits"},
+  "finalProgramStatus": "stable",
+  "passed": true,
+  "limitations": [
+    "One workflow and one restart call; not ten-site or authenticated onboarding acceptance",
+    "Different queries and validation overhead prevent a fair matched-input speedup ratio",
+    "Network execution still starts Chrome for its session",
+    "Initial sandbox browser startup failed before demonstrations; failure and profile retained"
+  ],
+  "privateEvidenceDirectory": ".data/release-smokes/openlibrary-approved-20260908-browser",
+  "scripts": ["scripts/verify-openlibrary-release.mjs","scripts/check-openlibrary-snapshots.mjs","scripts/check-openlibrary-restart.mjs"]
+}

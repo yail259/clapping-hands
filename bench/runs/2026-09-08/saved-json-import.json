@@ -1,0 +1,14 @@
+{
+  "scope": "Offline generic JSON capture restoration and integrated resource preparation using retained IKEA evidence",
+  "offlinePrepared": true,
+  "liveCompilationVerified": false,
+  "browserRuns": 0,
+  "modelCalls": 0,
+  "networkRequests": 0,
+  "restoredExchangesPerCapture": [1, 1],
+  "preparedResources": 1,
+  "preparedEvidenceId": "1788825315072-c93b0dba-80d6-482e-a532-17270f0af7ac",
+  "privateReport": ".data/integrated-production/ikea-1788825314917/acceptance.json",
+  "representation": "sanitized-json-semantics",
+  "limitations": ["No original wire-byte or HTML recorder identity reconstructed", "Form and omitted request bodies remain unsupported", "No runnable tool or API authorization created by the importer", "Not yet exposed as MCP raw-evidence import", "Live IKEA verification still requires the pending destination approval"]
+}

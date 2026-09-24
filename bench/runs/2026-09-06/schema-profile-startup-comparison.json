@@ -1,0 +1,57 @@
+{
+  "kind": "schema-first-profile-startup-comparison",
+  "observedDate": "2026-09-06",
+  "scope": "Read-only Marketplace initial-navigation diagnostics before further model-led learning. Each browser used its own existing or freshly allocated profile; no authentication data was copied or deleted.",
+  "productionLearning": {
+    "report": "schema-marketplace-1788687809567.json",
+    "passed": false,
+    "stage": "learning",
+    "executions": 0,
+    "modelUsage": null
+  },
+  "normalDriverSequence": [
+    {
+      "profile": "existing",
+      "report": "schema-browser-startup-1788688209121.json",
+      "navigationPassed": false,
+      "navigationMs": 30001.84425
+    },
+    {
+      "profile": "fresh-isolated-anonymous",
+      "report": "schema-browser-startup-1788688379971.json",
+      "navigationPassed": true,
+      "navigationMs": 2528.6817499999997,
+      "mainDocumentStatus": 200
+    },
+    {
+      "profile": "existing",
+      "report": "schema-browser-startup-1788688886986.json",
+      "navigationPassed": false,
+      "navigationMs": 30002.988208
+    }
+  ],
+  "otherEvidence": {
+    "stagehandBackedExistingProfileAlsoTimedOut": "schema-browser-startup-1788688015688.json",
+    "earlyUnclassifiedLaunchFailureExcludedFromNavigationComparison": "schema-browser-startup-1788688852325.json",
+    "metadataOnlyDatalessEntryCount": 124,
+    "metadataOnlyDatalessCategories": {
+      "Cache": 35,
+      "Code Cache": 66,
+      "Service Worker": 1,
+      "Shared Dictionary": 1,
+      "other-profile-state": 21
+    }
+  },
+  "interpretation": "The old/fresh/old contrast suggests a profile-dependent failure. macOS-offloaded entries may be relevant, but no causal link, profile corruption, logout or site denial has been established.",
+  "measurementLimits": [
+    "Not a randomized control or a learning/replay benchmark; website state can change between sequential observations.",
+    "Fresh-profile negative authentication checks are not proof of signed-in state.",
+    "All browser-only diagnostics deliberately invoke zero model operations; that does not establish model usage for the earlier failed learning trial.",
+    "The pre-fix browser wrapper suppressed close failures. Its cleanup passed flag proves only that the wrapper resolved, not that Chrome shutdown was independently verified.",
+    "The recorded navigation abort has no event timing and may have resulted from timeout cleanup.",
+    "Filesystem metadata inspection did not read cookie, local-storage, service-worker or preference contents. Dataless entry counts are not a corruption diagnosis."
+  ],
+  "productionNetworkPass": false,
+  "secondProductionSitePass": false,
+  "nextBoundary": "Resolve initial navigation using an intact authorized local profile before attempting fresh schema-first learning again. Preserve the saved profile and original investigation cutoff."
+}

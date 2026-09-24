@@ -1,0 +1,17 @@
+{
+  "scope": "Real compiler model, controlled local dependent search/details requests; not production or packaged MCP signoff",
+  "passed": true,
+  "sourceHash": "9d48039040daa798b75f7aa6cf967d90541b6a4036b0d8b05e729f8e4dd7aff4",
+  "preparedEvidenceId": "1788823095566-59b98666-3eeb-48d1-81e2-122bafaf8e9a",
+  "unseenMatches": 3,
+  "restartMatch": true,
+  "requestsPerCall": 2,
+  "modelCallsPerReplay": 0,
+  "browserUseRuns": 0,
+  "retainedResponses": 10,
+  "lastEngineMs": 138.34545799999978,
+  "regressionTestsPassed": 263,
+  "privateEvidenceDirectory": ".data/release-smokes/dependent-1788823095065",
+  "resultEvidenceId": "1788823112392-9eb6ad81-0a82-4531-a92e-f78a03d003f7",
+  "timingExcludesBrowserStartup": true
+}

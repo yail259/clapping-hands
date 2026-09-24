@@ -1,0 +1,29 @@
+{
+  "scope": "Controlled local fixture; real Browser Use and model compiler through installed MCP package. Not production-site or human-authentication signoff.",
+  "passed": true,
+  "version": "0.1.0-alpha.3",
+  "archiveSha256": "63569bfab9c1bafa07cc6a5ae1697510405902f124f11defdb11df950aa4a8c0",
+  "archiveBytes": 133473,
+  "shippedFiles": 94,
+  "installedByteMismatches": 0,
+  "credentialPatternFileFlags": 0,
+  "nodeProductionAuditKnownVulnerabilities": 0,
+  "python": "3.12.7",
+  "browserUse": "0.13.10",
+  "compatiblePythonPackages": 107,
+  "privateEvidence": ".data/release-smokes/mcp-1788823612003/acceptance.json",
+  "learningWallMs": 58365.167625,
+  "heldOutExactComparisons": 2,
+  "restartWithModelAndBrowserAgentUnavailable": {
+    "passed": true,
+    "freshRequests": 1,
+    "documentRequests": 0,
+    "modelCalls": 0,
+    "wallMs": 513.4082500000077
+  },
+  "matchedComparisons": [
+    {"query":"zeta","exact":true,"baselineWallMs":18962.70083300001,"compiledWallMs":532.1292499999981,"speedup":35.635516809121235},
+    {"query":"eta","exact":true,"baselineWallMs":19883.268332999985,"compiledWallMs":527.1904579999973,"speedup":37.71553151479856}
+  ],
+  "limitations": ["Two timing samples only", "Learning and held-out validation costs excluded from warm speedups", "Credential pattern scan is not a comprehensive security audit", "Python compatibility check is not a vulnerability audit", "No live production sites or human login tested", "No publication or desktop runtime replacement performed"]
+}

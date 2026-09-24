@@ -1,0 +1,19 @@
+{
+  "gate": "schema-first-real-provider-projection",
+  "passed": true,
+  "scenario": "coincidental-quantity-versus-price",
+  "scope": "Synthetic evidence only. Verifies actual provider schema admission and learned translation, not browser learning or production generalization.",
+  "manualProjection": false,
+  "independentUiOrModelActivityProof": false,
+  "refusedCoincidentalMapping": true,
+  "refusal": "SEMANTIC_EVIDENCE_REQUIRED",
+  "providerAttempts": 1,
+  "providerStatuses": [
+    200
+  ],
+  "semanticDecision": {
+    "approved": false,
+    "reason": "field-role-mismatch"
+  },
+  "durationMs": 1947
+}

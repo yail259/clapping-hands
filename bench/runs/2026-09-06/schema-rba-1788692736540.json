@@ -1,0 +1,353 @@
+{
+  "version": 1,
+  "startedAt": "2026-09-06T11:05:36.539Z",
+  "kind": "production-schema-first-browser-smoke",
+  "site": "RBA Calendar Year inflation calculator",
+  "startUrl": "https://www.rba.gov.au/calculator/",
+  "dataDirectory": ".data/second-site/schema-rba-1788692736540",
+  "callerInputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "amount",
+      "start_year",
+      "end_year"
+    ],
+    "properties": {
+      "amount": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 10000,
+        "description": "Synthetic initial basket cost in Australian dollars, with at most two decimal places. This is the starting amount, not the calculator's adjusted result."
+      },
+      "start_year": {
+        "type": "integer",
+        "minimum": 1966,
+        "maximum": 2025,
+        "description": "Starting calendar year of the basket cost, not a financial year or quarter."
+      },
+      "end_year": {
+        "type": "integer",
+        "minimum": 1966,
+        "maximum": 2025,
+        "description": "Ending calendar year for the adjusted basket cost; must be later than start_year."
+      }
+    }
+  },
+  "callerOutputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "adjusted_amount"
+    ],
+    "properties": {
+      "adjusted_amount": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1000000,
+        "description": "The calculator's displayed equivalent basket cost in the ending calendar year, in Australian dollars as a number preserving the displayed cents. Not the starting amount, either year, the percentage inflation rate, or a financial-year/quarterly result. Read the computed result after Calculate; do not independently calculate, invent, round or replace the site's answer."
+      }
+    }
+  },
+  "manualSiteGlueInLearner": false,
+  "workload": {
+    "demonstrations": [
+      {
+        "amount": 100,
+        "start_year": 2000,
+        "end_year": 2015
+      },
+      {
+        "amount": 250.5,
+        "start_year": 2001,
+        "end_year": 2016
+      }
+    ],
+    "replayPhases": [
+      [
+        {
+          "amount": 75.25,
+          "start_year": 2000,
+          "end_year": 2016
+        },
+        {
+          "amount": 125.5,
+          "start_year": 2001,
+          "end_year": 2015
+        },
+        {
+          "amount": 325,
+          "start_year": 2000,
+          "end_year": 2015
+        }
+      ],
+      [
+        {
+          "amount": 75.25,
+          "start_year": 2000,
+          "end_year": 2016
+        },
+        {
+          "amount": 325,
+          "start_year": 2001,
+          "end_year": 2016
+        },
+        {
+          "amount": 1,
+          "start_year": 2001,
+          "end_year": 2015
+        }
+      ]
+    ],
+    "calls": 6,
+    "distinctHoldouts": 5,
+    "replayRestarts": 1
+  },
+  "oracle": {
+    "reviewed": "2026-09-06",
+    "calculator": "https://www.rba.gov.au/calculator/",
+    "historicalData": "https://www.abs.gov.au/statistics/economy/price-indexes-and-inflation/consumer-price-index-australia/dec-2020",
+    "table": "3 Longer term series: all groups CPI, weighted average of eight capital cities",
+    "historicalReferencePeriod": "2011-12 = 100.0",
+    "rereferencing": "https://www.abs.gov.au/statistics/detailed-methodology-information/information-papers/re-referencing-quarterly-consumer-price-index",
+    "robots": "https://www.rba.gov.au/robots.txt",
+    "terms": "https://www.rba.gov.au/copyright/",
+    "attribution": "Source: Australian Bureau of Statistics; method described by the Reserve Bank of Australia. Neither institution endorses this project.",
+    "method": "Calendar-year CPI is the arithmetic mean of four quarterly indexes; the averaging factors cancel in the end/start ratio. Historical diagnostic rounds only the final positive amount to cents, using integer arithmetic.",
+    "limitation": "ARCHIVAL comparison only, not a current financial oracle: 100 AUD, 2000 to 2015 yields 150.65 from this table but prior normal UI checks returned 150.66. ABS re-referenced the quarterly series in January 2026; the cause of this specific discrepancy and widget rounding semantics are unverified. No tolerance or observed-answer substitution is used."
+  },
+  "browserPass": true,
+  "networkPass": false,
+  "passed": true,
+  "mathematicalCorrectnessProven": false,
+  "network": {
+    "classification": "no-validated-json-calculation-network-candidate",
+    "observedArchitecture": "server-backed-html-form",
+    "accelerationProven": false,
+    "latencyMs": null
+  },
+  "measurement": "Runtime wall and reported engine durations exclude the subsequent read-only oracle. First call of each phase includes browser startup. Learning closes before replay; another runtime/browser restart separates the phases. No extra oracle Calculate or page navigation is performed.",
+  "replayModelEvidence": "Reported modelCalls plus semantic-factory/act/observe tripwires and scoped Node fetch interception during run(). Attempts are prevented and counted, not completed model calls. Not whole-process provider instrumentation. Browser DOM actions/navigation remain necessary and are not claimed to be zero.",
+  "limitations": [
+    "Exact typed extraction and requested UI state, not independent financial/formula correctness",
+    "Archival CPI disagreement is reported without tolerance; cause unverified",
+    "One anonymous synthetic workflow; authentication not tested",
+    "No usable calculator API identified, not proof none exists; underlying CPI data are publicly downloadable",
+    "Observed calculator uses server-backed HTML form POST; current JSON-only network compiler cannot compile that HTML response",
+    "Architecture coverage, not the acute Marketplace use case or site-wide support",
+    "Direct runtime smoke, not MCP install/transport verification",
+    "No calculator implementation copied; no RBA/ABS endorsement; not financial advice"
+  ],
+  "learning": {
+    "wallMs": 168903,
+    "demonstrations": [
+      {
+        "modelCalls": 23,
+        "inputTokens": 520004,
+        "outputTokens": 1736,
+        "durationMs": 92059
+      },
+      {
+        "modelCalls": 21,
+        "inputTokens": 473266,
+        "outputTokens": 1103,
+        "durationMs": 74967
+      }
+    ],
+    "translation": null,
+    "persistedCallerContract": true,
+    "reportedCandidateAvailable": false,
+    "acceptedNetworkCandidate": false,
+    "networkPromoted": false
+  },
+  "executions": [
+    {
+      "phaseIndex": 0,
+      "index": 0,
+      "input": {
+        "amount": 75.25,
+        "start_year": 2000,
+        "end_year": 2016
+      },
+      "engine": "browser-dom",
+      "wallMs": 4525,
+      "engineMs": 3981.992750000005,
+      "oracleMs": 11,
+      "semanticFactoryAttempts": 0,
+      "modelOperationAttempts": 0,
+      "nodeFetchAttempts": 0,
+      "typedOutputValid": true,
+      "typedOutputExact": true,
+      "inputStateExact": true,
+      "controlsVerified": true,
+      "modelCalls": 0,
+      "output": {
+        "adjusted_amount": 114.83
+      },
+      "uiAmount": 114.83,
+      "historicalAmount": 114.81,
+      "historicalFormulaExact": false,
+      "historicalDeltaCents": 2,
+      "mathematicalCorrectnessProven": false,
+      "passed": true
+    },
+    {
+      "phaseIndex": 0,
+      "index": 1,
+      "input": {
+        "amount": 125.5,
+        "start_year": 2001,
+        "end_year": 2015
+      },
+      "engine": "browser-dom",
+      "wallMs": 3785,
+      "engineMs": 3771.621791999991,
+      "oracleMs": 9,
+      "semanticFactoryAttempts": 0,
+      "modelOperationAttempts": 0,
+      "nodeFetchAttempts": 0,
+      "typedOutputValid": true,
+      "typedOutputExact": true,
+      "inputStateExact": true,
+      "controlsVerified": true,
+      "modelCalls": 0,
+      "output": {
+        "adjusted_amount": 181.12
+      },
+      "uiAmount": 181.12,
+      "historicalAmount": 181.08,
+      "historicalFormulaExact": false,
+      "historicalDeltaCents": 4,
+      "mathematicalCorrectnessProven": false,
+      "passed": true
+    },
+    {
+      "phaseIndex": 0,
+      "index": 2,
+      "input": {
+        "amount": 325,
+        "start_year": 2000,
+        "end_year": 2015
+      },
+      "engine": "browser-dom",
+      "wallMs": 3881,
+      "engineMs": 3867.3256669999973,
+      "oracleMs": 11,
+      "semanticFactoryAttempts": 0,
+      "modelOperationAttempts": 0,
+      "nodeFetchAttempts": 0,
+      "typedOutputValid": true,
+      "typedOutputExact": true,
+      "inputStateExact": true,
+      "controlsVerified": true,
+      "modelCalls": 0,
+      "output": {
+        "adjusted_amount": 489.66
+      },
+      "uiAmount": 489.66,
+      "historicalAmount": 489.6,
+      "historicalFormulaExact": false,
+      "historicalDeltaCents": 6,
+      "mathematicalCorrectnessProven": false,
+      "passed": true
+    },
+    {
+      "phaseIndex": 1,
+      "index": 0,
+      "input": {
+        "amount": 75.25,
+        "start_year": 2000,
+        "end_year": 2016
+      },
+      "engine": "browser-dom",
+      "wallMs": 4336,
+      "engineMs": 3930.7923329999903,
+      "oracleMs": 9,
+      "semanticFactoryAttempts": 0,
+      "modelOperationAttempts": 0,
+      "nodeFetchAttempts": 0,
+      "typedOutputValid": true,
+      "typedOutputExact": true,
+      "inputStateExact": true,
+      "controlsVerified": true,
+      "modelCalls": 0,
+      "output": {
+        "adjusted_amount": 114.83
+      },
+      "uiAmount": 114.83,
+      "historicalAmount": 114.81,
+      "historicalFormulaExact": false,
+      "historicalDeltaCents": 2,
+      "mathematicalCorrectnessProven": false,
+      "passed": true
+    },
+    {
+      "phaseIndex": 1,
+      "index": 1,
+      "input": {
+        "amount": 325,
+        "start_year": 2001,
+        "end_year": 2016
+      },
+      "engine": "browser-dom",
+      "wallMs": 3798,
+      "engineMs": 3782.0653750000056,
+      "oracleMs": 9,
+      "semanticFactoryAttempts": 0,
+      "modelOperationAttempts": 0,
+      "nodeFetchAttempts": 0,
+      "typedOutputValid": true,
+      "typedOutputExact": true,
+      "inputStateExact": true,
+      "controlsVerified": true,
+      "modelCalls": 0,
+      "output": {
+        "adjusted_amount": 475.04
+      },
+      "uiAmount": 475.04,
+      "historicalAmount": 474.92,
+      "historicalFormulaExact": false,
+      "historicalDeltaCents": 12,
+      "mathematicalCorrectnessProven": false,
+      "passed": true
+    },
+    {
+      "phaseIndex": 1,
+      "index": 2,
+      "input": {
+        "amount": 1,
+        "start_year": 2001,
+        "end_year": 2015
+      },
+      "engine": "browser-dom",
+      "wallMs": 3865,
+      "engineMs": 3834.680791999999,
+      "oracleMs": 11,
+      "semanticFactoryAttempts": 0,
+      "modelOperationAttempts": 0,
+      "nodeFetchAttempts": 0,
+      "typedOutputValid": true,
+      "typedOutputExact": true,
+      "inputStateExact": true,
+      "controlsVerified": true,
+      "modelCalls": 0,
+      "output": {
+        "adjusted_amount": 1.44
+      },
+      "uiAmount": 1.44,
+      "historicalAmount": 1.44,
+      "historicalFormulaExact": true,
+      "historicalDeltaCents": 0,
+      "mathematicalCorrectnessProven": false,
+      "passed": true
+    }
+  ],
+  "activity": {
+    "semanticFactoryAttempts": 0,
+    "modelOperationAttempts": 0,
+    "nodeFetchAttempts": 0
+  },
+  "browserCloseFailures": 0,
+  "historicalFormulaDisagreements": 5,
+  "finishedAt": "2026-09-06T11:08:54.852Z"
+}

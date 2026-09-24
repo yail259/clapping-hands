@@ -1,0 +1,44 @@
+{
+  "scope": "Frozen installed MCP package, controlled local fixture with real Browser Use and compiler model; no production or human-authentication signoff",
+  "archiveSha256": "9ba07dce36f0e25d432b4ba9fd040fe57e1b0a2d9b1004b28abda479a14191cd",
+  "archiveBytes": 257238,
+  "shippedFiles": 107,
+  "installedByteMismatches": 0,
+  "missingDocumentationLinks": 0,
+  "credentialPatternFileFlags": 0,
+  "nodeProductionKnownVulnerabilities": 0,
+  "installedErrorRecoveryPassed": true,
+  "python": "3.12.7",
+  "browserUse": "0.13.10",
+  "pythonLockSha256": "59d90e7a08f6290f9fbc05f8983ea227cbbff8802b54f9347e6f0979443e770c",
+  "privateEvidence": ".data/release-smokes/mcp-1788824696092/acceptance.json",
+  "heldOutExactComparisons": 2,
+  "restart": {
+    "modelsUnavailable": true,
+    "browserAgentUnavailable": true,
+    "modelCalls": 0,
+    "freshRequests": 1,
+    "documentRequests": 0,
+    "wallMs": 594.3532080000004
+  },
+  "passed": true,
+  "learningWallMs": 70164.014125,
+  "comparisons": [
+    {
+      "phase": "matched-comparison",
+      "query": "zeta",
+      "exact": true,
+      "baselineWallMs": 19654.957916999992,
+      "compiledWallMs": 540.5228329999954,
+      "speedup": 36.362863355672815
+    },
+    {
+      "phase": "matched-comparison",
+      "query": "eta",
+      "exact": true,
+      "baselineWallMs": 35653.81604199999,
+      "compiledWallMs": 611.645583000005,
+      "speedup": 58.29162677366984
+    }
+  ]
+}

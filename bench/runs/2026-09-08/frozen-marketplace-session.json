@@ -1,0 +1,12 @@
+{
+  "scope": "Frozen package, existing human-authenticated dedicated profile, one read-only Marketplace page visit",
+  "checkedAt": "2026-09-07T23:51:41.982Z",
+  "archiveSha256": "9ba07dce36f0e25d432b4ba9fd040fe57e1b0a2d9b1004b28abda479a14191cd",
+  "httpStatus": 200,
+  "authGatePassed": true,
+  "visibleListingFound": true,
+  "cleanup": true,
+  "browserUseRuns": 0,
+  "modelCalls": 0,
+  "limitations": ["Reuses an existing human login; no fresh login or MFA handoff", "No listing contents or cookies exported", "Not a generated MCP task or network compilation test", "One access check, not an expiry or reliability estimate"]
+}

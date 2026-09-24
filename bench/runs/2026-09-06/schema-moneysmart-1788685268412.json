@@ -1,0 +1,223 @@
+{
+  "version": 1,
+  "startedAt": "2026-09-06T09:01:08.411Z",
+  "kind": "production-schema-first-browser-smoke",
+  "site": "ASIC Moneysmart mortgage calculator",
+  "startUrl": "https://moneysmart.gov.au/home-loans/mortgage-calculator",
+  "dataDirectory": ".data/second-site/schema-moneysmart-1788685268412",
+  "manualSiteGlueInLearner": false,
+  "callerInputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "principal"
+    ],
+    "properties": {
+      "principal": {
+        "type": "integer",
+        "minimum": 10000,
+        "maximum": 1000000,
+        "description": "Synthetic initial mortgage loan amount in whole dollars, entered as the loan amount. Not income, deposit, fees or property price."
+      }
+    }
+  },
+  "callerOutputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "monthly_repayment_amount"
+    ],
+    "properties": {
+      "monthly_repayment_amount": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100000,
+        "description": "The displayed regular monthly principal-and-interest repayment amount, as a whole number of dollars rounded exactly as the calculator displays it. Exclude currency symbols and frequency labels. This is not total repayments, total interest, loan principal, an ongoing fee or a comparison result."
+      }
+    }
+  },
+  "workload": {
+    "demonstrations": 2,
+    "unseenPrincipals": [
+      400000,
+      750000,
+      250000
+    ],
+    "callsPerReplayPhase": 3,
+    "replayRestarts": 1
+  },
+  "independentOracle": "Read-only result locator plus an independent amortization formula; neither supplied to the learner/compiler",
+  "measurement": "Run wall/engine time exclude the subsequent oracle read. First call in each replay phase includes persistent-browser startup. Learning browser closes before replay; one further runtime/browser restart separates the two replay phases.",
+  "replayModelEvidence": "Runtime-reported model calls plus rejected semantic-factory attempts and a scoped Node fetch tripwire. The tripwire prevents attempted Node fetch requests during run(), not browser page traffic; it is not whole-process/provider instrumentation.",
+  "apiScope": "Expected client-side calculation; no supported calculation API used or assumed. Asset/analytics requests may still occur.",
+  "browserPass": true,
+  "networkPass": false,
+  "passed": true,
+  "network": {
+    "classification": "no-validated-calculation-network-candidate",
+    "accelerationProven": false,
+    "latencyMs": null
+  },
+  "limitations": [
+    "One synthetic read workflow, not site-wide support",
+    "No authentication required or tested",
+    "Not financial advice or validation of loan suitability",
+    "No copying or redistribution of calculator implementation",
+    "Direct runtime path, not a generated MCP transport/install smoke",
+    "Browser DOM execution, not zero-UI or browser-free execution"
+  ],
+  "learning": {
+    "wallMs": 217447,
+    "metrics": [
+      {
+        "modelCalls": 26,
+        "inputTokens": 476232,
+        "outputTokens": 2070,
+        "durationMs": 110790
+      },
+      {
+        "modelCalls": 23,
+        "inputTokens": 354909,
+        "outputTokens": 1253,
+        "durationMs": 104934
+      }
+    ],
+    "persistedCallerContract": true,
+    "reportedCandidateAvailable": false,
+    "acceptedNetworkCandidate": false,
+    "networkPromoted": false,
+    "translation": {
+      "deterministicAttempts": null,
+      "projectionAttempts": null,
+      "modelCallsUpperBound": null
+    }
+  },
+  "executions": [
+    {
+      "principal": 400000,
+      "restarted": false,
+      "engine": "browser-dom",
+      "wallMs": 5447,
+      "engineMs": 4864.556458000006,
+      "oracleMs": 1,
+      "semanticFallbackAttempts": 0,
+      "nodeFetchAttempts": 0,
+      "typedOutputValid": true,
+      "typedOutputExact": true,
+      "formulaExact": true,
+      "modelCalls": 0,
+      "passed": true,
+      "output": {
+        "monthly_repayment_amount": 2577
+      },
+      "uiAmount": 2577,
+      "formulaAmount": 2577
+    },
+    {
+      "principal": 750000,
+      "restarted": false,
+      "engine": "browser-dom",
+      "wallMs": 4371,
+      "engineMs": 4356.3152080000145,
+      "oracleMs": 1,
+      "semanticFallbackAttempts": 0,
+      "nodeFetchAttempts": 0,
+      "typedOutputValid": true,
+      "typedOutputExact": true,
+      "formulaExact": true,
+      "modelCalls": 0,
+      "passed": true,
+      "output": {
+        "monthly_repayment_amount": 4832
+      },
+      "uiAmount": 4832,
+      "formulaAmount": 4832
+    },
+    {
+      "principal": 250000,
+      "restarted": false,
+      "engine": "browser-dom",
+      "wallMs": 4206,
+      "engineMs": 4190.614499999996,
+      "oracleMs": 1,
+      "semanticFallbackAttempts": 0,
+      "nodeFetchAttempts": 0,
+      "typedOutputValid": true,
+      "typedOutputExact": true,
+      "formulaExact": true,
+      "modelCalls": 0,
+      "passed": true,
+      "output": {
+        "monthly_repayment_amount": 1611
+      },
+      "uiAmount": 1611,
+      "formulaAmount": 1611
+    },
+    {
+      "principal": 400000,
+      "restarted": true,
+      "engine": "browser-dom",
+      "wallMs": 4819,
+      "engineMs": 4412.554499999998,
+      "oracleMs": 1,
+      "semanticFallbackAttempts": 0,
+      "nodeFetchAttempts": 0,
+      "typedOutputValid": true,
+      "typedOutputExact": true,
+      "formulaExact": true,
+      "modelCalls": 0,
+      "passed": true,
+      "output": {
+        "monthly_repayment_amount": 2577
+      },
+      "uiAmount": 2577,
+      "formulaAmount": 2577
+    },
+    {
+      "principal": 750000,
+      "restarted": true,
+      "engine": "browser-dom",
+      "wallMs": 4548,
+      "engineMs": 4528.514999999985,
+      "oracleMs": 1,
+      "semanticFallbackAttempts": 0,
+      "nodeFetchAttempts": 0,
+      "typedOutputValid": true,
+      "typedOutputExact": true,
+      "formulaExact": true,
+      "modelCalls": 0,
+      "passed": true,
+      "output": {
+        "monthly_repayment_amount": 4832
+      },
+      "uiAmount": 4832,
+      "formulaAmount": 4832
+    },
+    {
+      "principal": 250000,
+      "restarted": true,
+      "engine": "browser-dom",
+      "wallMs": 4097,
+      "engineMs": 4080.889749999973,
+      "oracleMs": 2,
+      "semanticFallbackAttempts": 0,
+      "nodeFetchAttempts": 0,
+      "typedOutputValid": true,
+      "typedOutputExact": true,
+      "formulaExact": true,
+      "modelCalls": 0,
+      "passed": true,
+      "output": {
+        "monthly_repayment_amount": 1611
+      },
+      "uiAmount": 1611,
+      "formulaAmount": 1611
+    }
+  ],
+  "activity": {
+    "semanticFallbackAttempts": 0,
+    "nodeFetchAttempts": 0
+  },
+  "browserCloseFailures": 0,
+  "finishedAt": "2026-09-06T09:05:18.545Z"
+}

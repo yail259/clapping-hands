@@ -5,7 +5,7 @@
     "moduleResolution": "NodeNext",
     "strict": true,
     "declaration": true,
-    "outDir": "dist",
+    "outDir": "dist-alpha",
     "rootDir": ".",
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -13,4 +13,3 @@
   },
   "include": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts"]
 }
-

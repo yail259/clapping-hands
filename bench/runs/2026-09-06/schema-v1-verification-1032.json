@@ -1,0 +1,71 @@
+{
+  "kind": "schema-first-v1-integration-evidence",
+  "verifiedAt": "2026-09-06T10:32:32Z",
+  "goalComplete": false,
+  "source": {
+    "productionSha256": "47d0a93ff4d5a573dbe5d59019960abfdc20b9f397d5ab89d552ecbecd03748e",
+    "digestMethod": "SHA256 of sorted src/*.ts relative paths, NUL, file bytes, NUL",
+    "comparedSourceScriptTestFiles": 194,
+    "verificationCopyMismatches": 0,
+    "verificationDependencies": "Clean pinned installation; original offloaded node_modules not repaired",
+    "frozenReleaseCommit": false
+  },
+  "fullSuite": {
+    "passed": 487,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 91882.429,
+    "processExitCode": 0
+  },
+  "typecheck": true,
+  "buildAndPackagePrepack": true,
+  "installedPackage": {
+    "report": "schema-package-smoke-1788690642555.json",
+    "onboardingReport": "schema-packaged-onboarding-1788690642555.json",
+    "passed": true,
+    "allowlistedFiles": 90,
+    "recordedDirectDependencyVersionsMatch": true,
+    "typedExactUnseenAndRestartCalls": 5,
+    "browserCalls": 2,
+    "networkCalls": 3,
+    "warmNetworkCallsWithIndependentClientObservations": 2,
+    "observedWarmNetworkUiActions": 0,
+    "observedWarmNetworkNavigationCommands": 0,
+    "observedWarmNetworkConfiguredProviderDispatchAttempts": 0,
+    "firstRestartedCallIncludesBrowserSetup": true,
+    "allBrowserDriversOrModelInvocationsCovered": false,
+    "learningWallMs": 74535.63666599999,
+    "reportedLearningModelCalls": 21,
+    "humanLoginMfaOrDesktopHostVerified": false
+  },
+  "safeFailureEvidence": {
+    "focusedLifecycleProfileRestartTestsPassed": 24,
+    "builtMcpFailureRetryAndNonzeroShutdown": "mcp-shutdown-fault-1788690644672.json",
+    "rootInspectionSanitizationTestsPassed": 2,
+    "unknownLaunchPolicy": "Preserve profile lock for manual inspection when launch fails without a returned owned handle; no guessed targets or automatic recovery.",
+    "ownedExitPolicy": "Positive ESRCH for captured local Chrome identity before release; disconnect flags, missing identity or unknown liveness are not sufficient. No wrapper nonzero PID signals.",
+    "firstRedFixtureHistoricalIdentity": "Interrupted runner exited 1, but original Chrome PID/profile identity was not retained. Later exact-executable/lifecycle-profile-family inspection found zero matching live Chrome processes, not exact historical-PID proof."
+  },
+  "credentialHeuristic": {
+    "filesScanned": 396,
+    "overFourMbLimit": 0,
+    "suspectedPrivateKeyProviderKeyOrJwtFiles": 0,
+    "scope": "Nonignored source/test/docs/benchmark files at scan time; no environment/profile files. Not a full security review."
+  },
+  "productionSites": {
+    "validatedSchemaFirstSites": 1,
+    "requiredSites": 2,
+    "moneysmart": "schema-moneysmart-1788685268412.json",
+    "marketplaceFailureAndControls": "schema-profile-startup-comparison.json",
+    "productionNetworkAcceptance": false,
+    "rba": "Candidate qualified for a not-yet-implemented readonly input.value primitive; no learned tool or unseen/restart/network pass."
+  },
+  "remaining": [
+    "Marketplace initial navigation with a usable authorized profile; no logout/offloading root cause established.",
+    "Second schema-first production workflow without site glue.",
+    "Production unseen/warm/restart network acceleration and stronger independent browser/model coverage.",
+    "Human login/MFA, desktop-host setup and final release/secret review.",
+    "Unknown launch identity requires manual maintenance; not automatic recovery or portable Chrome identity support."
+  ],
+  "networkInvestigationCutoff": "2026-09-08T01:31:00Z, or earlier after two focused investigation days"
+}

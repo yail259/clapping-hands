@@ -1,5 +1,8 @@
 node_modules/
 dist/
+dist-alpha/
+.venv/
+python/__pycache__/
 .env
 .env.*
 !.env.example

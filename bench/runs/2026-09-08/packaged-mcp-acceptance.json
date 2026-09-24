@@ -1,0 +1,30 @@
+{
+  "scope": "controlled fixture, fresh production-only Node installation; existing Browser Use 0.13.10 Python environment",
+  "passed": true,
+  "artifactSha256": "b12642d0db7742d0a7f93de127468a87511750be8fcf876d727595911336ffe8",
+  "artifactBytes": 123101,
+  "shippedFiles": 85,
+  "installedVsSourceMismatchesAtVerification": 0,
+  "reportedDependencyVulnerabilities": 0,
+  "modelAndBrowserAgentDisabledAfterRestart": true,
+  "warmNetworkRequests": 1,
+  "warmFixtureDocumentNavigations": 0,
+  "warmModelCalls": 0,
+  "warmWallMs": 588.1944579999981,
+  "warmEngineMs": 98.73325,
+  "learningWallMs": 54239.794,
+  "heldOutShadowWallMs": [25655.427124999995, 20134.189375],
+  "comparisons": [
+    { "input": { "query": "zeta" }, "exact": true, "baselineWallMs": 23578.559833000007, "compiledWallMs": 1449.8310829999973, "speedup": 16.262970293209012 },
+    { "input": { "query": "eta" }, "exact": true, "baselineWallMs": 20698.320792000013, "compiledWallMs": 537.0878749999974, "speedup": 38.53805262686318 }
+  ],
+  "regressionTestsPassed": 250,
+  "humanLoginTested": false,
+  "pythonCleanInstallTested": false,
+  "productionSiteSpeedupEstablished": false,
+  "baselineModelCallCount": null,
+  "modelCostEstablished": false,
+  "benchmarkIsolation": "local development machine; regression suite ran during part of the acceptance session",
+  "privateEvidenceDirectory": ".data/release-smokes/mcp-1788819686140",
+  "finalReleaseSignoff": false
+}

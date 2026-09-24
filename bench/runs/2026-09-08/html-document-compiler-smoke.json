@@ -1,0 +1,19 @@
+{
+  "scope": "controlled HTML document compiler integration, not production onboarding",
+  "realModel": true,
+  "generatedSourceManuallyEdited": false,
+  "browserUseRuns": 0,
+  "trainingExamples": 2,
+  "heldOutExamples": 1,
+  "heldOutExact": true,
+  "requestsPerExecution": 1,
+  "runtimeModelCalls": 0,
+  "executionDurationMs": 176.6389999999992,
+  "includesSessionStartup": false,
+  "speedupRatioEstablished": false,
+  "sourceHash": "c34d96ff9e4187dbfc3fffb8ca6cd1d9ca2273752497dbdbc23f79283c276226",
+  "privatePreparedEvidenceId": "1788819182196-aa3b31d3-e605-418e-8af9-80a19d1a45d4",
+  "privateResultEvidenceId": "1788819212872-d4cbb4e0-fa3e-4b49-9333-0d387054f525",
+  "regressionTestsPassed": 249,
+  "releaseReady": false
+}

@@ -1,0 +1,12 @@
+{
+  "scope": "Package dry-run after documentation reconciliation; no new archive or production run",
+  "packageFiles": 117,
+  "missingRelativeDocumentationLinks": 0,
+  "runtimeFilesCompared": 90,
+  "runtimeByteChangesAgainstAcceptedInstallation": 0,
+  "acceptedArchiveSha256": "8c5eb2edb9c1c26442fad604733795ec8bd144f549a296a4156f7bef628bf0e3",
+  "includesOpenLibraryProductionReport": true,
+  "scriptSyntaxChecksPassed": 3,
+  "diffWhitespaceCheckPassed": true,
+  "limitations": ["Not a fresh installation or new archive acceptance", "Runtime byte identity does not prove untested release gates"]
+}

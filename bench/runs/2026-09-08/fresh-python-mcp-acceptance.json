@@ -1,0 +1,96 @@
+{
+  "scope": "Controlled MCP acceptance, fresh production-only Node installation and fresh Python virtual environment; existing host Chrome",
+  "artifactSha256": "b12642d0db7742d0a7f93de127468a87511750be8fcf876d727595911336ffe8",
+  "platform": "darwin",
+  "arch": "arm64",
+  "python": "3.12.7",
+  "browserUse": "0.13.10",
+  "pythonDependencyManifest": "fresh-python-dependencies.json",
+  "pythonCleanInstallTested": true,
+  "modelAndBrowserAgentDisabledAfterRestart": true,
+  "warmNetworkRequests": 1,
+  "warmFixtureDocumentNavigations": 0,
+  "humanLoginTested": false,
+  "productionSiteSpeedupEstablished": false,
+  "modelCostEstablished": false,
+  "finalReleaseSignoff": false,
+  "privateEvidenceDirectory": ".data/release-smokes/mcp-1788820361626",
+  "passed": true,
+  "stages": [
+    {
+      "name": "clapping_hands_learn_read",
+      "wallMs": 52425.195084
+    },
+    {
+      "name": "clapping_hands_do_fixture_search",
+      "wallMs": 21156.06816699999,
+      "engine": "browser-use",
+      "engineMs": 20613.650625000002,
+      "modelCalls": null,
+      "shadowMatch": true
+    },
+    {
+      "name": "clapping_hands_do_fixture_search",
+      "wallMs": 18214.26675000001,
+      "engine": "browser-use",
+      "engineMs": 17761.135540999996,
+      "modelCalls": null,
+      "shadowMatch": true
+    },
+    {
+      "name": "clapping_hands_do_fixture_search",
+      "wallMs": 517.0554169999959,
+      "engine": "network",
+      "engineMs": 101.25820799999997,
+      "modelCalls": 0
+    },
+    {
+      "name": "clapping_hands_learn_read",
+      "wallMs": 22243.618334
+    },
+    {
+      "name": "clapping_hands_do_fixture_baseline",
+      "wallMs": 19656.321167000002,
+      "engine": "browser-use",
+      "engineMs": 19143.754167000003,
+      "modelCalls": null
+    },
+    {
+      "name": "clapping_hands_do_fixture_search",
+      "wallMs": 555.9638330000162,
+      "engine": "network",
+      "engineMs": 147.30841599999985,
+      "modelCalls": 0
+    },
+    {
+      "phase": "matched-comparison",
+      "query": "zeta",
+      "baselineWallMs": 19656.321167000002,
+      "compiledWallMs": 555.9638330000162,
+      "speedup": 35.35539544170211,
+      "exact": true
+    },
+    {
+      "name": "clapping_hands_do_fixture_baseline",
+      "wallMs": 20784.44620799998,
+      "engine": "browser-use",
+      "engineMs": 20300.104792,
+      "modelCalls": null
+    },
+    {
+      "name": "clapping_hands_do_fixture_search",
+      "wallMs": 566.5707909999765,
+      "engine": "network",
+      "engineMs": 129.6759579999998,
+      "modelCalls": 0
+    },
+    {
+      "phase": "matched-comparison",
+      "query": "eta",
+      "baselineWallMs": 20784.44620799998,
+      "compiledWallMs": 566.5707909999765,
+      "speedup": 36.6846412454765,
+      "exact": true
+    }
+  ]
+}

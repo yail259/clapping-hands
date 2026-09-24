@@ -1,0 +1,231 @@
+{
+  "site": "rba",
+  "definition": {
+    "action": "rba_read",
+    "startUrl": "https://www.rba.gov.au/calculator/",
+    "goal": "Use the Calendar Year inflation calculator. Enter amount, start_year and end_year and Calculate. Return adjusted_amount as a number, preserving the displayed cents of the computed equivalent basket cost. Do not calculate independently or use Financial Year or Quarterly tabs.",
+    "effect": "read",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number"
+        },
+        "start_year": {
+          "type": "integer"
+        },
+        "end_year": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "amount",
+        "start_year",
+        "end_year"
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "adjusted_amount": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "adjusted_amount"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "model": "gpt-6-astra",
+  "learning": {
+    "registered": true,
+    "executions": [
+      {
+        "outcome": {
+          "status": "completed",
+          "data": {
+            "adjusted_amount": 150.66
+          }
+        },
+        "engine": "browser-use",
+        "durationMs": 32460.749875,
+        "modelCalls": null,
+        "fallback": false,
+        "capturedResponses": 2
+      },
+      {
+        "outcome": {
+          "status": "completed",
+          "data": {
+            "adjusted_amount": 366.15
+          }
+        },
+        "engine": "browser-use",
+        "durationMs": 30040.925375,
+        "modelCalls": null,
+        "fallback": false,
+        "capturedResponses": 2
+      }
+    ],
+    "compilation": "provisional",
+    "diagnostics": {
+      "status": "candidate",
+      "audits": [
+        {
+          "traceCount": 2,
+          "capturedCounts": [
+            2,
+            2
+          ],
+          "preShortlistEligibleCounts": [
+            0,
+            0
+          ],
+          "shortlistDiscardedCounts": [
+            0,
+            0
+          ],
+          "eligibleCounts": [
+            0,
+            0
+          ],
+          "sharedGroups": 0,
+          "attemptedCombinations": 0,
+          "truncatedGroups": 0,
+          "compiledPlans": 0,
+          "returnedCandidates": 0,
+          "rejections": {},
+          "prefilterRejections": {
+            "responseEvidence": 4,
+            "inputBinding": 0,
+            "requestParse": 0,
+            "responseCodec": 0
+          }
+        },
+        {
+          "traceCount": 2,
+          "capturedCounts": [
+            2,
+            2
+          ],
+          "preShortlistEligibleCounts": [
+            1,
+            1
+          ],
+          "shortlistDiscardedCounts": [
+            0,
+            0
+          ],
+          "eligibleCounts": [
+            1,
+            1
+          ],
+          "sharedGroups": 1,
+          "attemptedCombinations": 1,
+          "truncatedGroups": 0,
+          "compiledPlans": 1,
+          "returnedCandidates": 1,
+          "rejections": {},
+          "prefilterRejections": {
+            "responseEvidence": 2,
+            "inputBinding": 0,
+            "requestParse": 0,
+            "responseCodec": 0
+          }
+        }
+      ],
+      "htmlRecipes": 1,
+      "projectionFailures": []
+    },
+    "wallMs": 68342.826
+  },
+  "calls": [
+    {
+      "input": {
+        "amount": 75.25,
+        "start_year": 2000,
+        "end_year": 2016
+      },
+      "restarted": false,
+      "result": {
+        "outcome": {
+          "status": "completed",
+          "data": {
+            "adjusted_amount": 114.83
+          }
+        },
+        "engine": "browser-use",
+        "durationMs": 38508.73925,
+        "modelCalls": null,
+        "fallback": false,
+        "shadowMatch": true,
+        "capturedResponses": 2
+      },
+      "wallMs": 39235.86687500001,
+      "oracle": {
+        "exact": null,
+        "reason": "independent-oracle-not-implemented"
+      }
+    },
+    {
+      "input": {
+        "amount": 125.5,
+        "start_year": 2001,
+        "end_year": 2015
+      },
+      "restarted": true,
+      "result": {
+        "outcome": {
+          "status": "completed",
+          "data": {
+            "adjusted_amount": 181.12
+          }
+        },
+        "engine": "browser-use",
+        "durationMs": 34883.665959000005,
+        "modelCalls": null,
+        "fallback": false,
+        "shadowMatch": true,
+        "capturedResponses": 2
+      },
+      "wallMs": 35722.877624999994,
+      "oracle": {
+        "exact": null,
+        "reason": "independent-oracle-not-implemented"
+      }
+    },
+    {
+      "input": {
+        "amount": 325,
+        "start_year": 2000,
+        "end_year": 2015
+      },
+      "restarted": true,
+      "result": {
+        "outcome": {
+          "status": "completed",
+          "data": {
+            "adjusted_amount": 489.66
+          }
+        },
+        "engine": "network",
+        "durationMs": 496.78416599999764,
+        "modelCalls": 0,
+        "fallback": false,
+        "capturedResponses": 0
+      },
+      "oracle": {
+        "exact": null,
+        "reason": "independent-oracle-not-implemented"
+      }
+    }
+  ],
+  "phase": "warm-network",
+  "benchmarkKind": "rewritten-runtime",
+  "authProfile": "new-isolated-profile",
+  "finalCompilation": "stable",
+  "finished": true,
+  "wallMs": 144505.978125
+}

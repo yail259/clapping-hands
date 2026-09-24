@@ -14,10 +14,29 @@ import {
   type GenericNetworkDemonstration,
   type NetworkInput,
 } from "../src/generic-network.js";
-import type { CapturedExchange } from "../src/network-plan.js";
+import type { CapturedExchange } from "../src/captured-exchange.js";
 import { NetworkRecorder } from "../src/network-recorder.js";
+import { WorkflowAccessError } from "../src/workflow-auth.js";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+
+test('JSON-labelled-as-text search preserves its observed media type and rejects scripts or media-type drift',async()=>{
+  const demos=['alpha','beta'].map(q=>exchange('https://fixture.invalid/api/search',{q},{title:q},
+    {method:'POST',requestBody:{query:q},contentType:'text/plain;charset=UTF-8'}));
+  const plan=compileGenericJsonPlan('text_search',demos);
+  assert.equal(plan.request.bodyCodec,'json');
+  let calls=0;
+  const context={request:{fetch:async(_url:string,options:any)=>{calls++;
+    assert.equal(options.headers['content-type'],'text/plain;charset=UTF-8');assert.deepEqual(JSON.parse(options.data),{query:'unseen'});
+    return {status:()=>200,ok:()=>true,headers:()=>({'content-type':'application/json'}),body:async()=>Buffer.from('{"title":"unseen"}'),dispose:async()=>{}};
+  }}} as unknown as BrowserContext;
+  assert.deepEqual((await replayGenericJsonPlan(context,plan,{q:'unseen'})).data,{title:'unseen'});assert.equal(calls,1);
+  for(const body of ['query=alpha','({query:"alpha"})','null','"alpha"','for(;;);{"query":"alpha"}']){
+    const bad=structuredClone(demos);bad[0]!.exchange.requestBody=body;assert.throws(()=>compileGenericJsonPlan('text_search',bad));
+  }
+  const drift=structuredClone(demos);drift[1]!.exchange.requestHeaders['content-type']='application/json';
+  assert.throws(()=>compileGenericJsonPlan('text_search',drift));
+});
 
 function exchange(
   url: string,
@@ -835,7 +854,7 @@ test("binds inputs nested in form-encoded GraphQL variables", async () => {
   }
 });
 
-test("compiles a zero-argument JSON request and counts repeated independent shadows", async () => {
+test("compiles a zero-argument JSON request without treating repeated calls as held-out inputs", async () => {
   const { server, origin } = await apiFixture();
   const directory = await mkdtemp(resolve(tmpdir(), "clapping-hands-json-status-"));
   let context: BrowserContext | null = null;
@@ -853,7 +872,7 @@ test("compiles a zero-argument JSON request and counts repeated independent shad
     stable = recordGenericJsonShadow(stable, {}, true);
     assert.equal(stable.evidence.successfulShadowInputHashes.length, 1);
     assert.equal(stable.evidence.successfulShadowCount, 2);
-    assert.equal(stable.status, "stable");
+    assert.equal(stable.status, "provisional");
   } finally {
     await context?.close();
     await new Promise<void>((resolvePromise, reject) => server.close((error) => error ? reject(error) : resolvePromise()));
@@ -920,7 +939,7 @@ test("recorder captures only explicitly allowed cross-origin API responses", asy
     const captured = await allowed.since(allowedMark);
     assert.equal(captured.length, 1);
     assert.equal(new URL(captured[0]!.url).origin, api.origin);
-    assert.deepEqual(captured[0]!.responseHeaders, { "x-total-pages": "3" });
+    assert.deepEqual(captured[0]!.responseHeaders, { "x-total-pages": "3", "content-type": "application/json" });
   } finally {
     await context?.close();
     await new Promise<void>((resolvePromise, reject) => pageServer.close((error) => error ? reject(error) : resolvePromise()));
@@ -1096,4 +1115,78 @@ test("selects only a request whose response is evidenced in the rendered output"
   }));
   const compiled = compileGenericJsonFromTraces("search", traces);
   assert.equal(compiled.plan.request.endpointPath, "/api/search");
+});
+
+test("relevant requests are not crowded out by the per-operation candidate limit", () => {
+  const origin = "https://example.test";
+  const traces = ["sofa", "chair"].map((query) => ({ input: { query }, outputText: `${query} item`,
+    exchanges: [
+      ...Array.from({ length: 12 }, (_unused, index) => exchange(`${origin}/api/search?q=noise-${index}`, { query }, { info: "configuration" }).exchange),
+      exchange(`${origin}/api/search?q=${query}`, { query }, { items: [{ title: `${query} item` }] }).exchange,
+    ],
+  }));
+  const compiled = compileGenericJsonFromTraces("search", traces);
+  assert.equal(compiled.demonstrations[0]!.exchange.url, `${origin}/api/search?q=sofa`);
+  assert.equal(compiled.demonstrations[1]!.exchange.url, `${origin}/api/search?q=chair`);
+});
+
+test("compiled replay releases every transport response on success, pagination, refusal and cleanup failure", async () => {
+  const origin = "https://dispose.fixture.invalid";
+  const single = compileGenericJsonPlan("dispose_single", searchDemonstrations(origin));
+  const paged = compileGenericJsonFromTraces("dispose_paged", [cursorTrace(origin, "sofa"), cursorTrace(origin, "chair")]).plan;
+  type Fake = { index: number; disposed: number; openWhenRequested: number[] };
+  let responses: Fake[] = [];
+  let status = 200, disposeFails = false, bodyFails = false, body = "";
+  const pages = [
+    JSON.stringify({ items: [{ id: "lamp-0", title: "lamp page 1" }], pageInfo: { hasNextPage: true, endCursor: "lamp-1" } }),
+    JSON.stringify({ items: [{ id: "lamp-1", title: "lamp page 2" }], pageInfo: { hasNextPage: false, endCursor: null } }),
+  ];
+  const context = { request: { fetch: async () => {
+    const fake: Fake = { index: responses.length, disposed: 0,
+      openWhenRequested: responses.filter((other) => other.disposed === 0).map((other) => other.index) };
+    responses.push(fake);
+    // Mirrors the transport response surface, including its disposable handle.
+    return {
+      status: () => status, ok: () => status >= 200 && status < 300,
+      headers: () => ({ "content-type": "application/json" }),
+      body: async () => { if (bodyFails) throw new Error("transport body failure"); return Buffer.from(body || pages[Math.min(fake.index, 1)]!); },
+      dispose: async () => { fake.disposed += 1; if (disposeFails) throw new Error("dispose failure"); },
+    };
+  } } } as unknown as BrowserContext;
+  const reset = () => { responses = []; status = 200; disposeFails = false; bodyFails = false; body = ""; };
+  const disposedCounts = () => responses.map((fake) => fake.disposed);
+
+  body = JSON.stringify({ items: [{ id: 1, title: "lamp" }], meta: { count: 1 } });
+  await replayGenericJsonPlan(context, single, { query: "lamp" });
+  assert.deepEqual(disposedCounts(), [1]);
+
+  reset();
+  const paginated = await replayGenericJsonPlan(context, paged, { query: "lamp" });
+  assert.equal(paginated.requests, 2);
+  assert.deepEqual(disposedCounts(), [1, 1]);
+  assert.deepEqual(responses.map((fake) => fake.openWhenRequested), [[], []], "a continued page never holds the previous body");
+
+  for (const [scenario, expected] of [["auth", /authentication or checkpoint/], ["server", /HTTP 500/], ["body", /transport body failure/],
+    ["decode", /structural contract|JSON/]] as const) {
+    reset();
+    status = scenario === "auth" ? 401 : scenario === "server" ? 500 : 200;
+    bodyFails = scenario === "body";
+    if (scenario === "decode") body = JSON.stringify({ unexpected: true });
+    await assert.rejects(replayGenericJsonPlan(context, single, { query: "lamp" }), (error: unknown) => {
+      if (scenario === "auth") assert.equal((error as WorkflowAccessError).reason, "http-401");
+      assert.match(String(error), expected);
+      return true;
+    });
+    assert.deepEqual(disposedCounts(), [1], `${scenario} still releases its response`);
+  }
+
+  // A failed release retains a buffer; it must not invent or replace an outcome.
+  reset();
+  disposeFails = true;
+  body = JSON.stringify({ items: [{ id: 1, title: "lamp" }], meta: { count: 1 } });
+  assert.deepEqual((await replayGenericJsonPlan(context, single, { query: "lamp" })).data, { items: [{ id: 1, title: "lamp" }], meta: { count: 1 } });
+  reset();
+  disposeFails = true;
+  status = 403;
+  await assert.rejects(replayGenericJsonPlan(context, single, { query: "lamp" }), (error: unknown) => error instanceof WorkflowAccessError);
 });
