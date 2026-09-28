@@ -82,10 +82,13 @@ challenge.
 ## Consequences
 
 The controlled fixture proves a fully network-native warm path when the first
-request accepts a null cursor. Facebook does not: it server-renders the first
-page and exposes an opaque cursor only after pagination begins. Its promoted
-path therefore retains one deterministic navigation and one scroll, then
-compiles away the remaining repeated UI scrolling while staying bound to the
-user's browser identity. Facebook can expire or challenge sessions, so
-occasional human reauthentication remains an explicit product state rather
-than a bug hidden by retries.
+request accepts a null cursor. Later live Marketplace dogfood found that its
+captured pagination operation also accepts a null cursor when called from the
+authenticated page; it then returns the first 24 results for a changed search
+term. The same call fails through Playwright's request client. The current
+experimental path therefore needs one browser navigation and scroll to capture
+fresh request context, then can answer repeated searches without further
+navigation. This observation has not met the full promotion criteria above.
+Facebook can expire or challenge sessions, so occasional human
+reauthentication remains an explicit product state rather than a bug hidden by
+retries.

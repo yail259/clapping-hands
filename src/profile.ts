@@ -47,20 +47,36 @@ function processState(pid: number): "active" | "stale" | "unknown" {
   }
 }
 
-async function existingProfileOwner(path: string): Promise<"active" | "recovery"> {
+type ExistingProfileOwner = "self" | "other" | "recovery";
+
+function classifyProfileOwner(pid: number): ExistingProfileOwner {
+  return processState(pid) === "active" ? pid === process.pid ? "self" : "other" : "recovery";
+}
+
+async function existingProfileOwner(path: string): Promise<ExistingProfileOwner> {
   try {
     const raw = await regularFileContents(path, 8_192);
     if (raw === null) return "recovery";
     // Recognize complete legacy PID records, never partial parseInt prefixes.
-    if (/^[1-9][0-9]*\n?$/.test(raw)) return processState(Number(raw.trim())) === "active" ? "active" : "recovery";
+    if (/^[1-9][0-9]*\n?$/.test(raw)) return classifyProfileOwner(Number(raw.trim()));
     const value = JSON.parse(raw) as Record<string, unknown>;
     if (!value || typeof value !== "object" || Array.isArray(value) ||
       Object.keys(value).some((key) => !["formatVersion", "pid", "nonce", "createdAt"].includes(key)) ||
       value.formatVersion !== "clapping-hands.dev/profile-lock-v1" || typeof value.pid !== "number" ||
       typeof value.nonce !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value.nonce) ||
       typeof value.createdAt !== "string" || !Number.isFinite(Date.parse(value.createdAt))) return "recovery";
-    return processState(value.pid) === "active" ? "active" : "recovery";
+    return classifyProfileOwner(value.pid);
   } catch { return "recovery"; }
+}
+
+/** Fixed categories only: health checks must never disclose a PID or profile data. */
+export async function inspectProfileLease(directory: string): Promise<"clear" | ExistingProfileOwner> {
+  const path = resolve(directory, ".clapping-hands.lock");
+  try { await lstat(path); }
+  catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT" ? "clear" : "recovery";
+  }
+  return existingProfileOwner(path);
 }
 
 export class ProfileLease {
@@ -83,7 +99,7 @@ export class ProfileLease {
     try { handle = await open(this.lockPath, "wx", 0o600); }
     catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      if (await existingProfileOwner(this.lockPath) === "active") throw new ProfileInUseError("The browser profile is already in use.");
+      if (await existingProfileOwner(this.lockPath) !== "recovery") throw new ProfileInUseError("The browser profile is already in use.");
       // Dead, malformed and unknown owners need explicit guarded maintenance. Never unlink by age or PID alone.
       throw new ProfileRecoveryRequiredError();
     }

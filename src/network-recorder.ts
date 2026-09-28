@@ -24,6 +24,7 @@ type RequestProvenance = { page: Page; startedAt: number; sequence: number; main
 
 type CaptureOutcome =
   | "captured"
+  | "capture-timeout"
   | "cross-origin"
   | "unsupported-content-type"
   | "response-too-large"
@@ -164,16 +165,27 @@ export class NetworkRecorder {
     return { page: source.page, startedAt: source.startedAt };
   }
 
-  async since(mark: NetworkRecorderMark): Promise<CapturedExchange[]> {
-    await this.flush();
-    return this.peekSince(mark);
+  async since(mark: NetworkRecorderMark, throughRequestSequence?: number): Promise<CapturedExchange[]> {
+    try { await this.flush(); }
+    catch (error) {
+      if (!(error instanceof Error) || error.message !== 'Network capture did not settle before its deadline; incomplete evidence was refused.')
+        throw error;
+      // Fully captured responses still have response bodies and request
+      // provenance. Keep them, but report that the window is partial.
+      this.recordDiagnostic({ outcome: 'capture-timeout', operation: 'pending-responses' });
+    }
+    return this.peekSince(mark, throughRequestSequence);
   }
 
-  peekSince(mark: NetworkRecorderMark): CapturedExchange[] {
+  peekSince(mark: NetworkRecorderMark, throughRequestSequence?: number): CapturedExchange[] {
     if (mark.exchangeIndex < this.exchangeOffset) {
       throw new Error("Network capture window expired; repeat the demonstration with a shorter recording window.");
     }
-    return this.exchanges.slice(mark.exchangeIndex - this.exchangeOffset);
+    const exchanges = this.exchanges.slice(mark.exchangeIndex - this.exchangeOffset);
+    return throughRequestSequence === undefined ? exchanges : exchanges.filter(exchange => {
+      const source = this.exchangeProvenance.get(exchange);
+      return !!source && source.sequence > mark.requestSequence && source.sequence <= throughRequestSequence;
+    });
   }
 
   async diagnosticsSince(mark: NetworkRecorderMark): Promise<NetworkCaptureSummary> {
@@ -211,7 +223,9 @@ export class NetworkRecorder {
       timer = setTimeout(() => reject(new Error("Network capture did not settle before its deadline; incomplete evidence was refused.")), timeoutMs);
     });
     try {
-      while (this.pending.size > 0) await Promise.race([Promise.all([...this.pending]), deadline]);
+      // New background traffic cannot extend a completed demonstration forever.
+      // Only response captures already pending at the cutoff must settle.
+      await Promise.race([Promise.all([...this.pending]), deadline]);
     } finally { clearTimeout(timer); }
   }
 

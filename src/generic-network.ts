@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { observedPathBindings, pathSignature, materializeRequestPath } from './request-path.js';
-import { WorkflowAccessError } from "./workflow-auth.js";
+import { WorkflowAccessError, assertWorkflowAuth, trackWorkflowAuth } from "./workflow-auth.js";
 import { isDeepStrictEqual } from "node:util";
 import { requestContractError } from "./request-contract-diagnostic.js";
 import { RequestContextVault, requestOperationFingerprint, type RequestContextTicket, type RuntimeFieldValue } from "./request-context.js";
@@ -9,7 +9,7 @@ import { browserNetworkFetch, type BrowserNetworkDocument } from "./browser-netw
 import type { CapturedExchange } from "./captured-exchange.js";
 import { capturedSessionHeaders, isSessionHeaderName } from "./ephemeral-request-headers.js";
 import { decodeJsonResponse, inferJsonResponse, decodeRelativeUrl, encodeRelativeUrl, type JsonResponseCodec } from "./network-codecs.js";
-import { assertHtmlValueResponseRecipe, HtmlResponseError, type HtmlValueResponseRecipe } from "./html-response.js";
+import { assertHtmlValueResponseRecipe, HTML_DOCUMENT_MAX_BYTES, HtmlResponseError, type HtmlValueResponseRecipe } from "./html-response.js";
 import { decodeGenericCapturedResponse, decodeGenericResponseBytes, inferCapturedNetworkResponse } from "./network-response.js";
 import type { OutputRecipe } from "./learned-output.js";
 
@@ -42,6 +42,7 @@ export type GenericJsonPlan = {
     bodyCodec: "none" | "json" | "form";
     bodyTemplate: TemplateValue | Record<string, TemplateValue[]> | null;
     bodyUrlFields?: Array<{ name: string; index: number }>;
+    bodyUrlPathBindings?: Array<{ name: string; index: number; input: string; segments: number[] }>;
     runtimeFields?: Array<RequestFieldPath & { type: "string" | "number" | "boolean" }>;
     runtimeHeaders?: string[];
     transport?: "browser-fetch";
@@ -113,7 +114,7 @@ export class RequestContextRequiredError extends Error {
   }
 }
 
-const SENSITIVE_NAME = /(?:authorization|cookie|password|passwd|secret|token|csrf|xsrf|session|api[_-]?key|jazoest|dtsg|\blsd\b)/i;
+const SENSITIVE_NAME = /(?:authorization|cookie|password|passwd|secret|token|csrf|xsrf|session|api[_-]?key|jazoest|dtsg|\blsd\b)|^(?:client_previous_actor_id|__user|__aaid|__hs|__s|__hsi|__crn|__req|__rev|__spin_[rbt]|__ccg|__dyn|__csr|__hsdp|__hblp|__sjsp|__comet_req)$/i;
 const PUBLIC_OPAQUE_CONSTANT_NAME = /^(?:sha256hash|sha256_hash)$/i;
 const SAFE_HEADERS = new Set(["accept", "content-type", "x-requested-with"]);
 const READ_NETWORK_METHODS = new Set(["GET", "POST"]);
@@ -564,7 +565,10 @@ export function assertGenericJsonPlanSafety(plan: GenericJsonPlan): void {
       if (!field || !["query", "body"].includes(field.source) || !["string", "number", "boolean"].includes(field.type)) throw new Error("Invalid runtime field.");
       assertTemplatePath(field.path, "Runtime field path");
       if (field.path.some((key) => ["__proto__", "prototype", "constructor", "$clappingHandsInput"].includes(String(key)))) throw new Error("Unsafe runtime field path.");
-      if (field.path.some((key) => /^(?:operation(?:Name)?|query|mutation|doc_id|document_id|action|method|pathname|url|endpoint)$/i.test(String(key)))) throw new Error("Operation identity cannot be runtime context.");
+      const relativeUrlQuery = field.source === 'body' && field.path.length >= 5 && field.path[2] === 'query' &&
+        plan.request.bodyUrlFields?.some(url => url.name === field.path[0] && url.index === field.path[1]);
+      if (field.path.some((key,index) => /^(?:operation(?:Name)?|query|mutation|doc_id|document_id|action|method|pathname|url|endpoint)$/i.test(String(key)) &&
+        !(relativeUrlQuery && index === 2 && key === 'query'))) throw new Error("Operation identity cannot be runtime context.");
       const key = JSON.stringify(field.path);
       if (contextPaths[field.source].has(key) || valueAt(field.source === "query" ? plan.request.queryTemplate : plan.request.bodyTemplate, field.path) !== null) throw new Error("Runtime fields must be unique null placeholders.");
       if (Object.values(plan.request.bindings).flat().some((binding) => pathKey(binding.source, binding.path) === pathKey(field.source, field.path))) throw new Error("Runtime field overlaps an input.");
@@ -599,12 +603,33 @@ export function assertGenericJsonPlanSafety(plan: GenericJsonPlan): void {
         !value.query || typeof value.query !== "object" || Array.isArray(value.query)) throw new Error("Invalid nested URL template.");
     }
   }
-  if (plan.response.codec !== undefined && !["json", "json-lines", "html-input-values", "html-document"].includes(plan.response.codec)) throw new Error("Invalid response codec.");
+  if (plan.request.bodyUrlPathBindings !== undefined) {
+    const declared = plan.request.bodyUrlPathBindings;
+    if (plan.request.bodyCodec !== 'form' || !Array.isArray(declared) || !declared.length || declared.length > 8 ||
+      plan.request.pagination || !plan.request.bodyUrlFields) throw new Error('Invalid nested URL path bindings.');
+    const used = new Set<string>();
+    for (const binding of declared) {
+      const key = JSON.stringify([binding.name, binding.index]);
+      if (used.has(key) || !plan.request.bodyUrlFields.some(field => field.name === binding.name && field.index === binding.index) ||
+        !Object.hasOwn(plan.request.bindings, binding.input) || !Array.isArray(binding.segments) ||
+        !binding.segments.length || binding.segments.length > 4) throw new Error('Invalid nested URL path binding.');
+      used.add(key);
+      const value = valueAt(plan.request.bodyTemplate, [binding.name, binding.index]) as { pathname?: unknown } | undefined;
+      if (!value || typeof value.pathname !== 'string' || !value.pathname.startsWith('/') || value.pathname.startsWith('//'))
+        throw new Error('Invalid nested URL path template.');
+      const segments = value.pathname.split('/');
+      if (new Set(binding.segments).size !== binding.segments.length || binding.segments.some(index =>
+        !Number.isSafeInteger(index) || index < 2 || index >= segments.length || segments[index] !== '__clapping_hands_input__'))
+        throw new Error('Invalid nested URL path segment.');
+    }
+  }
+  if (plan.response.codec !== undefined && !["json", "json-lines", "guarded-json-sequence", "html-input-values", "html-document"].includes(plan.response.codec)) throw new Error("Invalid response codec.");
   if(plan.response.codec==='html-document'){
     if(!['utf-8','windows-1252'].includes(plan.response.documentEncoding??'') || plan.response.shape.type!=='string'
       || plan.response.htmlRecipe || plan.response.records!==undefined || plan.request.pagination || plan.request.transport
+      || plan.request.method !== "GET" || plan.request.bodyTemplate !== null
       || plan.request.runtimeFields?.length || plan.request.runtimeHeaders?.length || (plan.request.endpointOrigin??plan.origin)!==plan.origin
-      || plan.response.maximumBytes>1024*1024)throw new Error('Unsupported HTML document request contract.');
+      || plan.response.maximumBytes>HTML_DOCUMENT_MAX_BYTES)throw new Error('Unsupported HTML document request contract.');
   }else if(plan.response.documentEncoding!==undefined)throw new Error('Document encoding requires HTML document codec.');
   if (plan.response.codec === "html-input-values") {
     assertHtmlValueResponseRecipe(plan.response.htmlRecipe);
@@ -617,6 +642,8 @@ export function assertGenericJsonPlanSafety(plan: GenericJsonPlan): void {
   if (plan.response.codec === "json-lines" && (!Number.isSafeInteger(plan.response.records) || plan.response.records! < 2 || plan.response.records! > 128)) {
     throw new Error("Invalid response frame count.");
   }
+  if (plan.response.codec === "guarded-json-sequence" && plan.response.records !== undefined)
+    throw new Error("Guarded response frame count must remain flexible.");
   if (!Number.isSafeInteger(plan.response.maximumBytes) || plan.response.maximumBytes < 1 || plan.response.maximumBytes > 8 * 1024 * 1024) {
     throw new Error("Compiled network response limit is invalid.");
   }
@@ -1341,6 +1368,7 @@ export function compileGenericJsonPlan(
   const queryTemplate = structuredClone(first.query);
   const bodyTemplate = structuredClone(first.body);
   const bindings: GenericJsonPlan["request"]["bindings"] = {};
+  const bodyUrlPathBindings: NonNullable<GenericJsonPlan['request']['bodyUrlPathBindings']> = [];
   const pathBindings=options.allowPathInputs?observedPathBindings(first.url.pathname,demonstrations[0]!.input):{};
   if(options.allowPathInputs && demonstrations.some((demo,i)=>!isDeepStrictEqual(pathBindings,observedPathBindings(parsed[i]!.url.pathname,demo.input))))throw new Error('Path bindings changed across demonstrations.');
   const allBoundPaths = new Set<string>();
@@ -1359,7 +1387,26 @@ export function compileGenericJsonPlan(
         })) locations.push({ source, path: entry.path });
       }
     }
-    if (locations.length === 0 && !pathBindings[inputName]?.length) throw new Error(`Could not infer a request binding for input ${inputName}.`);
+    for (const field of first.bodyUrlFields) {
+      const nested = parsed.map(request => valueAt(request.body, [field.name, field.index]) as { pathname?: unknown } | undefined);
+      if (nested.some(value => typeof value?.pathname !== 'string')) continue;
+      const observed = nested.map((value, index) => observedPathBindings(value!.pathname as string,
+        { [inputName]: demonstrations[index]!.input[inputName] }));
+      const segments = observed[0]![inputName];
+      if (!segments?.length || observed.some(value => !isDeepStrictEqual(value[inputName], segments))) continue;
+      if (bodyUrlPathBindings.some(binding => binding.name === field.name && binding.index === field.index))
+        throw new Error('Ambiguous nested URL path input.');
+      const template = valueAt(bodyTemplate, [field.name, field.index, 'pathname']);
+      if (typeof template !== 'string') throw new Error('Nested URL path template missing.');
+      const pieces = template.split('/');
+      for (const segment of segments) pieces[segment] = '__clapping_hands_input__';
+      setAt(bodyTemplate, [field.name, field.index, 'pathname'], pieces.join('/'));
+      bodyUrlPathBindings.push({ name: field.name, index: field.index, input: inputName, segments });
+      allBoundPaths.add(pathKey('body', [field.name, field.index, 'pathname']));
+    }
+    if (locations.length === 0 && !pathBindings[inputName]?.length &&
+      !bodyUrlPathBindings.some(binding => binding.input === inputName))
+      throw new Error(`Could not infer a request binding for input ${inputName}.`);
     bindings[inputName] = locations;
     for (const location of locations) {
       allBoundPaths.add(pathKey(location.source, location.path));
@@ -1447,12 +1494,14 @@ export function compileGenericJsonPlan(
       bodyCodec: first.codec,
       bodyTemplate,
       ...(first.bodyUrlFields.length ? { bodyUrlFields: first.bodyUrlFields } : {}),
+      ...(bodyUrlPathBindings.length ? { bodyUrlPathBindings } : {}),
       ...(runtimeFields.length ? { runtimeFields } : {}),
       ...(runtimeHeaders.length ? { runtimeHeaders } : {}),
       bindings,
     },
-    response: { shape: inferJsonShape(responses), maximumBytes: responseCodec === "html-input-values" || responseCodec==='html-document' ? 1024 * 1024 : 8 * 1024 * 1024,
+    response: { shape: inferJsonShape(responses), maximumBytes: responseCodec === "html-input-values" ? 1024 * 1024 : responseCodec==='html-document' ? HTML_DOCUMENT_MAX_BYTES : 8 * 1024 * 1024,
       ...(responseCodec === "json-lines" ? { codec: responseCodec, records } : {}),
+      ...(responseCodec === "guarded-json-sequence" ? { codec: responseCodec } : {}),
       ...(responseCodec === "html-input-values" ? { codec: responseCodec, htmlRecipe: decodedResponses[0]!.htmlRecipe } : {}),
       ...(responseCodec==='html-document'?{codec:responseCodec,documentEncoding:decodedResponses[0]!.documentEncoding}:{}) },
     evidence: {
@@ -1480,6 +1529,19 @@ function materialize(value: TemplateValue, input: NetworkInput): unknown {
     return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, materialize(child, input)]));
   }
   return value;
+}
+
+function materializeBodyTemplate(template: TemplateValue | null, input: NetworkInput,
+  pathBindings: GenericJsonPlan['request']['bodyUrlPathBindings']): unknown {
+  if (template === null) return null;
+  const body = materialize(template, input);
+  for (const binding of pathBindings ?? []) {
+    const path = [binding.name, binding.index, 'pathname'];
+    const value = valueAt(body, path);
+    if (typeof value !== 'string') throw new Error('Nested URL path template missing.');
+    setAt(body, path, materializeRequestPath(value, { [binding.input]: binding.segments }, input));
+  }
+  return body;
 }
 
 function materializeParameters(template: Record<string, TemplateValue[]>, input: NetworkInput, urlFields: Array<{ name: string; index: number }> = []): URLSearchParams {
@@ -1600,14 +1662,16 @@ function capturedContextValues(plan: GenericJsonPlan, exchange: CapturedExchange
   // Decoded nested-URL dictionaries intentionally have null prototypes. The
   // persisted/materialized template uses ordinary records; compare JSON data,
   // not that implementation detail. Structured cloning preserves own keys/types.
-  const expected = { query: materialize(plan.request.queryTemplate, capturedInput), body: materialize(plan.request.bodyTemplate, capturedInput) };
+  const expected = { query: materialize(plan.request.queryTemplate, capturedInput),
+    body: materializeBodyTemplate(plan.request.bodyTemplate, capturedInput, plan.request.bodyUrlPathBindings) };
   const actual = { query: structuredClone(parsed.query), body: structuredClone(parsed.body) };
   if (!isDeepStrictEqual(actual.query, expected.query) || !isDeepStrictEqual(actual.body, expected.body)) {
     throw requestContractError(expected, actual);
   }
   const response = decodeGenericCapturedResponse(plan.response, exchange);
   if (!matchesJsonShape(response, plan.response.shape) ||
-    plan.response.codec === "json-lines" && (response as unknown[]).length !== plan.response.records) throw new Error("Captured runtime context response contract mismatch.");
+    plan.response.codec === "json-lines" && (response as unknown[]).length !== plan.response.records)
+    throw new Error("Captured runtime context response contract mismatch.");
   const headers = capturedSessionHeaders(exchange);
   if (!isDeepStrictEqual(Object.keys(headers).sort(), [...(plan.request.runtimeHeaders ?? [])].sort())) throw new Error("Captured runtime session header contract mismatch.");
   for (const name of plan.request.runtimeHeaders ?? []) values.push(headers[name]!);
@@ -1626,13 +1690,52 @@ export function captureGenericRequestContext(
 
 export type GenericReplayStage = "plan-validation" | "context-consumption" | "request-materialization" | "transport" | "http-validation" | "response-body" | "response-decoding" | "response-validation";
 
+/** HTML document endpoints can reject Playwright's APIRequestContext even when
+ * the same request succeeds as a top-level browser navigation. Keep this path
+ * limited to the already-validated, exact-origin, materialized GET URL. */
+async function navigateHtmlDocument(context: BrowserContext, url: URL, origin: string, maximumBytes: number) {
+  const page = await context.newPage();
+  const stop = trackWorkflowAuth(context);
+  let cdp: Awaited<ReturnType<BrowserContext["newCDPSession"]>> | undefined;
+  try {
+    if (url.origin !== origin || url.username || url.password || url.hash) throw new Error("Compiled HTML document URL refused.");
+    cdp = await context.newCDPSession(page);
+    await cdp.send("Network.enable");
+    await cdp.send("Network.setCacheDisabled", { cacheDisabled: true });
+    await cdp.send("Network.setBypassServiceWorker", { bypass: true });
+    let initialNavigationSeen = false;
+    await page.route("**/*", route => {
+      const request = route.request();
+      const allowed = request.isNavigationRequest() && request.frame() === page.mainFrame()
+        && request.method() === "GET" && request.url() === url.href && !initialNavigationSeen;
+      if (allowed) initialNavigationSeen = true;
+      return allowed ? route.continue() : route.abort();
+    });
+    const response = await page.goto(url.href, { waitUntil: "domcontentloaded", timeout: 30_000 });
+    if (!response || page.url() !== url.href || new URL(page.url()).origin !== origin) throw new Error("Compiled HTML document navigation refused.");
+    if (response.request().redirectedFrom()) throw new Error("Compiled HTML document redirect refused.");
+    const status = response.status();
+    if (status === 401 || status === 403) throw new WorkflowAccessError(status === 401 ? "http-401" : "http-403", origin);
+    if (status >= 300 && status < 400) throw new Error("Compiled HTML document redirect refused.");
+    if (status !== 200) throw new Error(`Compiled HTML document returned HTTP ${status}.`);
+    const contentType = response.headers()["content-type"] ?? "";
+    if (!/^text\/html(?:\s*;|\s*$)/i.test(contentType)) throw new Error("Compiled HTML document returned an unexpected content type.");
+    const declaredLength = Number(response.headers()["content-length"]);
+    if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) throw new Error("Compiled HTML document exceeded its response size limit.");
+    const bytes = await response.body();
+    if (bytes.byteLength > maximumBytes) throw new Error("Compiled HTML document exceeded its response size limit.");
+    await assertWorkflowAuth(page, origin);
+    return { status, contentType, bytes };
+  } finally { stop(); await cdp?.detach().catch(() => {}); await page.close().catch(() => {}); }
+}
+
 export async function replayGenericJsonPlan(
   context: BrowserContext,
   plan: GenericJsonPlan,
   input: NetworkInput,
   runtimeContext?: GenericRequestContext,
   onStage?: (stage: GenericReplayStage) => void,
-): Promise<{ data: unknown; status: number; durationMs: number; requests: number; navigations: 0; complete: true }> {
+): Promise<{ data: unknown; status: number; durationMs: number; requests: number; navigations: number; complete: true }> {
   onStage?.("plan-validation");
   assertGenericJsonPlanSafety(plan);
   const expectedInputs = Object.keys(plan.request.bindings).sort();
@@ -1724,7 +1827,8 @@ export async function replayGenericJsonPlan(
         requestData = JSON.stringify(materialize(bodyTemplate as TemplateValue, input));
       }
       if (plan.request.bodyCodec === "form") {
-        requestData = materializeParameters(bodyTemplate as Record<string, TemplateValue[]>, input, plan.request.bodyUrlFields).toString();
+        const body = materializeBodyTemplate(bodyTemplate, input, plan.request.bodyUrlPathBindings);
+        requestData = materializeParameters(body as Record<string, TemplateValue[]>, input, plan.request.bodyUrlFields).toString();
       }
       onStage?.("transport");
       const requestHeaders = { ...plan.request.headers, ...browserHeaders };
@@ -1736,7 +1840,14 @@ export async function replayGenericJsonPlan(
           { url: url.href, method: plan.request.method, headers: requestHeaders, body: requestData, maximumBytes: plan.response.maximumBytes,
             nativeReceipt: process.env.CLAPPING_HANDS_EXPERIMENTAL_NATIVE_RECEIPT === "true" });
       })() : undefined;
-      const response = browserResponse ? {
+      const documentResponse = plan.response.codec === "html-document"
+        ? await navigateHtmlDocument(context, url, plan.origin, plan.response.maximumBytes)
+        : undefined;
+      const response = documentResponse ? {
+        status: () => documentResponse.status, ok: () => documentResponse.status === 200,
+        headers: (): Record<string, string> => ({ "content-type": documentResponse.contentType }),
+        body: async () => documentResponse.bytes,
+      } : browserResponse ? {
         status: () => browserResponse.status, ok: () => browserResponse.ok,
         headers: (): Record<string, string> => ({ ...browserResponse.headers, "content-type": browserResponse.contentType }),
         body: async () => browserResponse.bytes,
@@ -1775,7 +1886,8 @@ export async function replayGenericJsonPlan(
         throw error;
       }
       onStage?.("response-validation");
-      if (plan.response.codec === "json-lines" && (parsed as unknown[]).length !== plan.response.records) throw new Error("Compiled response frame count changed.");
+      if (plan.response.codec === "json-lines" && (parsed as unknown[]).length !== plan.response.records)
+        throw new Error("Compiled response frame count changed.");
       if (!matchesJsonShape(parsed, plan.response.shape)) {
         throw new Error("Compiled JSON response failed its structural contract.");
       }
@@ -1891,7 +2003,7 @@ export async function replayGenericJsonPlan(
       status,
       durationMs: performance.now() - startedAt,
       requests: 1,
-      navigations: 0,
+      navigations: plan.response.codec === "html-document" ? 1 : 0,
       complete: true,
     };
   } finally {

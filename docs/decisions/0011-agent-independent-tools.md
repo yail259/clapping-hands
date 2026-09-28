@@ -72,5 +72,14 @@ driving an owned Chrome fixture while the recorder captures its search request
 and final HTML. No model configuration or production site is used. This proves
 the browser-sharing primitive, not compatibility with every third-party browser MCP.
 
-Still to implement: shared-session MCP capture lifecycle, caller unseen-validation
-flow and explicit fallback policy. Module extraction alone does not complete this refactor.
+## Caller MCP and live dogfood checkpoint (2026-09-24)
+
+The MCP server now exposes start, finish and cancel for caller recordings, the
+saved task can be called without a model, and caller-learned tasks return control
+on a failed fast path unless the separate delegate tool is invoked. Two unseen
+caller-driven comparisons can promote a submitted candidate. A built MCP smoke
+completed two local CDP demonstrations and confirmed generated tools register
+once. An authenticated Sydney Marketplace search matched two varied training
+examples and two unseen browser observations; the stable browser-document path
+then returned fresh cards with zero model calls. See the Marketplace read slice and
+ADR 0012 for scope and limits. Packaged release acceptance remains open.

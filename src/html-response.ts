@@ -21,6 +21,7 @@ export class HtmlResponseError extends Error {
   }
 }
 const MAX_BYTES = 1024 * 1024;
+export const HTML_DOCUMENT_MAX_BYTES = 4 * 1024 * 1024;
 const MAX_NODES = 20_000;
 const MAX_DEPTH = 100;
 const forbiddenKeys = new Set(["__proto__", "prototype", "constructor"]);
@@ -160,18 +161,18 @@ function parse(body: string, prefix = false): CheerioAPI {
   } catch { return fail("invalid-document"); }
 }
 
-function checkBytes(bytes: Uint8Array): void {
+function checkBytes(bytes: Uint8Array, maximumBytes = MAX_BYTES): void {
   if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0) fail("invalid-document");
-  if (bytes.byteLength > MAX_BYTES) fail("response-too-large");
+  if (bytes.byteLength > maximumBytes) fail("response-too-large");
 }
 
 /** WHATWG precedence for this bounded supported subset: BOM > transport > early
  * explicit meta. No user override, statistical detection or guessed default.
  * https://html.spec.whatwg.org/multipage/parsing.html#determining-the-character-encoding */
-export function inferHtmlResponseEncoding(contentType: string, bytes?: Uint8Array): HtmlResponseEncoding {
+export function inferHtmlResponseEncoding(contentType: string, bytes?: Uint8Array, maximumBytes = MAX_BYTES): HtmlResponseEncoding {
   contentTypeParameters(contentType);
   if (bytes === undefined) return headerEncoding(contentType) ?? fail("encoding");
-  checkBytes(bytes);
+  checkBytes(bytes, maximumBytes);
   if (bytes[0] === 0xff && bytes[1] === 0xfe || bytes[0] === 0xfe && bytes[1] === 0xff ||
     bytes[0] === 0 && bytes[1] === 0 && bytes[2] === 0xfe && bytes[3] === 0xff) fail("encoding");
   const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? "utf-8" : undefined;
@@ -205,9 +206,10 @@ export function declaredResponseEncoding(contentType: string, text: string): Htm
 // browser mapping explicit; all other single-byte values map identically.
 const windows1252C1 = '\u20ac\u0081\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u008d\u017d\u008f\u0090\u2018\u2019\u201c\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u009d\u017e\u0178';
 
-export function decodeHtmlResponseBytes(bytes: Uint8Array, contentType: string, expectedEncoding?: HtmlResponseEncoding): { body: string; encoding: HtmlResponseEncoding } {
+export function decodeHtmlResponseBytes(bytes: Uint8Array, contentType: string, expectedEncoding?: HtmlResponseEncoding,
+  maximumBytes = MAX_BYTES): { body: string; encoding: HtmlResponseEncoding } {
   try {
-    const encoding = inferHtmlResponseEncoding(contentType, bytes);
+    const encoding = inferHtmlResponseEncoding(contentType, bytes, maximumBytes);
     if (expectedEncoding !== undefined && encoding !== expectedEncoding) fail("encoding-conflict");
     const body = encoding === 'windows-1252'
       ? Buffer.from(bytes).toString('latin1').replace(/[\u0080-\u009f]/g, char => windows1252C1[char.charCodeAt(0)-0x80]!)

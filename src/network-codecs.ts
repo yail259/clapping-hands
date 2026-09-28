@@ -1,4 +1,6 @@
-export type JsonResponseCodec = "json" | "json-lines";
+import { parseGuardedJsonSequence } from './guarded-json-sequence.js';
+
+export type JsonResponseCodec = "json" | "json-lines" | "guarded-json-sequence";
 const MAX_BYTES = 8 * 1024 * 1024;
 const MAX_RECORDS = 128;
 export type ServerErrorCategory = "authentication" | "access-restriction" | "throttling" | "request-validation" | "temporary-server-error" | "unclassified";
@@ -51,6 +53,7 @@ export function decodeJsonResponse(body: string, codec: JsonResponseCodec): unkn
   if (Buffer.byteLength(body) > MAX_BYTES) throw new Error("JSON response exceeds codec limit.");
   try {
     if (codec === "json") return JSON.parse(stripPrefix(body));
+    if (codec === "guarded-json-sequence") return parseGuardedJsonSequence(body);
     if (codec !== "json-lines") throw new Error();
     const lines = body.split(/\r?\n/).filter((line) => line.trim());
     if (lines.length < 2 || lines.length > MAX_RECORDS) throw new Error();
@@ -59,8 +62,17 @@ export function decodeJsonResponse(body: string, codec: JsonResponseCodec): unkn
   } catch { throw new JsonResponseCodecError(body); }
 }
 export function inferJsonResponse(body: string): { codec: JsonResponseCodec; value: unknown } {
+  // The same guarded stream may be pretty-printed or single-line per record.
+  // Prefer its explicit framing over incidental newline layout.
+  if (body.startsWith('for (;;);') && body.indexOf('for (;;);', 'for (;;);'.length) >= 0) {
+    try { return { codec: 'guarded-json-sequence', value: decodeJsonResponse(body, 'guarded-json-sequence') }; }
+    catch { /* Reject malformed guarded streams through the ordinary diagnostic path below. */ }
+  }
   try { return { codec: "json", value: decodeJsonResponse(body, "json") }; }
-  catch { return { codec: "json-lines", value: decodeJsonResponse(body, "json-lines") }; }
+  catch {
+    try { return { codec: "json-lines", value: decodeJsonResponse(body, "json-lines") }; }
+    catch { return { codec: "guarded-json-sequence", value: decodeJsonResponse(body, "guarded-json-sequence") }; }
+  }
 }
 
 export type RelativeUrlValue = { pathname: string; query: Record<string, string[]> };

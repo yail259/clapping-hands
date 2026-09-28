@@ -11,7 +11,9 @@ assert.equal(original?.pageAccelerator?.status,'stable');
 const directory=await mkdtemp(join(tmpdir(),'clappinghands-live-fallback-'));
 let runtime=new TaskRuntime(directory);
 const task=structuredClone(original!);
-task.accelerator=null;task.pageAccelerator!.selector='h1.clappinghands_intentionally_missing';
+task.accelerator=null;
+if(task.pageAccelerator?.kind==='page-url-text-v1')task.pageAccelerator.selector='h1.clappinghands_intentionally_missing';
+else throw new Error('Expected a legacy string page replay.');
 const calls=[];
 try {
   await runtime.store.save(task);
