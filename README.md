@@ -161,6 +161,12 @@ opt-in Sydney pilot, its owner-local saved plans, and the current source-level
 training scripts. It is development evidence, not packaged release acceptance
 or a general-site speed claim.
 
+An optional [restricted local sourcing MCP](docs/SOURCING_MCP.md) exposes five
+read-only Marketplace and Gumtree tools to an authorized local client. It needs
+two stable owner-local Marketplace plans and an authenticated CH profile before
+startup; building or installing the package does not create those plans or
+authenticate an account.
+
 ## Verification and limitations
 
 ### Reproduce the production example

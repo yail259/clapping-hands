@@ -5,10 +5,17 @@
   "description": "Compile browser workflows into typed tools for sites without usable APIs.",
   "type": "module",
   "bin": {
-    "clapping-hands": "dist-alpha/src/alpha-server.js"
+    "clapping-hands": "dist-alpha/src/alpha-server.js",
+    "clapping-hands-sourcing": "dist-alpha/src/sourcing-server.js",
+    "ch-sourcing": "dist-alpha/scripts/sourcing-operator.js"
   },
   "files": [
     "dist-alpha/src",
+    "dist-alpha/scripts/sourcing-operator.js",
+    "npm-shrinkwrap.json",
+    "deploy/systemd/*.example",
+    "docs/SOURCING_MCP.md",
+    "docs/MARKETPLACE_READ_SLICE.md",
     "python/*.py",
     "python/requirements.txt",
     "python/requirements-lock.txt",
@@ -44,6 +51,7 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test test/*.test.ts",
     "dev": "tsx src/alpha-server.ts",
+    "sourcing": "tsx src/sourcing-server.ts",
     "prepack": "npm run build",
     "setup:browser": "uv venv .venv --python 3.12 && uv pip install --python .venv/bin/python --require-hashes -r python/requirements-lock.txt",
     "smoke:alpha": "tsx scripts/smoke-alpha-runtime.ts",

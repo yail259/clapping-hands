@@ -1,0 +1,7 @@
+#!/bin/sh
+# Fill the two release paths and install as ~/.local/bin/ch-sourcing, mode 0700.
+# Owner-only environment file contains paths, never credential values.
+set -a
+. "$HOME/.config/clapping-hands/sourcing.env"
+set +a
+exec @NODE_BINARY@ @CH_INSTALL_DIRECTORY@/dist-alpha/scripts/sourcing-operator.js "$@"

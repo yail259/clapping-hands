@@ -1,0 +1,17 @@
+[Unit]
+Description=Clapping Hands restricted sourcing MCP
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=@CH_INSTALL_DIRECTORY@
+EnvironmentFile=%h/.config/clapping-hands/sourcing.env
+ExecStart=@NODE_BINARY@ @CH_INSTALL_DIRECTORY@/dist-alpha/src/sourcing-server.js
+Restart=on-failure
+RestartPreventExitStatus=78
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
