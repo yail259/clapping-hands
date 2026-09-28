@@ -18,7 +18,9 @@
         "zod": "4.4.3"
       },
       "bin": {
-        "clapping-hands": "dist-alpha/src/alpha-server.js"
+        "clapping-hands": "dist-alpha/src/alpha-server.js",
+        "clapping-hands-sourcing": "dist-alpha/src/sourcing-server.js",
+        "ch-sourcing": "dist-alpha/scripts/sourcing-operator.js"
       },
       "devDependencies": {
         "@types/node": "24.3.0",
