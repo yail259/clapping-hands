@@ -29,9 +29,15 @@ export const preparedCompilationSchema=z.object({
   inputs:z.array(z.record(z.string(),z.union([z.string(),z.number().finite(),z.boolean()]))).length(2),
   resourceInputs:z.array(z.array(z.record(z.string(),z.union([z.string(),z.number().finite(),z.boolean()]))).length(2)).min(1).max(4).optional(),
   outputs:z.array(z.json()).length(2),
-  bodies:z.array(z.array(z.string().max(1_000_000)).length(2)).min(1).max(4),
+  bodies:z.array(z.array(z.string().max(4 * 1024 * 1024)).length(2)).min(1).max(4),
   evidenceIds:z.array(z.string()).length(2),
-}).strict();
+}).strict().superRefine((evidence,ctx)=>{
+  for(const [index, bodies] of evidence.bodies.entries()){
+    const isHtmlDocument=evidence.resources[index]?.plan.response.codec==='html-document';
+    for(const [example,body] of bodies.entries())if(isHtmlDocument?Buffer.byteLength(body)>4*1024*1024:body.length>1_000_000)
+      ctx.addIssue({code:'custom',path:['bodies',index,example],message:'Prepared response body exceeds its byte limit.'});
+  }
+});
 export type PreparedCompilation=z.infer<typeof preparedCompilationSchema>;
 
 function compilerBody(plan:GenericJsonPlan,value:unknown):string{

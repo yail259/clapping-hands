@@ -3,7 +3,8 @@ import {captureDemonstration} from './demonstration.js';
 import {parseBrowserTaskOutcome,type BrowserTaskOutcome} from './browser-task.js';
 import {assertResponseValue,type JsonValue} from './response-contract.js';
 import {taskDefinitionSchema,type TaskDefinition} from './task-store.js';
-import {TaskSession} from './task-session.js';
+import {standaloneBrowserSessionProvider,type BrowserSession} from './browser-session-provider.js';
+import type {NetworkRecorderMark} from './network-recorder.js';
 
 export type RecordedDemonstration=Awaited<ReturnType<typeof captureDemonstration>>;
 
@@ -13,24 +14,25 @@ export type RecordedDemonstration=Awaited<ReturnType<typeof captureDemonstration
  * No connection is returned until both recorders surround the provider wait. */
 export class CallerRecording{
   readonly id=randomUUID();
+  readonly networkMark:NetworkRecorderMark;
   private state:'recording'|'finishing'|'finished'|'cancelled'='recording';
   private timer:ReturnType<typeof setTimeout>|undefined;
   private settle!:(value:{outcome:BrowserTaskOutcome})=>void;
   private observation!:Promise<RecordedDemonstration>;
   private closing:Promise<void>|undefined;
   private readonly abort=()=>{void this.cancel().catch(()=>{});};
-  private constructor(readonly session:TaskSession,readonly definition:TaskDefinition,
-    readonly input:JsonValue,private readonly signal:AbortSignal){}
+  private constructor(readonly session:BrowserSession,readonly definition:TaskDefinition,
+    readonly input:JsonValue,private readonly signal:AbortSignal){this.networkMark=session.network.mark()}
 
   static async start(definitionInput:TaskDefinition,input:JsonValue,directory:string,profile:string,
-    signal:AbortSignal,options:{timeoutMs?:number;headless?:boolean;sessionFactory?:(definition:TaskDefinition,profile:string,headless:boolean)=>TaskSession}={}){
+    signal:AbortSignal,options:{timeoutMs?:number;headless?:boolean;sessionFactory?:(definition:TaskDefinition,profile:string,headless:boolean)=>BrowserSession}={}){
     const definition=taskDefinitionSchema.parse(definitionInput);
     assertResponseValue(definition.inputSchema,input);
     const timeoutMs=options.timeoutMs??300_000;
     if(!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>300_000)throw new Error('Invalid recording deadline.');
     if(signal.aborted)throw new Error('Recording cancelled.');
     const session=options.sessionFactory?.(definition,profile,options.headless??false)
-      ??new TaskSession(new URL(definition.startUrl).origin,profile,options.headless??false,definition.allowedNetworkOrigins);
+      ??standaloneBrowserSessionProvider.createSession({definition,profile,headless:options.headless??false});
     await session.start();
     const recording=new CallerRecording(session,definition,structuredClone(input),signal);
     try{

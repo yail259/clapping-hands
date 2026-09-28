@@ -4,6 +4,7 @@ import { NetworkRecorder } from './network-recorder.js';
 import { ProfileLease } from './profile.js';
 import { captureOwnedChromePid, waitForOwnedChromeExit } from './owned-browser-process.js';
 import { authorizedNetworkOrigins } from './task-network-scope.js';
+import { installPageReplayEvidence } from './page-replay.js';
 
 export class TaskSession {
   readonly network = new NetworkRecorder();
@@ -14,7 +15,8 @@ export class TaskSession {
   context!: BrowserContext;
   cdpUrl = '';
   private pid: number | null = null;
-  constructor(readonly origin: string, readonly profile: string, readonly headless = true, readonly allowedNetworkOrigins:string[] = []) {
+  constructor(readonly origin: string, readonly profile: string, readonly headless = true, readonly allowedNetworkOrigins:string[] = [],
+    private readonly browserArgs:string[] = []) {
     this.lease = new ProfileLease(profile, 'browser-use', [origin]);
   }
   async start() {
@@ -31,8 +33,9 @@ export class TaskSession {
       this.context = await chromium.launchPersistentContext(this.profile, {
         executablePath: process.env.CLAPPING_HANDS_CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         headless: this.headless, viewport: { width: 1440, height: 1000 },
-        args: ['--remote-debugging-port='+address.port],
+        args: [...this.browserArgs, '--remote-debugging-port='+address.port],
       });
+      await installPageReplayEvidence(this.context);
       this.pid = await captureOwnedChromePid(this.profile);
       this.network.setAllowedOrigins([...authorizedNetworkOrigins({startUrl:this.origin,allowedNetworkOrigins:this.allowedNetworkOrigins})]);
       // Exact-origin policy stays at the host, including popups and redirects.

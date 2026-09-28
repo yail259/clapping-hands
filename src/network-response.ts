@@ -4,7 +4,7 @@ import { browserDecodedResponseText } from "./captured-response.js";
 import { outputRecipeSchema, type OutputRecipe } from "./learned-output.js";
 import { decodeJsonResponse, inferJsonResponse } from "./network-codecs.js";
 import { assertHtmlValueResponseRecipe, declaredResponseEncoding, decodeHtmlResponseBytes, extractHtmlResponseRows,
-  type HtmlValueResponseRecipe, type HtmlResponseEncoding } from "./html-response.js";
+  HTML_DOCUMENT_MAX_BYTES, type HtmlValueResponseRecipe, type HtmlResponseEncoding } from "./html-response.js";
 
 type ResponseContract = GenericJsonPlan["response"];
 
@@ -12,7 +12,7 @@ type ResponseContract = GenericJsonPlan["response"];
  * yields only the explicitly selected server attributes, never a page tree. */
 export function decodeGenericResponseBytes(contract: ResponseContract, bytes: Uint8Array, contentType: string): unknown {
   if (bytes.byteLength > contract.maximumBytes) throw new Error("Compiled response exceeds its byte limit.");
-  if(contract.codec==='html-document')return decodeHtmlResponseBytes(bytes,contentType,contract.documentEncoding).body;
+  if(contract.codec==='html-document')return decodeHtmlResponseBytes(bytes,contentType,contract.documentEncoding,HTML_DOCUMENT_MAX_BYTES).body;
   if (contract.codec !== "html-input-values") return decodeJsonResponse(Buffer.from(bytes).toString("utf8"), contract.codec ?? "json");
   assertHtmlValueResponseRecipe(contract.htmlRecipe);
   const decoded = decodeHtmlResponseBytes(bytes, contentType, contract.htmlRecipe.encoding);
@@ -48,7 +48,7 @@ export function inferCapturedNetworkResponse(exchange: CapturedExchange, outputR
   if(allowHtmlDocument && !outputRecipe){
     if(exchange.responseStatus!==200)throw new Error('HTML document response was not successful.');
     const value=browserDecodedText(exchange);
-    if(Buffer.byteLength(value)>1024*1024)throw new Error('HTML document evidence exceeds its byte limit.');
+    if(Buffer.byteLength(value)>HTML_DOCUMENT_MAX_BYTES)throw new Error('HTML document evidence exceeds its byte limit.');
     return {codec:'html-document',value,documentEncoding:declaredResponseEncoding(contentType,value)};
   }
   if (!outputRecipe) throw new Error("HTML responses require learned browser fields.");

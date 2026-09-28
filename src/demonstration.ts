@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import type { TaskSession } from './task-session.js';
+import type { BrowserSession } from './browser-session-provider.js';
 import type { TaskDefinition } from './task-store.js';
 import type { JsonValue } from './response-contract.js';
 import { parseBrowserTaskOutcome, validateBrowserTask, type BrowserTask, type BrowserTaskOutcome } from './browser-task.js';
@@ -18,7 +18,7 @@ export type DemonstrationProvider={
 /** One capture pipeline for managed and caller-driven demonstrations.
  * Provider events and results are untrusted; they do not confer replay authority.
  * Secrets are redaction inputs only, never fields in persisted evidence. */
-export async function captureDemonstration(session:TaskSession,definition:TaskDefinition,input:JsonValue,
+export async function captureDemonstration(session:BrowserSession,definition:TaskDefinition,input:JsonValue,
   directory:string,provider:DemonstrationProvider,signal:AbortSignal){
     validateBrowserTask({...definition,input});
     if(signal.aborted)throw new Error('Demonstration cancelled.');
@@ -26,15 +26,17 @@ export async function captureDemonstration(session:TaskSession,definition:TaskDe
     const started=performance.now(),actions:unknown[]=[];
     const result=await session.evidenceNetwork.withDocumentResponses(()=>session.network.withDocumentResponses(()=>
       provider.execute({...definition,input},{cdpUrl:session.cdpUrl,allowedOrigins:[session.origin],signal,onEvidence:event=>actions.push(event)})));
+    const throughRequestSequence=session.network.mark().requestSequence;
+    const passiveThroughRequestSequence=session.evidenceNetwork.mark().requestSequence;
     const outcome=parseBrowserTaskOutcome(result.outcome,definition.outputSchema);
     let exchanges: CapturedExchange[] = [];
     let captureDiagnostics: unknown;
     try {
-      exchanges = await session.network.since(mark);
+      exchanges = await session.network.since(mark,throughRequestSequence);
       captureDiagnostics = session.network.diagnosticSnapshotSince(mark);
     } catch { captureDiagnostics = {status:'incomplete',reason:'capture-did-not-settle-or-window-expired'}; }
     let passiveExchanges: CapturedExchange[] = [], passiveDiagnostics: unknown;
-    try { passiveExchanges = await session.evidenceNetwork.since(evidenceMark); passiveDiagnostics = session.evidenceNetwork.diagnosticSnapshotSince(evidenceMark); }
+    try { passiveExchanges = await session.evidenceNetwork.since(evidenceMark,passiveThroughRequestSequence); passiveDiagnostics = session.evidenceNetwork.diagnosticSnapshotSince(evidenceMark); }
     catch { passiveDiagnostics = {status:'incomplete',reason:'capture-did-not-settle-or-window-expired'}; }
     const html: HtmlEvidence[] = [];
     const pages: PageEvidence[] = [];

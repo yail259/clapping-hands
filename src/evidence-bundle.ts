@@ -3,10 +3,11 @@ import { randomUUID, createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { load } from 'cheerio';
 import { regularFileContents } from './workflow-file-lock.js';
+import { parseGuardedJsonSequence } from './guarded-json-sequence.js';
 
 // Evidence is private local data, never a publishable benchmark artifact.
 // Unknown binary/opaque payloads are omitted instead of guessed safe.
-const sensitive = /authorization|cookie|password|passwd|secret|token|csrf|xsrf|api.?key|credential|session|fb_dtsg|jazoest|lsd/i;
+const sensitive = /authorization|cookie|password|passwd|secret|token|csrf|xsrf|api.?key|credential|session|fb_dtsg|jazoest|lsd|^(?:client_previous_actor_id|__user|__aaid|__hs|__s|__hsi|__crn|__req|__rev|__spin_[rbt]|__ccg|__dyn|__csr|__hsdp|__hblp|__sjsp|__comet_req)$/i;
 const maxTextBytes = 8_000_000;
 export type EvidenceOmission = { path: string; reason: string };
 export function sanitizeEvidence(value: unknown, secrets: string[] = []) {
@@ -51,6 +52,8 @@ export function sanitizeEvidence(value: unknown, secrets: string[] = []) {
     if (Buffer.byteLength(raw) > maxTextBytes) return omit(path, 'size-limit');
     const json=raw.replace(/^\s*for\s*\(\s*;\s*;\s*\)\s*;\s*/, '');
     try { return { format: 'json', data: walk(JSON.parse(json), path) }; } catch { /* Try JSON lines or HTML. */ }
+    if (raw.startsWith('for (;;);')) try { return { format: 'json-lines', data: walk(parseGuardedJsonSequence(raw), path) }; }
+    catch { /* Unrecognized framing; omit rather than persist opaque content. */ }
     const lines=json.split(/\r?\n/).filter(line=>line.trim());
     if(lines.length>1)try { return {format:'json-lines',data:walk(lines.map(line=>JSON.parse(line)),path)}; }catch{ /* Not JSON lines. */ }
     if (/^\s*(?:<!doctype html|<html|<div|<main|<section)/i.test(raw)) {

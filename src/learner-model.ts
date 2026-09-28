@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { parseEnv } from "node:util";
 import { createOpenAI } from "@ai-sdk/openai";
-import { defaultSettingsMiddleware, wrapLanguageModel } from "ai";
+import { defaultSettingsMiddleware, wrapLanguageModel, type LanguageModel } from "ai";
 
 export type LearnerConfigurationReason = "missing-endpoint" | "missing-api-key" | "unreadable-env-file" | "invalid-endpoint";
 
@@ -39,7 +39,7 @@ export function endpointConfiguration(environment: NodeJS.ProcessEnv) {
   return { apiKey: key, baseURL: url.href.replace(/\/$/, ""), model: environment.CLAPPING_HANDS_ENDPOINT_MODEL ?? "gpt-6-astra" };
 }
 
-export async function createLearnerModel(environment: NodeJS.ProcessEnv = process.env) {
+export async function createLearnerModel(environment: NodeJS.ProcessEnv = process.env): Promise<LanguageModel> {
   const config = endpointConfiguration(await learnerEnvironment(environment));
   const provider = createOpenAI({
     apiKey: config.apiKey, baseURL: config.baseURL,

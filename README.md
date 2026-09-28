@@ -1,12 +1,14 @@
 # ClappingHands 👏
 
 Turn a user-authorized browser task into a reusable, typed MCP tool. Browser Use
-handles navigation; ClappingHands records network evidence and accelerates repeats
-when validation proves the compiled request matches the requested output.
+or an explicitly shared caller session demonstrates the task; ClappingHands
+records evidence and accelerates repeats when fresh comparisons prove the
+compiled result matches the requested output.
 
 **0.1.0-alpha.3 — read-only, experimental.** A rewrite of the original prototype,
-not a beta or a claim to automate every website. The single navigation engine is
-Browser Use. Stagehand and the custom navigation loop are no longer dependencies.
+not a beta or a claim to automate every website. Browser Use is the single
+managed navigation engine; caller-driven demonstrations use an explicitly shared
+browser. Stagehand and the custom navigation loop are no longer dependencies.
 
 The experimental-alpha bar is deliberately finite: a verified production workflow,
 safe controlled failure tests, and a checked installable package. Broader site
@@ -126,7 +128,9 @@ node dist-alpha/src/alpha-server.js
 
 MCP tools: clapping_hands_authenticate, clapping_hands_learn_read,
 clapping_hands_prepare_from_captures, clapping_hands_recompile, clapping_hands_status,
-and generated clapping_hands_do_<action> tools. Generated
+clapping_hands_start_recording, clapping_hands_finish_recording,
+clapping_hands_cancel_recording, clapping_hands_compilation_context,
+clapping_hands_submit_candidate, and generated clapping_hands_do_<action> tools. Generated
 tools advertise the caller's input and output schemas and are restored on restart.
 Close the dedicated authentication window when finished; closing it is not itself
 proof that the site accepted authentication. Stored profiles are reused without
@@ -142,6 +146,20 @@ Older tasks without prepared compiler evidence report that limitation explicitly
 To reuse a pre-existing ClappingHands profile, set CLAPPING_HANDS_AUTH_PROFILE_DIR
 and CLAPPING_HANDS_AUTH_PROFILE_ORIGIN (default origin: Facebook). Do not point
 this at a Chrome profile currently in use. The runtime owns one operation at a time.
+
+Caller-driven read workflows can use `clapping_hands_start_recording` to obtain a
+temporary local CDP connection after capture begins, drive the authorized browser,
+then call `clapping_hands_finish_recording` with a schema-valid outcome. Two varied
+demonstrations can prepare compiler evidence. The caller may inspect the sanitized
+`clapping_hands_compilation_context` and submit a candidate without configuring a
+model. Caller-learned tools return control on a failed fast path; a separate
+`clapping_hands_delegate_<action>` tool explicitly opts into Browser Use. The CDP
+connection grants full local browser access and must stay scoped to that session.
+
+The [Marketplace read slice](docs/MARKETPLACE_READ_SLICE.md) describes the
+opt-in Sydney pilot, its owner-local saved plans, and the current source-level
+training scripts. It is development evidence, not packaged release acceptance
+or a general-site speed claim.
 
 ## Verification and limitations
 
